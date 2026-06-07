@@ -21,17 +21,31 @@ function configureTree(command: Command, deps: CliDeps): void {
   for (const child of command.commands) configureTree(child, deps);
 }
 
+/** Distinct exit code for usage/parse errors, so scripts can tell a user mistake
+ *  apart from a runtime/network failure (which exit 1). */
+const USAGE_EXIT = 2;
+
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
   const program = buildProgram(deps);
   configureTree(program, deps);
+
+  // A bare invocation with no command should show help on stdout and exit 0,
+  // matching `--help`, rather than erroring out with help on stderr.
+  if (argv.length === 0) {
+    deps.io.out(program.helpInformation().replace(/\n$/, ""));
+    return 0;
+  }
 
   try {
     await program.parseAsync(argv, { from: "user" });
     return 0;
   } catch (err) {
     if (err instanceof CommanderError) {
-      // Help/version requests exit 0; genuine parse errors carry their own code.
-      return err.exitCode;
+      // Help/version requests are not errors -> exit 0.
+      if (err.code === "commander.help" || err.code === "commander.helpDisplayed") return 0;
+      if (err.code === "commander.version") return 0;
+      // Every other CommanderError is a usage/parse error -> distinct exit code.
+      return USAGE_EXIT;
     }
     if (err instanceof PegelApiError) {
       deps.io.err(`Error: ${err.message}`);

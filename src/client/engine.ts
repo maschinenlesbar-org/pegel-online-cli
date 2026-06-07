@@ -4,7 +4,7 @@
 
 import { nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { PegelApiError, PegelParseError } from "./errors.js";
+import { PegelApiError, PegelError, PegelParseError } from "./errors.js";
 
 export const DEFAULT_BASE_URL = "https://www.pegelonline.wsv.de";
 const DEFAULT_USER_AGENT = "pegel-online-cli";
@@ -59,6 +59,12 @@ export class RequestEngine {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.transport = options.transport ?? nodeHttpTransport;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
+    // Reject control characters (CR/LF in particular) up front with a typed error
+    // instead of letting Node throw a raw TypeError during header validation,
+    // which would surface as an "Unexpected error". Also closes header-injection.
+    if (/[\x00-\x1f\x7f]/.test(this.userAgent)) {
+      throw new PegelError("Invalid User-Agent: control characters are not allowed.");
+    }
     this.timeoutMs = options.timeoutMs ?? 30_000;
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelayMs = options.retryDelayMs ?? 200;

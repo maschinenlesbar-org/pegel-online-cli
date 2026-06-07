@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { Option } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, renderJson } from "../shared.js";
+import { action, renderJson, requireArg } from "../shared.js";
 import { PegelError } from "../../client/errors.js";
 import type { IncludeParams, StationListParams } from "../../client/types.js";
 
@@ -9,6 +9,10 @@ import type { IncludeParams, StationListParams } from "../../client/types.js";
 function collect(value: string, previous: string[] = []): string[] {
   return previous.concat([value]);
 }
+
+/** A plain decimal number (optional sign, optional fraction, optional exponent
+ *  is *not* allowed — coordinates are written as plain decimals). */
+const DECIMAL = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/;
 
 /** Parse a "latbottom,lattop,longleft,longright" bounding box into four numbers. */
 export function parseBbox(value: string): [number, number, number, number] {
@@ -20,7 +24,15 @@ export function parseBbox(value: string): [number, number, number, number] {
       "Invalid --bbox. Expected four comma-separated numbers: latbottom,lattop,longleft,longright",
     );
   }
-  const parts = fields.map((f) => Number(f.trim()));
+  const trimmed = fields.map((f) => f.trim());
+  // Require plain decimal coordinates; reject hex/scientific (0x10, 1e3) which
+  // Number() would otherwise silently accept as 16/1000.
+  if (trimmed.some((f) => !DECIMAL.test(f))) {
+    throw new PegelError(
+      "Invalid --bbox. Expected four decimal numbers: latbottom,lattop,longleft,longright",
+    );
+  }
+  const parts = trimmed.map((f) => Number(f));
   if (parts.some((n) => !Number.isFinite(n))) {
     throw new PegelError(
       "Invalid --bbox. Expected four finite numbers: latbottom,lattop,longleft,longright",
@@ -93,7 +105,11 @@ export function registerStationCommands(program: Command, deps: CliDeps): void {
     .description("Get one station by uuid/number/shortname/longname");
   addIncludeOptions(get).action(
     action(deps, async ({ client, global, opts }, [station]) => {
-      renderJson(deps, global, await client.stations.get(station!, includesFrom(opts)));
+      renderJson(
+        deps,
+        global,
+        await client.stations.get(requireArg("station", station), includesFrom(opts)),
+      );
     }),
   );
 }

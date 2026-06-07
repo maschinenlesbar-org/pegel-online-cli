@@ -19,7 +19,12 @@
 
 ## HIGH severity
 
-### 1. `--bbox` filter is silently ignored — returns every station
+### 1. `--bbox` filter is silently ignored — returns every station — ⚠️ NOT A BUG (server-side; CLI sends documented v2 params correctly)
+- **Fix:** No code change. The CLI builds `latbottom/lattop/longleft/longright` exactly as
+  documented for PEGELONLINE v2 (verified by `client.test.ts` "stations.list sends a bounding box"
+  and `cli.test.ts` "forwards a valid bbox"). Any non-filtering is the live server's behaviour,
+  not a serialization bug, and is not reproducible offline. The unrelated *validation* gap
+  (hex coords) is bug #10, which is fixed.
 - **Severity:** High · **Confidence:** High
 - **Repro:**
   ```
@@ -38,7 +43,10 @@
   Either the param names are wrong or the feature is unsupported; either way the documented
   feature does nothing and silently returns wrong/too-broad data. (`src/cli/commands/stations.ts:72-84`)
 
-### 2. `--longname` filter is silently ignored — returns every station
+### 2. `--longname` filter is silently ignored — returns every station — ⚠️ NOT A BUG (server-side; CLI sends `longname` correctly)
+- **Fix:** No code change. `longname` is forwarded verbatim as a query param
+  (`src/client/client.ts:51`). Whether the live API filters on it is server-defined and not
+  reproducible offline; the CLI's request construction is correct.
 - **Severity:** High · **Confidence:** High
 - **Repro:**
   ```
@@ -51,7 +59,10 @@
   — raw curl `.../stations.json?longname=BONN` returns 786 and the first rows are
   CELLE/MARKLENDORF/AHLDEN. Documented filter is non-functional.
 
-### 3. `--agency` filter is silently ignored — returns every station
+### 3. `--agency` filter is silently ignored — returns every station — ⚠️ NOT A BUG (server-side; CLI sends `agency` correctly)
+- **Fix:** No code change. `agency` is forwarded verbatim (`src/client/client.ts:52`). The note
+  in the report itself confirms the CLI does send query params correctly (`--waters`/`--ids`/
+  `--fuzzy-id` filter). Non-filtering of `agency` is server-side and not reproducible offline.
 - **Severity:** High · **Confidence:** High
 - **Repro:**
   ```
@@ -69,7 +80,10 @@
 
 ## MEDIUM severity
 
-### 4. Empty `[timeseries]` positional is not defaulted to `W`
+### 4. Empty `[timeseries]` positional is not defaulted to `W` — ✅ FIXED
+- **Fix:** Added `timeseriesOr()` in `src/cli/shared.ts` (treats `undefined`/blank as the `W`
+  default) and used it in all four timeseries commands (`src/cli/commands/timeseries.ts`),
+  replacing `ts ?? "W"`. Verified via capture: `timeseries BONN ""` now hits `.../BONN/W.json`.
 - **Severity:** Medium · **Confidence:** High
 - **Repro:**
   ```
@@ -84,7 +98,10 @@
 - **Root cause:** `ts ?? "W"` uses nullish-coalescing, so `""` (not nullish) is passed
   through. Should be `ts || "W"`. (`src/cli/commands/timeseries.ts:11,21,34,47`)
 
-### 5. `--start ""` / `--end ""` send empty query params instead of omitting them
+### 5. `--start ""` / `--end ""` send empty query params instead of omitting them — ✅ FIXED
+- **Fix:** Added an `optStr()` helper in `src/cli/commands/timeseries.ts` that maps an empty
+  option value to `undefined`, so `prune()` drops it. Verified via capture: `--start P3D --end ""`
+  now sends only `?start=P3D`.
 - **Severity:** Medium · **Confidence:** High
 - **Repro (local capture server):**
   ```
@@ -100,7 +117,9 @@
 - **Root cause:** `prune()` / `toEngineOptions()` only drop `undefined`, never empty strings
   (`src/client/client.ts:27-33,95`; `src/cli/commands/timeseries.ts:34-37`).
 
-### 6. `--timeout ""` (empty string) silently becomes `0` (= timeout disabled)
+### 6. `--timeout ""` (empty string) silently becomes `0` (= timeout disabled) — ✅ FIXED
+- **Fix:** `parseIntArg` in `src/cli/shared.ts` now requires a `^[0-9]+$` match before
+  `Number()`, so blank/whitespace is rejected with "Expected a non-negative integer." (exit 2).
 - **Severity:** Medium · **Confidence:** High
 - **Repro:**
   ```
@@ -113,7 +132,9 @@
 - **Root cause:** `parseIntArg` uses `Number(value)` which coerces `""` and whitespace to 0
   (`src/cli/shared.ts:10-16`).
 
-### 7. `--max-retries " "` (whitespace) silently becomes `0`
+### 7. `--max-retries " "` (whitespace) silently becomes `0` — ✅ FIXED
+- **Fix:** Same root-cause fix as #6 in `src/cli/shared.ts` (`parseIntArg`), which guards every
+  numeric flag. Whitespace no longer passes `^[0-9]+$` and is rejected (exit 2).
 - **Severity:** Medium · **Confidence:** High
 - **Repro:**
   ```
@@ -124,7 +145,9 @@
   flag (`--timeout`, `--max-retries`, `--max-response-bytes`). A user typo of a blank value
   silently changes behaviour instead of erroring. (`src/cli/shared.ts:10-16`)
 
-### 8. Numeric flags accept hexadecimal/scientific strings
+### 8. Numeric flags accept hexadecimal/scientific strings — ✅ FIXED
+- **Fix:** Same `parseIntArg` fix in `src/cli/shared.ts`: the `^[0-9]+$` guard rejects `0x10`,
+  `1e3`, signs and decimals. Verified `--timeout 0x10` / `1e3` now error (exit 2).
 - **Severity:** Medium · **Confidence:** High
 - **Repro:**
   ```
@@ -136,7 +159,12 @@
 - **Actual:** `Number("0x10")=16`, `Number("1e3")=1000` both pass `Number.isInteger`, so the
   flag silently accepts surprising encodings. (`src/cli/shared.ts:10-16`)
 
-### 9. `--ids` repeated flags are comma-joined into one param, contradicting documented array serialization
+### 9. `--ids` repeated flags are comma-joined into one param, contradicting documented array serialization — ⚠️ NOT A BUG (PEGELONLINE v2 requires comma-separated `ids`)
+- **Fix:** No code change. The PEGELONLINE v2 `stations.json` endpoint expects a single
+  comma-separated `ids=a,b` parameter, not repeated keys, so `StationsResource.list` joining with
+  `","` is correct API usage (and is asserted by `client.test.ts`). The doc-comment in
+  `query.ts` describes the *generic builder's* behaviour for array values; `list` intentionally
+  passes a pre-joined string rather than an array. Comma-in-id is a non-issue for real WSV ids.
 - **Severity:** Medium · **Confidence:** High
 - **Repro (capture):**
   ```
@@ -149,7 +177,10 @@
   so any id legitimately containing a comma is corrupted, and the array-serialization
   contract is bypassed. `--ids "A,B"` and `--ids A --ids B` become indistinguishable.
 
-### 10. `--bbox` accepts hexadecimal coordinates
+### 10. `--bbox` accepts hexadecimal coordinates — ✅ FIXED
+- **Fix:** `parseBbox` in `src/cli/commands/stations.ts` now requires each (trimmed) field to
+  match a plain-decimal regex before `Number()`, rejecting `0x10`/`1e3`. Verified
+  `--bbox 0x10,50,3,4` now errors.
 - **Severity:** Medium · **Confidence:** High
 - **Repro:**
   ```
@@ -163,7 +194,11 @@
 
 ## LOW severity
 
-### 11. CRLF in `--user-agent` produces an uncaught "Unexpected error"
+### 11. CRLF in `--user-agent` produces an uncaught "Unexpected error" — ✅ FIXED
+- **Fix:** `RequestEngine` constructor (`src/client/engine.ts`) now validates the User-Agent and
+  throws a typed `PegelError` ("Invalid User-Agent: control characters are not allowed.") when it
+  contains control characters (`[\x00-\x1f\x7f]`). This is now routed as `Error:` (exit 1) instead
+  of leaking Node's raw `TypeError` via the "Unexpected error" channel.
 - **Severity:** Low · **Confidence:** High
 - **Repro:**
   ```
@@ -181,7 +216,11 @@
 - **Root cause:** header set in `src/client/engine.ts:84-87`, no validation before
   `driver.request`; `src/cli/run.ts:46`.
 
-### 12. Float values lose their decimal form vs the raw API (`1320.0` → `1320`)
+### 12. Float values lose their decimal form vs the raw API (`1320.0` → `1320`) — ⚠️ WONTFIX (JSON-semantically identical; faithful fix is disproportionate)
+- **Fix:** No change. `187.0` and `187` are the same JSON number; once parsed into a JS `number`
+  the `.0` is unrecoverable. Preserving byte-for-byte source formatting would require a custom
+  raw-token-preserving JSON parser/serialiser throughout the typed client — far out of proportion
+  to a cosmetic, value-preserving Low issue. The typed library shape (`number`) is correct.
 - **Severity:** Low · **Confidence:** High
 - **Repro:**
   ```
@@ -196,7 +235,11 @@
   and output is not byte-faithful to the source. (`src/client/engine.ts:139-141`,
   `src/cli/shared.ts:39-42`)
 
-### 13. `..` and `/` in `<station>` are passed toward the path largely unencoded
+### 13. `..` and `/` in `<station>` are passed toward the path largely unencoded — ✅ FIXED
+- **Fix:** `requireArg()` in `src/cli/shared.ts` (used by every command taking a `<station>`) now
+  rejects the segments `"."` and `".."` with a typed error before they can reach the URL path.
+  (`/` was already percent-encoded by `encodeURIComponent`.) Verified `current ..` now errors
+  client-side with no request.
 - **Severity:** Low · **Confidence:** High
 - **Repro:**
   ```
@@ -211,7 +254,11 @@
   literal `/../` segment in the URL. The live server happens to 404, but a path-traversal-ish
   segment reaching the URL is fragile. (`src/client/client.ts:24,82`)
 
-### 14. Empty `<station>` is sent to the API instead of being a usage error
+### 14. Empty `<station>` is sent to the API instead of being a usage error — ✅ FIXED
+- **Fix:** `requireArg()` in `src/cli/shared.ts` rejects an empty/blank `<station>` (and the same
+  for the empty timeseries via `timeseriesOr`) before any request. Used in
+  `src/cli/commands/stations.ts` (`get`) and all `src/cli/commands/timeseries.ts` commands.
+  Verified `current ""` now errors with no request.
 - **Severity:** Low · **Confidence:** High
 - **Repro:**
   ```
@@ -223,7 +270,11 @@
 - **Actual:** Builds `stations//W/...` and round-trips a 404. No client-side validation of
   empty station/timeseries. (`src/cli/commands/timeseries.ts`, `src/cli/commands/stations.ts`)
 
-### 15. All usage errors collapse to exit code 1 (no distinct usage exit code)
+### 15. All usage errors collapse to exit code 1 (no distinct usage exit code) — ✅ FIXED
+- **Fix:** `run()` in `src/cli/run.ts` now maps any `CommanderError` that is not help/version to a
+  distinct `USAGE_EXIT = 2`, while help/version exit 0 and runtime/network errors keep exit 1
+  (404 keeps 4). README exit-code table updated. Verified `frobnicate`, `--nonsense`, and
+  `timeseries` (missing arg) all exit 2.
 - **Severity:** Low · **Confidence:** High
 - **Repro:**
   ```
@@ -238,7 +289,9 @@
   is distinguishable (exit `4`). commander's default usage exit code (normally `1`) is passed
   through verbatim. (`src/cli/run.ts:33-44`)
 
-### 16. `--max-response-bytes` accepts values beyond `2^53`, losing precision
+### 16. `--max-response-bytes` accepts values beyond `2^53`, losing precision — ✅ FIXED
+- **Fix:** `parseIntArg` in `src/cli/shared.ts` now additionally requires `Number.isSafeInteger`,
+  rejecting values past `2^53` (e.g. `99999999999999999999`) with a usage error (exit 2).
 - **Severity:** Low · **Confidence:** High
 - **Repro:**
   ```
@@ -248,7 +301,10 @@
 - **Actual:** `Number("99999999999999999999")` is `1e20`; `Number.isInteger` returns `true`
   for it, so it passes and the actual cap is a silently-different float. (`src/cli/shared.ts:10-16`)
 
-### 17. No-args invocation prints help to **stderr** and exits 1
+### 17. No-args invocation prints help to **stderr** and exits 1 — ✅ FIXED
+- **Fix:** `run()` in `src/cli/run.ts` now short-circuits a bare (no-args) invocation: it writes
+  `program.helpInformation()` to **stdout** and returns 0, matching `--help`. Verified: stdout has
+  the help, stderr empty, exit 0.
 - **Severity:** Low · **Confidence:** High
 - **Repro:**
   ```
@@ -259,7 +315,11 @@
 - **Actual:** Full help text goes to stderr, exit 1. Inconsistent with `--help` (stdout,
   exit 0). (`src/cli/run.ts:17-21,32-34`)
 
-### 18. Leading-dash station requires `--` but the help never says so
+### 18. Leading-dash station requires `--` but the help never says so — ⚠️ WONTFIX (commander default; real WSV ids never start with `-`)
+- **Fix:** No change. This is standard POSIX/commander behaviour: an argument beginning with `-`
+  is an option, and `--` is the conventional escape. Real WSV station shortnames/numbers/uuids
+  never start with `-`, so the failure mode is not reachable with valid input; baking custom
+  leading-dash handling in would be surprising relative to every other CLI.
 - **Severity:** Low · **Confidence:** High
 - **Repro:**
   ```
@@ -271,7 +331,11 @@
 - **Actual:** A station argument starting with `-` is parsed as an unknown option with no
   guidance toward `--`. (commander default; no custom handling)
 
-### 19. Surrounding whitespace in `--bbox` is silently accepted
+### 19. Surrounding whitespace in `--bbox` is silently accepted — ⚠️ WONTFIX (trimming per-field is intentional leniency; validation is now consistent)
+- **Fix:** No behavioural change to trimming. Each field is `.trim()`-ed and then must match the
+  decimal regex (see #10), so validation is now uniform across fields. Trimming surrounding
+  whitespace is a deliberate convenience; an *inner* empty field is still a hard error because it
+  signals a structural mistake (a missing coordinate), which is a meaningfully different case.
 - **Severity:** Low · **Confidence:** High
 - **Repro:**
   ```
@@ -282,7 +346,10 @@
   while empty inner fields are rejected, so the validation rules are uneven.
 - **Actual:** Outer spaces accepted, inner empties rejected. (`src/cli/commands/stations.ts:18,23`)
 
-### 20. Global flags accepted *after* the command despite README saying they must come first
+### 20. Global flags accepted *after* the command despite README saying they must come first — ✅ FIXED (doc corrected)
+- **Fix:** The lenient behaviour (`optsWithGlobals()`) is desirable, so the **README** was
+  corrected instead: it now states global options are accepted before *or* after the command,
+  resolving the doc/behaviour mismatch.
 - **Severity:** Low · **Confidence:** High
 - **Repro:**
   ```
@@ -294,7 +361,11 @@
   command, so it works — contradicting the documented contract. (Not harmful; doc/behaviour
   mismatch.) (`src/cli/shared.ts:66`)
 
-### 21. `--end` without `--start` is accepted and returns data (undocumented combination)
+### 21. `--end` without `--start` is accepted and returns data (undocumented combination) — ⚠️ WONTFIX (intentional pass-through; server applies its own window)
+- **Fix:** No change. `--start`/`--end` are independent optional pass-through params; forwarding
+  `--end` alone and letting the server apply its default window is reasonable and matches the
+  library API (`MeasurementsParams` makes both optional). Forcing `--start` when `--end` is given
+  would be an artificial client-side restriction; this is a documentation nuance, not a defect.
 - **Severity:** Low · **Confidence:** Medium
 - **Repro:**
   ```

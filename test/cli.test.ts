@@ -131,3 +131,73 @@ test("a 404 from the API maps to exit code 4", async () => {
   const code = await run(["stations", "get", "nope"], cli.deps);
   assert.equal(code, 4);
 });
+
+test("empty [timeseries] positional defaults to W", async () => {
+  const cli = makeCli(() => jsonResponse({ shortname: "W" }));
+  const code = await run(["timeseries", "BONN", ""], cli.deps);
+  assert.equal(code, 0);
+  assert.equal(new URL(cli.mt.last().url).pathname, `${V2}/stations/BONN/W.json`);
+});
+
+test("empty <station> is a usage-style error and makes no request", async () => {
+  const cli = makeCli(() => jsonResponse({}));
+  const code = await run(["current", ""], cli.deps);
+  assert.notEqual(code, 0);
+  assert.equal(cli.mt.calls.length, 0);
+});
+
+test('"." / ".." station is rejected before any request', async () => {
+  for (const bad of [".", ".."]) {
+    const cli = makeCli(() => jsonResponse({}));
+    const code = await run(["current", bad], cli.deps);
+    assert.notEqual(code, 0);
+    assert.equal(cli.mt.calls.length, 0);
+  }
+});
+
+test("empty --start / --end are omitted, not sent blank", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  await run(["measurements", "BONN", "W", "--start", "P3D", "--end", ""], cli.deps);
+  const url = new URL(cli.mt.last().url);
+  assert.equal(url.searchParams.get("start"), "P3D");
+  assert.equal(url.searchParams.has("end"), false);
+});
+
+test("blank / hex / scientific numeric flags are rejected with usage exit 2", async () => {
+  for (const bad of ["", " ", "0x10", "1e3", "99999999999999999999"]) {
+    const cli = makeCli(() => jsonResponse([]));
+    const code = await run(["--timeout", bad, "waters"], cli.deps);
+    assert.equal(code, 2);
+    assert.equal(cli.mt.calls.length, 0);
+  }
+});
+
+test("bbox rejects hex coordinates", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  const code = await run(["stations", "list", "--bbox", "0x10,50,3,4"], cli.deps);
+  assert.notEqual(code, 0);
+  assert.equal(cli.mt.calls.length, 0);
+});
+
+test("usage/parse errors exit with code 2", async () => {
+  for (const argv of [["frobnicate"], ["--nonsense", "waters"], ["timeseries"]]) {
+    const cli = makeCli(() => jsonResponse([]));
+    const code = await run(argv, cli.deps);
+    assert.equal(code, 2);
+  }
+});
+
+test("no arguments prints help to stdout and exits 0", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  const code = await run([], cli.deps);
+  assert.equal(code, 0);
+  assert.equal(cli.err.length, 0);
+  assert.ok(cli.out.join("\n").includes("Usage: pegel"));
+});
+
+test("a control character in --user-agent is a typed error, not 'Unexpected error'", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  const code = await run(["--user-agent", "x\r\nX-Inject: 1", "waters"], cli.deps);
+  assert.equal(code, 1);
+  assert.ok(cli.err.join("\n").startsWith("Error:"));
+});

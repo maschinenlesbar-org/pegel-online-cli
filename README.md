@@ -51,7 +51,9 @@ Every command prints pretty JSON to stdout (`--compact` for a single line). A
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | Print JSON on a single line |
 
-Global options go **before** the command, e.g. `pegel --compact waters`.
+Global options are accepted **before or after** the command, e.g. both
+`pegel --compact waters` and `pegel waters --compact` work; placing them before
+the command is recommended for clarity.
 
 ### Commands
 
@@ -89,7 +91,7 @@ pegel stations list --bbox 50.5,51.0,6.5,7.5
 pegel waters
 ```
 
-Exit codes: `0` success, `4` on a `404` from the API, `1` for any other error, non-zero for usage errors.
+Exit codes: `0` success, `2` for usage/parse errors (unknown command/option, missing argument, invalid flag value), `4` on a `404` from the API, `1` for any other (runtime/network) error.
 
 ---
 

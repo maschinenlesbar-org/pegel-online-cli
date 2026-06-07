@@ -5,14 +5,48 @@ import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { EngineOptions } from "../client/engine.js";
+import { PegelError } from "../client/errors.js";
 
 /** commander value-parser: a non-negative integer. */
 export function parseIntArg(value: string): number {
+  // Require a plain decimal integer. Reject blank/whitespace ("" and " " coerce
+  // to 0 via Number()), hex/scientific encodings (0x10, 1e3), and signs/decimals.
+  if (!/^[0-9]+$/.test(value)) {
+    throw new InvalidArgumentError("Expected a non-negative integer.");
+  }
   const n = Number(value);
-  if (!Number.isInteger(n) || n < 0) {
+  // Number() can still produce a non-exact integer for very large inputs (beyond
+  // 2^53); reject those rather than silently using a different value.
+  if (!Number.isSafeInteger(n)) {
     throw new InvalidArgumentError("Expected a non-negative integer.");
   }
   return n;
+}
+
+/**
+ * Validate a required positional argument: reject an empty/blank value rather
+ * than forwarding it into the URL path (which would produce a malformed request
+ * like `/stations//W/...`). Returns the trimmed value.
+ */
+export function requireArg(name: string, value: string | undefined): string {
+  if (value === undefined || value.trim() === "") {
+    throw new PegelError(`Missing required <${name}> argument.`);
+  }
+  // Reject "." / ".." which encodeURIComponent leaves untouched and which would
+  // otherwise inject a relative path segment into the request URL.
+  if (value === "." || value === "..") {
+    throw new PegelError(`Invalid <${name}> argument: "${value}".`);
+  }
+  return value;
+}
+
+/**
+ * Normalise an optional `[timeseries]` positional: an empty/blank value behaves
+ * like omitting it and defaults to "W" (water level), matching the documented
+ * default. (`??` alone would forward an empty string into the path.)
+ */
+export function timeseriesOr(value: string | undefined, fallback = "W"): string {
+  return value && value.trim() !== "" ? value : fallback;
 }
 
 export interface GlobalOptions {
