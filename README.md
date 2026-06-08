@@ -12,6 +12,10 @@ across the German federal waterway network.
 - **Well tested** — unit tests on Node's built-in test runner (`node --test`), every HTTP response mocked.
 - **Read-only, no auth** — the PEGELONLINE API needs no key; this client only reads.
 
+New to PEGELONLINE, or terms like *Gewässer*, *timeseries* (`W`/`Q`), MNW/MHW or
+NSW/HSW? See **[GLOSSARY.md](GLOSSARY.md)** for the domain concepts and the
+project's own vocabulary.
+
 ## Requirements
 
 - Node.js **>= 20** (uses the stable built-in test runner, ESM and top-level `await`).
@@ -98,7 +102,7 @@ Exit codes: `0` success, `2` for usage/parse errors (unknown command/option, mis
 ## Library usage
 
 ```ts
-import { PegelOnlineClient, PegelApiError } from "pegel-online-cli";
+import { PegelOnlineClient, PegelApiError } from "@maschinenlesbar.org/pegel-online-cli";
 
 const client = new PegelOnlineClient(); // defaults to https://www.pegelonline.wsv.de
 
