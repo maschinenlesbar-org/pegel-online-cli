@@ -24,14 +24,6 @@ test("stations.list hits stations.json with joined ids and includes", async () =
   assert.equal(url.searchParams.get("includeCurrentMeasurement"), "true");
 });
 
-test("stations.list sends a bounding box", async () => {
-  const mt = constantJson([]);
-  await clientWith(mt).stations.list({ latbottom: 50, lattop: 51, longleft: 6, longright: 7 });
-  const url = new URL(mt.last().url);
-  assert.equal(url.searchParams.get("latbottom"), "50");
-  assert.equal(url.searchParams.get("longright"), "7");
-});
-
 test("stations.get builds the per-station path and url-encodes the id", async () => {
   const mt = constantJson({ uuid: "x" });
   await clientWith(mt).stations.get("ST PAULI");
@@ -60,37 +52,24 @@ test("stations.get sends includes and prune keeps no key when all undefined", as
   assert.equal(url.searchParams.get("includeCurrentMeasurement"), null);
 });
 
-test("prune keeps falsy-but-defined values (0 / false) and drops undefined", async () => {
+test("prune keeps falsy-but-defined values (false) and drops undefined", async () => {
   const mt = constantJson([]);
-  // longleft 0 and includeCurrentMeasurement false are meaningful and must survive;
-  // longname is undefined and must be dropped.
+  // includeCurrentMeasurement false is meaningful and must survive;
+  // waters is undefined and must be dropped.
   await clientWith(mt).stations.list({
-    latbottom: 0,
-    lattop: 1,
-    longleft: 0,
-    longright: 0,
+    fuzzyId: "BON",
     includeCurrentMeasurement: false,
   });
   const url = new URL(mt.last().url);
-  assert.equal(url.searchParams.get("latbottom"), "0");
-  assert.equal(url.searchParams.get("longleft"), "0");
+  assert.equal(url.searchParams.get("fuzzyId"), "BON");
   assert.equal(url.searchParams.get("includeCurrentMeasurement"), "false");
-  assert.equal(url.searchParams.get("longname"), null);
+  assert.equal(url.searchParams.get("waters"), null);
 });
 
 test("timeseries.get builds the metadata path and url-encodes both segments", async () => {
   const mt = constantJson({ shortname: "W" });
   await clientWith(mt).timeseries.get("ST PAULI", "W X");
   assert.equal(new URL(mt.last().url).pathname, `${V2}/stations/ST%20PAULI/W%20X.json`);
-});
-
-test("timeseries.characteristicValues builds the characteristicvalues path", async () => {
-  const mt = constantJson([]);
-  await clientWith(mt).timeseries.characteristicValues("BONN", "W");
-  assert.equal(
-    new URL(mt.last().url).pathname,
-    `${V2}/stations/BONN/W/characteristicvalues.json`,
-  );
 });
 
 test("waters hits waters.json", async () => {

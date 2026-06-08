@@ -61,16 +61,9 @@ export interface Measurement {
 export interface StationListParams {
   /** Station identifiers (uuid/number/shortname/longname); sent comma-separated. */
   ids?: string[];
-  longname?: string;
-  agency?: string;
   /** Water shortname filter. */
   waters?: string;
   fuzzyId?: string;
-  /** Bounding box. */
-  latbottom?: number;
-  lattop?: number;
-  longleft?: number;
-  longright?: number;
   includeTimeseries?: boolean;
   includeCurrentMeasurement?: boolean;
   includeCharacteristicValues?: boolean;

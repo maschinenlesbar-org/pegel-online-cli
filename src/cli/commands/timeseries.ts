@@ -54,19 +54,6 @@ export function registerTimeseriesCommands(program: Command, deps: CliDeps): voi
     );
 
   program
-    .command("characteristic <station> [timeseries]")
-    .description("Characteristic (gauge-mark) values (timeseries defaults to 'W')")
-    .action(
-      action(deps, async ({ client, global }, [station, ts]) => {
-        renderJson(
-          deps,
-          global,
-          await client.timeseries.characteristicValues(requireArg("station", station), timeseriesOr(ts)),
-        );
-      }),
-    );
-
-  program
     .command("waters")
     .description("List all bodies of water (Gewässer)")
     .action(

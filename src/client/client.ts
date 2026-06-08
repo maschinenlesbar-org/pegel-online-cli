@@ -17,7 +17,6 @@ import type {
   StationListParams,
   IncludeParams,
   MeasurementsParams,
-  JsonObject,
 } from "./types.js";
 
 const API = "/webservices/rest-api/v2";
@@ -47,14 +46,8 @@ class StationsResource {
   list(params: StationListParams = {}): Promise<Station[]> {
     const query = prune({
       ids: params.ids && params.ids.length > 0 ? params.ids.join(",") : undefined,
-      longname: params.longname,
-      agency: params.agency,
       waters: params.waters,
       fuzzyId: params.fuzzyId,
-      latbottom: params.latbottom,
-      lattop: params.lattop,
-      longleft: params.longleft,
-      longright: params.longright,
       includeTimeseries: params.includeTimeseries,
       includeCurrentMeasurement: params.includeCurrentMeasurement,
       includeCharacteristicValues: params.includeCharacteristicValues,
@@ -93,12 +86,6 @@ class TimeseriesResource {
     return this.e.getJson(
       `${API}/stations/${enc(station)}/${enc(timeseries)}/measurements.json`,
       prune({ start: params.start, end: params.end }),
-    );
-  }
-
-  characteristicValues(station: string, timeseries = "W"): Promise<JsonObject[]> {
-    return this.e.getJson(
-      `${API}/stations/${enc(station)}/${enc(timeseries)}/characteristicvalues.json`,
     );
   }
 }

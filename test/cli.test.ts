@@ -49,29 +49,6 @@ test("stations list maps both include flags to API param names", async () => {
   assert.equal(url.searchParams.get("includeTimeseries"), "true");
 });
 
-test("stations list forwards a valid bbox through parseBbox to the query", async () => {
-  const cli = makeCli(() => jsonResponse([]));
-  const code = await run(
-    ["stations", "list", "--bbox", "50.5,51.0,6.5,7.5"],
-    cli.deps,
-  );
-  assert.equal(code, 0);
-  const url = new URL(cli.mt.last().url);
-  assert.equal(url.searchParams.get("latbottom"), "50.5");
-  assert.equal(url.searchParams.get("lattop"), "51");
-  assert.equal(url.searchParams.get("longleft"), "6.5");
-  assert.equal(url.searchParams.get("longright"), "7.5");
-});
-
-for (const bad of ["1,2,3", "a,b,c,d", "1,,3,4", "51,50,6,7", "1,2,7,6", "100,2,3,4"]) {
-  test(`stations list rejects a malformed bbox (${bad}) before any request`, async () => {
-    const cli = makeCli(() => jsonResponse([]));
-    const code = await run(["stations", "list", "--bbox", bad], cli.deps);
-    assert.notEqual(code, 0);
-    assert.equal(cli.mt.calls.length, 0);
-  });
-}
-
 test("stations get exercises the per-station path with includes", async () => {
   const cli = makeCli(() => jsonResponse({ uuid: "x" }));
   const code = await run(["stations", "get", "BONN", "--include-current"], cli.deps);
@@ -86,16 +63,6 @@ test("timeseries command hits the timeseries metadata path", async () => {
   const code = await run(["timeseries", "BONN", "W"], cli.deps);
   assert.equal(code, 0);
   assert.equal(new URL(cli.mt.last().url).pathname, `${V2}/stations/BONN/W.json`);
-});
-
-test("characteristic command hits the characteristicvalues path", async () => {
-  const cli = makeCli(() => jsonResponse([]));
-  const code = await run(["characteristic", "BONN"], cli.deps);
-  assert.equal(code, 0);
-  assert.equal(
-    new URL(cli.mt.last().url).pathname,
-    `${V2}/stations/BONN/W/characteristicvalues.json`,
-  );
 });
 
 test("measurements passes --end", async () => {
@@ -170,13 +137,6 @@ test("blank / hex / scientific numeric flags are rejected with usage exit 2", as
     assert.equal(code, 2);
     assert.equal(cli.mt.calls.length, 0);
   }
-});
-
-test("bbox rejects hex coordinates", async () => {
-  const cli = makeCli(() => jsonResponse([]));
-  const code = await run(["stations", "list", "--bbox", "0x10,50,3,4"], cli.deps);
-  assert.notEqual(code, 0);
-  assert.equal(cli.mt.calls.length, 0);
 });
 
 test("usage/parse errors exit with code 2", async () => {

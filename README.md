@@ -62,14 +62,12 @@ the command is recommended for clarity.
 ### Commands
 
 ```text
-stations list [--ids <id> ...] [--longname <s>] [--waters <shortname>]
-              [--agency <a>] [--fuzzy-id <id>] [--bbox latbottom,lattop,longleft,longright]
+stations list [--ids <id> ...] [--waters <shortname>] [--fuzzy-id <id>]
               [--include-timeseries] [--include-current] [--include-characteristic]
 stations get <station> [--include-...]
 timeseries     <station> [timeseries]    metadata for a timeseries
 current        <station> [timeseries]    the current measurement
 measurements   <station> [timeseries] [--start <iso|P7D>] [--end <iso>]
-characteristic <station> [timeseries]    characteristic (gauge-mark) values
 waters                                   list all bodies of water (Gewässer)
 ```
 
@@ -88,8 +86,8 @@ pegel current BONN
 # Last 3 days of measurements
 pegel measurements BONN W --start P3D
 
-# Stations in a bounding box
-pegel stations list --bbox 50.5,51.0,6.5,7.5
+# Characteristic (gauge-mark) values, embedded in the timeseries
+pegel stations get BONN --include-timeseries --include-characteristic
 
 # Bodies of water
 pegel waters
@@ -134,7 +132,8 @@ new PegelOnlineClient({
 ### Resource groups
 
 `client.stations` (`.list` / `.get`), `client.timeseries` (`.get` / `.currentMeasurement` /
-`.measurements` / `.characteristicValues`), and `client.waters()`.
+`.measurements`), and `client.waters()`. Characteristic (gauge-mark) values are
+available via the `includeCharacteristicValues` embed on `.get` / `.list`.
 
 ---
 
