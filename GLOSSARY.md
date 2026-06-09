@@ -177,35 +177,6 @@ is treated as omitted rather than sent blank.
 
 ---
 
-## Client / transport concepts
-
-**API client (`PegelOnlineClient`).** The typed, resource-grouped wrapper over
-the API ([`src/client/client.ts`](src/client/client.ts)). Usable as a library
-independently of the CLI. Exposes `stations`, `timeseries` and the `waters()`
-method.
-
-**Resource group.** A cohesive set of client methods for one part of the API
-(`client.stations`, `client.timeseries`) and the matching top-level CLI command.
-
-**Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
-([`src/client/http.ts`](src/client/http.ts)). The default uses Node's built-in
-`http`/`https`; tests inject a mock. This is the only HTTP seam.
-
-**Request engine (`RequestEngine`).** [`src/client/engine.ts`](src/client/engine.ts)
-— builds URLs, serialises queries, applies retry/backoff, follows redirects,
-decodes JSON and maps errors. Sits between the client's resource methods and the
-transport.
-
-**RawResponse.** The low-level result of a request: `{ data: Buffer,
-contentType, status }` — raw bytes, never lossily decoded.
-
-**CliDeps / CliIO.** The dependency-injection seam for the CLI
-([`src/cli/io.ts`](src/cli/io.ts)): a client factory plus an I/O object
-(`out`/`err`). Lets the whole CLI run in tests with a mocked client and captured
-output — no subprocess.
-
----
-
 ## Reliability and limits
 
 **Retry / backoff.** Transient **`429`** (Too Many Requests) and **`503`**
@@ -235,11 +206,12 @@ header-injection. CLI: `--user-agent`.
 **JSON output.** Every command prints JSON to stdout — pretty-printed by default,
 or on a single line with `--compact`.
 
-**Error types.** [`src/client/errors.ts`](src/client/errors.ts):
-`PegelApiError` (non-2xx; carries `status`, `detail`, `url`, `method`, `body`),
-`PegelNetworkError` (transport failure/timeout), `PegelParseError` (bad JSON),
-all extending the base `PegelError`.
-
 **Exit codes.** `0` success; `2` for usage/parse errors (unknown command/option,
 missing argument, invalid flag value); `4` on a `404` from the API; `1` for any
 other (runtime/network) error.
+
+---
+
+> **Library & internals.** Terms for the TypeScript client and its internals —
+> `PegelOnlineClient`, the request engine, transport, retry/backoff, error
+> types, query builder — live in **[DEVELOPING.md](DEVELOPING.md)**.

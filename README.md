@@ -1,192 +1,216 @@
 # pegel-online-cli
 
-A TypeScript **API client** and **command-line interface** for the open
+Check live water levels and gauge readings for any German federal waterway station
+from your terminal. `pegel` is a command-line tool over the open
 [PEGELONLINE REST API v2](https://www.pegelonline.wsv.de/webservice/dokuRestapi)
-(`pegelonline.wsv.de`) operated by the **WSV** (Wasserstraßen- und
-Schifffahrtsverwaltung des Bundes) — live **water levels** and related timeseries
-across the German federal waterway network.
+(`pegelonline.wsv.de`) operated by the WSV — find stations, query current readings,
+pull measurement histories, and get the full picture on any gauge — as clean JSON
+you can pipe straight into [`jq`](https://jqlang.github.io/jq/).
 
-- **Zero runtime HTTP dependencies** — built on Node's built-in `http`/`https` (no axios, no fetch polyfill).
-- **One small dependency** for the CLI: [`commander`](https://github.com/tj/commander.js).
-- **Strongly typed** — typed stations, timeseries and measurement shapes.
-- **Well tested** — unit tests on Node's built-in test runner (`node --test`), every HTTP response mocked.
-- **Read-only, no auth** — the PEGELONLINE API needs no key; this client only reads.
+- **Works out of the box** — no account, no API key, no configuration. Install and query.
+- **Clean JSON output** — pretty-printed by default, `--compact` for one-line/scripting.
+- **Covers the full hierarchy** — bodies of water, stations, timeseries, current readings, measurement windows, and gauge marks.
+- **Live data** — readings update continuously from hundreds of federal gauges across Germany's rivers and canals.
 
-New to PEGELONLINE, or terms like *Gewässer*, *timeseries* (`W`/`Q`), MNW/MHW or
-NSW/HSW? See **[GLOSSARY.md](GLOSSARY.md)** for the domain concepts and the
-project's own vocabulary.
-
-## Requirements
-
-- Node.js **>= 20** (uses the stable built-in test runner, ESM and top-level `await`).
+> Want to use this as a TypeScript library or understand how it's built?
+> See **[DEVELOPING.md](DEVELOPING.md)**.
 
 ## Install
 
 ```bash
-npm install
-npm run build        # compiles TypeScript to dist/
+npm i -g @maschinenlesbar.org/pegel-online-cli
 ```
 
-Run the CLI without a global install:
+This installs the **`pegel`** command. Requires **Node.js 20+**.
+
+Check it works:
 
 ```bash
-node dist/src/cli/index.js --help
-# or, after `npm link` / global install:
 pegel --help
 ```
 
----
+## Quickstart
 
-## CLI usage
+No setup needed — the API is public and requires no key. Your first command:
 
-Every command prints pretty JSON to stdout (`--compact` for a single line). A
-`<station>` may be a **uuid**, **number**, **shortname** or **longname**. A
-`[timeseries]` defaults to **`W`** (water level); others include `Q` (flow),
-`WT` (water temperature), `LT` (air temperature), depending on the station.
-
-### Global options
-
-| Option | Description |
-| --- | --- |
-| `--base-url <url>` | API base URL (default `https://www.pegelonline.wsv.de`) |
-| `--timeout <ms>` | Per-request timeout (default `30000`) |
-| `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
-| `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
-| `--compact` | Print JSON on a single line |
-
-Global options are accepted **before or after** the command, e.g. both
-`pegel --compact waters` and `pegel waters --compact` work; placing them before
-the command is recommended for clarity.
-
-### Commands
-
-```text
-stations list [--ids <id> ...] [--waters <shortname>] [--fuzzy-id <id>]
-              [--include-timeseries] [--include-current] [--include-characteristic]
-stations get <station> [--include-...]
-timeseries     <station> [timeseries]    metadata for a timeseries
-current        <station> [timeseries]    the current measurement
-measurements   <station> [timeseries] [--start <iso|P7D>] [--end <iso>]
-waters                                   list all bodies of water (Gewässer)
+```bash
+pegel waters
 ```
 
-### Examples
+This lists every body of water (*Gewässer*) in the network. Grab just the shortnames
+with `jq`:
+
+```bash
+pegel waters | jq -r '.[].shortname'
+```
+
+Pick one — say `RHEIN` — and get the current water level at Bonn:
+
+```bash
+pegel current BONN
+```
+
+Pull just the value and timestamp:
+
+```bash
+pegel current BONN | jq '{value, timestamp}'
+```
+
+## Commands
+
+```text
+stations list  [filters…]                 list / filter stations
+stations get   <station> [includes…]      full details for one station
+timeseries     <station> [timeseries]     metadata for a timeseries
+current        <station> [timeseries]     the current measurement
+measurements   <station> [timeseries]     a window of measurements
+waters                                    list all bodies of water (Gewässer)
+```
+
+A `<station>` may be a **uuid**, **number**, **shortname** or **longname** — e.g.
+`BONN`, `6302010`, or a full UUID. A `[timeseries]` defaults to **`W`** (water
+level); other codes include `Q` (flow/discharge), `WT` (water temperature), and
+`LT` (air temperature) depending on the station.
+
+### `stations list` filters
+
+| Flag | Meaning |
+| --- | --- |
+| `--ids <id>` | station id (uuid/number/shortname/longname); repeatable |
+| `--waters <shortname>` | filter by water shortname (see `waters`) |
+| `--fuzzy-id <id>` | fuzzy match against short/long name |
+| `--include-timeseries` | embed each station's timeseries list |
+| `--include-current` | embed the current measurement |
+| `--include-characteristic` | embed characteristic (gauge-mark) values |
+
+### `stations get` options
+
+| Flag | Meaning |
+| --- | --- |
+| `--include-timeseries` | embed the station's timeseries list |
+| `--include-current` | embed the current measurement |
+| `--include-characteristic` | embed characteristic (gauge-mark) values |
+
+### `measurements` options
+
+| Flag | Meaning |
+| --- | --- |
+| `--start <iso>` | window start — ISO-8601 instant *or* a period like `P7D` |
+| `--end <iso>` | window end — ISO-8601 instant |
+
+The **[Glossary](GLOSSARY.md)** explains every domain term and timeseries code.
+
+## Common tasks
+
+A few recipes to get going — see **[Usage.md](Usage.md)** for the full,
+use-case-driven set.
 
 ```bash
 # All stations on the Rhine, with their current water level
 pegel stations list --waters RHEIN --include-current
 
-# One station
+# One station — metadata + timeseries list + current reading
 pegel stations get BONN --include-timeseries --include-current
 
-# Current water level at Bonn
+# Current water level at Bonn (default timeseries W)
 pegel current BONN
 
-# Last 3 days of measurements
-pegel measurements BONN W --start P3D
+# Current flow at Bonn (timeseries Q)
+pegel current BONN Q
 
-# Characteristic (gauge-mark) values, embedded in the timeseries
-pegel stations get BONN --include-timeseries --include-characteristic
+# Last 7 days of measurements
+pegel measurements BONN W --start P7D
 
-# Bodies of water
-pegel waters
+# Explicit date window
+pegel measurements BONN W --start 2026-06-01T00:00:00Z --end 2026-06-07T00:00:00Z
+
+# Gauge marks (MNW/MHW/NSW/HSW) for Cologne
+pegel stations get KÖLN --include-timeseries --include-characteristic
+
+# Timeseries metadata — discover which series a station exposes
+pegel timeseries BONN
+
+# Multiple specific stations in one call
+pegel stations list --ids BONN --ids KÖLN --ids EMMERICH --include-current
 ```
 
-Exit codes: `0` success, `2` for usage/parse errors (unknown command/option, missing argument, invalid flag value), `4` on a `404` from the API, `1` for any other (runtime/network) error.
+## Output & scripting
 
----
-
-## Library usage
-
-```ts
-import { PegelOnlineClient, PegelApiError } from "@maschinenlesbar.org/pegel-online-cli";
-
-const client = new PegelOnlineClient(); // defaults to https://www.pegelonline.wsv.de
-
-const rhine = await client.stations.list({ waters: "RHEIN", includeCurrentMeasurement: true });
-const bonn = await client.stations.get("BONN", { includeTimeseries: true });
-const now = await client.timeseries.currentMeasurement("BONN", "W");
-const series = await client.timeseries.measurements("BONN", "W", { start: "P3D" });
-
-try {
-  await client.stations.get("DOES-NOT-EXIST");
-} catch (err) {
-  if (err instanceof PegelApiError) console.error(err.status, err.detail);
-}
-```
-
-### Client options
-
-```ts
-new PegelOnlineClient({
-  baseUrl: "https://www.pegelonline.wsv.de",
-  timeoutMs: 15_000,
-  maxRetries: 3,              // 429 / 503 are retried with linear backoff
-  maxResponseBytes: 50 << 20, // abort responses larger than 50 MiB (0 = unlimited)
-  userAgent: "my-app/1.0",
-  transport: customTransport, // inject your own HTTP transport
-});
-```
-
-### Resource groups
-
-`client.stations` (`.list` / `.get`), `client.timeseries` (`.get` / `.currentMeasurement` /
-`.measurements`), and `client.waters()`. Characteristic (gauge-mark) values are
-available via the `includeCharacteristicValues` embed on `.get` / `.list`.
-
----
-
-## Architecture
-
-```
-src/
-  client/
-    types.ts     # Station / TimeseriesInfo / CurrentMeasurement / Measurement + param objects
-    query.ts     # dependency-free query-string builder
-    http.ts      # the Transport interface + default node:http/https transport
-    engine.ts    # URL building, retry/backoff, redirects, JSON decoding, error mapping
-    errors.ts    # PegelError / PegelApiError / PegelNetworkError / PegelParseError
-    client.ts    # PegelOnlineClient — stations + timeseries resources over the engine
-  cli/
-    io.ts        # injectable I/O seam (stdout/stderr)
-    shared.ts    # option parsers, global-option resolver, JSON renderer
-    commands/    # stations + timeseries/measurements/waters
-    program.ts   # assembles the commander program from injectable deps
-    run.ts       # parses argv -> exit code (no process.exit; testable)
-    index.ts     # #! bin shim
-```
-
-**Design notes**
-
-- The HTTP layer is a single `Transport` function (`(req) => Promise<HttpResponse>`). The default
-  uses `node:http`/`node:https`; tests inject a mock. This keeps the client free of any HTTP framework.
-- The CLI is built around injectable `CliDeps` (client factory + I/O), so the whole program can be
-  driven in-process by tests with a mocked client and captured output — no subprocesses.
-- The engine follows HTTP redirects, so trailing-slash and host normalisations are handled transparently.
-
----
-
-## Testing
+Every command prints **pretty JSON to stdout**. Errors and diagnostics go to
+stderr, so piping stdout into `jq` stays clean.
 
 ```bash
-npm test          # builds, then runs `node --test` over dist/test
+# Water shortnames, one per line
+pegel waters | jq -r '.[].shortname'
+
+# Reshape a current measurement
+pegel current BONN | jq '{value, timestamp}'
+
+# CSV-ish series for a spreadsheet
+pegel measurements BONN W --start P3D | jq -r '.[] | [.timestamp, .value] | @csv'
+
+# Station names and coordinates on the Rhine (tab-separated)
+pegel stations list --waters RHEIN | jq -r '.[] | [.shortname, .longitude, .latitude] | @tsv'
+
+# Gauge marks for the W series at Cologne
+pegel stations get KÖLN --include-timeseries --include-characteristic \
+  | jq '.timeseries[] | select(.shortname == "W") | .characteristicValues'
 ```
 
-- **`query.test.ts`** — query-string serialisation.
-- **`http.test.ts`** — the default transport against a real loopback `http.createServer`.
-- **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry — mocked transport.
-- **`client.test.ts`** — every endpoint's method/URL/query mapping — mocked transport.
-- **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
+Use `--compact` for single-line JSON in pipelines and logs:
 
-## Continuous integration
+```bash
+pegel --compact current BONN | jq '.value'
+```
 
-GitHub Actions workflows under `.github/workflows/`:
+`--compact` (and every global option) works **before or after** the command —
+both `pegel --compact waters` and `pegel waters --compact` do the same thing.
 
-- **ci.yml** — type-check, build and test on Node 20/22/24 for every push and PR.
-- **release.yml** — on a `v*` tag: verify the tag matches `package.json`, test, `npm pack`, and create a GitHub Release with the tarball.
-- **publish.yml** — manual dispatch: publish to npm via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
-- **docs.yml** — build TypeDoc API docs and deploy to GitHub Pages on each `v*` tag.
+**Exit codes** make the CLI easy to use in scripts:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | success (also `--help` / `--version`) |
+| `2` | bad usage / invalid argument (nothing was sent) |
+| `4` | station or resource not found (`404`) |
+| `1` | any other error (network, timeout, unexpected response) |
+
+## Troubleshooting
+
+- **`command not found: pegel`** — the global npm bin directory isn't on your
+  `PATH`. Run `npm bin -g` to find it and add it, or run via
+  `npx @maschinenlesbar.org/pegel-online-cli …`.
+- **Exit `2` / "invalid argument"** — check the command syntax: a `<station>`
+  argument is required, and `--start` / `--end` must be valid ISO-8601 instants or
+  periods (e.g. `P7D`). Run `pegel <command> --help` for the exact signature.
+- **Exit `4` / "not found"** — the station shortname or id doesn't exist. Run
+  `pegel stations list --fuzzy-id <name>` or `pegel waters` to find the right
+  shortname.
+- **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again, or
+  raise the limit with `--timeout 60000`.
+- **Empty `timeseries` array** — the station doesn't publish the requested series.
+  Run `pegel timeseries <station>` to see which codes it actually exposes.
+
+## Global options
+
+These apply to every command and may be given before *or* after it:
+
+| Option | Description |
+| --- | --- |
+| `-V, --version` | Print the version number |
+| `-h, --help` | Show help for the program or a command |
+| `--compact` | Print JSON on a single line instead of pretty-printed |
+| `--base-url <url>` | API base URL (default `https://www.pegelonline.wsv.de`) |
+| `--timeout <ms>` | Per-request timeout in milliseconds (default `30000`) |
+| `--user-agent <ua>` | `User-Agent` header value |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
+| `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
+
+## Learn more
+
+- **[Usage.md](Usage.md)** — full use-case-driven cookbook.
+- **[GLOSSARY.md](GLOSSARY.md)** — every domain term, timeseries code, and state classification explained.
+- **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
 ## License
 
