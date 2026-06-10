@@ -1,0 +1,24 @@
+{
+  "name": "pegel",
+  "version": "0.1.0",
+  "description": "Live German waterway water-level intelligence skills powered by the pegel-online-cli (PEGELONLINE / WSV API).",
+  "author": {
+    "name": "Sebastian Schürmann",
+    "email": "sebs@2xs.org"
+  },
+  "license": "AGPL-3.0-or-later",
+  "repository": "https://github.com/maschinenlesbar-org/pegel-online-cli",
+  "homepage": "https://github.com/maschinenlesbar-org/pegel-online-cli#readme",
+  "keywords": [
+    "pegelonline",
+    "wsv",
+    "wasserstand",
+    "water-level",
+    "hydrology",
+    "flood",
+    "rivers",
+    "geojson",
+    "germany",
+    "bund.dev"
+  ]
+}

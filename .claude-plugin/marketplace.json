@@ -1,0 +1,38 @@
+{
+  "name": "pegel-skills",
+  "owner": {
+    "name": "Sebastian Schürmann",
+    "email": "sebs@2xs.org"
+  },
+  "metadata": {
+    "description": "Live German waterway water-level intelligence skills powered by the pegel-online-cli (PEGELONLINE / WSV API)"
+  },
+  "plugins": [
+    {
+      "name": "pegel",
+      "source": "./",
+      "description": "Check live water levels and flood/low-water state at any German federal-waterway gauge, get a whole-river overview, analyse level trends, and export gauges as GeoJSON — all over the open, key-free PEGELONLINE API via the pegel-online-cli.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Sebastian Schürmann",
+        "email": "sebs@2xs.org"
+      },
+      "license": "AGPL-3.0-or-later",
+      "repository": "https://github.com/maschinenlesbar-org/pegel-online-cli",
+      "homepage": "https://github.com/maschinenlesbar-org/pegel-online-cli#readme",
+      "category": "data",
+      "keywords": [
+        "pegelonline",
+        "wsv",
+        "wasserstand",
+        "water-level",
+        "hydrology",
+        "flood",
+        "rivers",
+        "geojson",
+        "germany",
+        "bund.dev"
+      ]
+    }
+  ]
+}
