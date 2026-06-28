@@ -108,8 +108,9 @@ pegel --compact stations list \
 ## Step 4 — Output & validate
 
 Write the FeatureCollection to a file the user can open (default
-`./pegel-<water-or-scope>.geojson`) and report the feature count. Validity
-checklist before handing it over:
+`./pegel-<water-or-scope>.geojson`) and report **the path you wrote and the feature count**.
+If a name the user supplied already exists, confirm before overwriting it (re-running with
+the default name to refresh is fine). Validity checklist before handing it over:
 
 - coordinates are `[longitude, latitude]` (x, y) — **not** `[lat, lon]`;
 - they're **numbers** (the API already gives numbers; don't quote them);
