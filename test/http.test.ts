@@ -53,3 +53,31 @@ test("enforces maxResponseBytes", async () => {
     },
   );
 });
+
+test("enforces an overall deadline against a trickle response (PEGEL-02)", async () => {
+  // The server dribbles one byte every 20ms and never ends the response. Each
+  // byte resets the idle timeout (40ms), so the idle timer alone would never
+  // fire — the overall deadline (10 x timeoutMs = 400ms) must catch it.
+  let timer: ReturnType<typeof setInterval> | undefined;
+  await withServer(
+    (_req, res) => {
+      res.setHeader("content-type", "application/json");
+      res.writeHead(200);
+      timer = setInterval(() => res.write("x"), 20);
+    },
+    async (baseUrl) => {
+      const started = Date.now();
+      await assert.rejects(
+        () => nodeHttpTransport({ method: "GET", url: baseUrl, timeoutMs: 40 }),
+        (err: unknown) => {
+          assert.ok(err instanceof PegelNetworkError);
+          assert.match(err.message, /overall deadline/);
+          return true;
+        },
+      );
+      // It must reject on the deadline, not hang indefinitely; allow generous slack.
+      assert.ok(Date.now() - started < 4000, "did not reject within the deadline window");
+    },
+  );
+  if (timer !== undefined) clearInterval(timer);
+});
