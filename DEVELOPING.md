@@ -54,6 +54,10 @@ try {
 
 ### Client options
 
+All fields are optional; the values below are illustrative overrides, **not**
+defaults (defaults are `maxRetries: 2`, `maxResponseBytes: 100 MiB`, `timeoutMs:
+30_000`, `maxRedirects: 5`).
+
 ```ts
 new PegelOnlineClient({
   baseUrl: "https://www.pegelonline.wsv.de",
