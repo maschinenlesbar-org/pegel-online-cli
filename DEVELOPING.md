@@ -123,8 +123,12 @@ with linear backoff, up to `maxRetries` (default `2`). `PegelApiError` exposes `
 for exactly these statuses. CLI: `--max-retries`.
 
 **Redirects.** The engine follows up to `maxRedirects` (default `5`) HTTP redirects
-(301/302/303/307/308), resolving `Location` relative to the current URL, and strips any
-credential-bearing headers when crossing origins.
+(301/302/303/307/308), resolving `Location` relative to the current URL. When a hop
+crosses to a different **origin** (scheme + host + port) — including a same-host
+`https:` -> `http:` downgrade — credential-bearing headers (`Authorization`, `Cookie`,
+`X-API-Key`, `Proxy-Authorization`) are stripped, case-insensitively, before the next
+request. This client is keyless and sets none, but the guard is unconditional so a
+library consumer that adds one via `headers` is protected.
 
 **maxResponseBytes.** A hard cap on response body size to defend against memory exhaustion
 (default 100 MiB; `0` = unlimited). CLI: `--max-response-bytes`.

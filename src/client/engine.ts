@@ -22,6 +22,14 @@ export interface EngineOptions {
   transport?: Transport;
   /** Value of the User-Agent header. */
   userAgent?: string;
+  /**
+   * Extra headers sent on every request. Credential-bearing headers
+   * (Authorization, Cookie, X-API-Key, Proxy-Authorization) are automatically
+   * stripped when a redirect crosses to a different origin, so they never leak to
+   * an arbitrary host named in Location. This client is keyless and sets none, but
+   * library consumers may add one.
+   */
+  headers?: Record<string, string>;
   /** Per-request timeout in milliseconds (0 disables). */
   timeoutMs?: number;
   /** Number of automatic retries for transient (429/503) responses. */
@@ -40,6 +48,30 @@ export interface EngineOptions {
 }
 
 const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
+
+/**
+ * Credential-bearing headers that must never be carried across an origin boundary
+ * on a redirect. Stored lower-cased and compared case-insensitively so a header
+ * added as `X-Api-Key` or `Authorization` is caught regardless of casing.
+ */
+const CREDENTIAL_HEADERS: ReadonlySet<string> = new Set([
+  "authorization",
+  "cookie",
+  "x-api-key",
+  "proxy-authorization",
+]);
+
+/**
+ * Delete every credential-bearing header from `headers`, matching case-insensitively.
+ * The CLI sends none today (keyless), but RequestEngine is exported as a library and
+ * a keyed sibling/consumer could add one via a future headers option — keep the
+ * guarantee correct regardless of the casing the caller used.
+ */
+function stripSensitiveHeaders(headers: Record<string, string>): void {
+  for (const key of Object.keys(headers)) {
+    if (CREDENTIAL_HEADERS.has(key.toLowerCase())) delete headers[key];
+  }
+}
 
 /**
  * Strip control characters (all C0/C1 controls except tab and newline, plus DEL)
@@ -68,6 +100,7 @@ export class RequestEngine {
   private readonly baseUrl: string;
   private readonly transport: Transport;
   private readonly userAgent: string;
+  private readonly extraHeaders: Record<string, string>;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
   private readonly retryDelayMs: number;
@@ -85,6 +118,7 @@ export class RequestEngine {
     if (/[\x00-\x1f\x7f]/.test(this.userAgent)) {
       throw new PegelError("Invalid User-Agent: control characters are not allowed.");
     }
+    this.extraHeaders = options.headers ?? {};
     this.timeoutMs = options.timeoutMs ?? 30_000;
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelayMs = options.retryDelayMs ?? 200;
@@ -108,6 +142,7 @@ export class RequestEngine {
   ): Promise<RawResponse> {
     let url = this.buildUrl(path, options.query);
     const headers: Record<string, string> = {
+      ...this.extraHeaders,
       Accept: options.accept,
       "User-Agent": this.userAgent,
     };
@@ -137,12 +172,13 @@ export class RequestEngine {
         const location = response.headers["location"];
         if (typeof location === "string" && location.length > 0) {
           const next = new URL(location, url);
-          // Security: never carry credential-bearing headers across origins. The
-          // CLI sends none today, but this guards a future Authorization/Cookie
-          // header from leaking to an attacker-controlled redirect target.
+          // Security: never carry credential-bearing headers across an origin
+          // boundary. The CLI sends none today, but this guards a future
+          // Authorization/Cookie/X-Api-Key header from leaking to an
+          // attacker-controlled redirect target. Comparing full origin (scheme +
+          // host + port) also strips on a same-host https->http downgrade.
           if (next.origin !== new URL(url).origin) {
-            delete headers["Authorization"];
-            delete headers["Cookie"];
+            stripSensitiveHeaders(headers);
           }
           url = next.toString();
           redirects += 1;

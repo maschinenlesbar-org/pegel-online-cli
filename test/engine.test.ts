@@ -74,6 +74,60 @@ test("a cross-origin redirect strips credential-bearing headers", async () => {
   assert.equal(seen[1]?.["Cookie"], undefined);
 });
 
+test("a cross-origin redirect strips credential headers case-insensitively (PEGEL-04)", async () => {
+  const seen: Array<Record<string, string>> = [];
+  const mt = makeMockTransport((req) => {
+    // Snapshot the headers: the engine mutates the same object in place across
+    // hops, so recording the live reference would show only its final state.
+    seen.push({ ...req.headers });
+    if (req.url.startsWith("https://a.test")) {
+      return { status: 302, headers: { location: "https://b.test/x" }, body: Buffer.from("") };
+    }
+    return jsonResponse({ ok: true });
+  });
+  // Seed credentials in mixed / non-canonical casing to prove the strip is
+  // case-insensitive and covers X-Api-Key, not just exact-case Authorization/Cookie.
+  const e = new RequestEngine({
+    baseUrl: "https://a.test",
+    transport: mt.transport,
+    headers: { "X-Api-Key": "secret", authorization: "Bearer t", Cookie: "s=1" },
+  });
+
+  assert.deepEqual(await e.getJson("/x"), { ok: true });
+  assert.equal(seen.length, 2);
+  // First hop (same origin) carries the credentials...
+  assert.equal(seen[0]?.["X-Api-Key"], "secret");
+  // ...the cross-origin hop carries none, regardless of the original casing.
+  const crossOrigin = seen[1] ?? {};
+  for (const [k, v] of Object.entries(crossOrigin)) {
+    const lower = k.toLowerCase();
+    assert.ok(
+      lower !== "x-api-key" && lower !== "authorization" && lower !== "cookie",
+      `credential header leaked across origin: ${k}=${v}`,
+    );
+  }
+});
+
+test("a same-host https->http downgrade strips credential headers (PEGEL-04)", async () => {
+  const seen: Array<Record<string, string>> = [];
+  const mt = makeMockTransport((req) => {
+    seen.push({ ...req.headers });
+    if (req.url.startsWith("https://")) {
+      return { status: 302, headers: { location: "http://a.test/x" }, body: Buffer.from("") };
+    }
+    return jsonResponse({ ok: true });
+  });
+  const e = new RequestEngine({
+    baseUrl: "https://a.test",
+    transport: mt.transport,
+    headers: { "X-Api-Key": "secret" },
+  });
+
+  assert.deepEqual(await e.getJson("/x"), { ok: true });
+  assert.equal(seen.length, 2);
+  assert.equal(seen[1]?.["X-Api-Key"], undefined);
+});
+
 test("the User-Agent and Accept headers are sent", async () => {
   const mt = makeMockTransport(() => jsonResponse({}));
   const e = new RequestEngine({ transport: mt.transport, userAgent: "ua/1" });
