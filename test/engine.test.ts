@@ -81,3 +81,40 @@ test("the User-Agent and Accept headers are sent", async () => {
   assert.equal(mt.last().headers?.["User-Agent"], "ua/1");
   assert.equal(mt.last().headers?.["Accept"], "application/json");
 });
+
+// Control chars are built via char codes so no raw control bytes ever appear in
+// this source file.
+const ESC = String.fromCharCode(0x1b);
+const BEL = String.fromCharCode(0x07);
+const CSI = String.fromCharCode(0x9b); // a C1 control
+
+/** True if the string contains any C0/C1 control char except tab/newline. */
+function hasControlChars(s: string): boolean {
+  return [...s].some((c) => {
+    const n = c.charCodeAt(0);
+    return n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f);
+  });
+}
+
+test("error detail is stripped of terminal control characters (PEGEL-01)", async () => {
+  // ESC + CSI + BEL interleaved with printable text in the response `detail`.
+  const evil = `boom${ESC}[31mred${BEL}${CSI}2J`;
+  const mt = makeMockTransport(() =>
+    jsonResponse({ detail: evil }, 500),
+  );
+  const e = new RequestEngine({ transport: mt.transport, maxRetries: 0 });
+
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err: unknown) => {
+      assert.ok(err instanceof PegelApiError);
+      // The control bytes are gone from both the structured detail and the
+      // human-readable message that run.ts prints to stderr...
+      assert.ok(!hasControlChars(err.detail ?? ""));
+      assert.ok(!hasControlChars(err.message));
+      // ...while the printable characters are preserved.
+      assert.equal(err.detail, "boom[31mred2J");
+      return true;
+    },
+  );
+});
