@@ -139,6 +139,22 @@ test("blank / hex / scientific numeric flags are rejected with usage exit 2", as
   }
 });
 
+test("a non-http(s) or malformed --base-url exits 2 at parse time (PEGEL-05)", async () => {
+  for (const bad of ["file:///etc/passwd", "ftp://example.test", "not-a-url"]) {
+    const cli = makeCli(() => jsonResponse([]));
+    const code = await run(["--base-url", bad, "waters"], cli.deps);
+    assert.equal(code, 2);
+    assert.equal(cli.mt.calls.length, 0);
+  }
+});
+
+test("a valid http(s) --base-url is accepted", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  const code = await run(["--base-url", "https://example.test", "waters"], cli.deps);
+  assert.equal(code, 0);
+  assert.equal(new URL(cli.mt.last().url).origin, "https://example.test");
+});
+
 test("usage/parse errors exit with code 2", async () => {
   for (const argv of [["frobnicate"], ["--nonsense", "waters"], ["timeseries"]]) {
     const cli = makeCli(() => jsonResponse([]));

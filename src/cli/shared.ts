@@ -24,6 +24,27 @@ export function parseIntArg(value: string): number {
 }
 
 /**
+ * commander value-parser for `--base-url`: reject anything that is not a parseable
+ * absolute `http:`/`https:` URL at *parse* time, so a bad scheme (`file:`, `ftp:`)
+ * or malformed URL exits 2 (usage) — consistent with the blueprint — instead of
+ * surfacing later as a runtime PegelNetworkError (exit 1). The transport still
+ * enforces the same allowlist as the authoritative egress control; this only moves
+ * the user-facing rejection earlier and to the correct exit code.
+ */
+export function parseBaseUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new InvalidArgumentError("Expected an absolute http(s) URL.");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new InvalidArgumentError("Only http and https URLs are supported.");
+  }
+  return value;
+}
+
+/**
  * Validate a required positional argument: reject an empty/blank value rather
  * than forwarding it into the URL path (which would produce a malformed request
  * like `/stations//W/...`). Returns the trimmed value.

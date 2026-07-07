@@ -8,7 +8,7 @@ import { Command } from "commander";
 import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { PegelOnlineClient } from "../client/client.js";
-import { parseIntArg } from "./shared.js";
+import { parseIntArg, parseBaseUrl } from "./shared.js";
 import { registerStationCommands } from "./commands/stations.js";
 import { registerTimeseriesCommands } from "./commands/timeseries.js";
 
@@ -46,7 +46,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
         "(https://www.pegelonline.wsv.de/webservices/rest-api/v2)",
     )
     .version(VERSION)
-    .option("--base-url <url>", "API base URL", "https://www.pegelonline.wsv.de")
+    .option("--base-url <url>", "API base URL", parseBaseUrl, "https://www.pegelonline.wsv.de")
     .option("--timeout <ms>", "per-request timeout in milliseconds", parseIntArg)
     .option("--user-agent <ua>", "User-Agent header value")
     .option("--max-retries <n>", "retries for transient 429/503 responses", parseIntArg)
