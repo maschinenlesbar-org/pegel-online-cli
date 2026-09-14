@@ -4,6 +4,8 @@
 [![Release](https://github.com/maschinenlesbar-org/pegel-online-cli/actions/workflows/release.yml/badge.svg)](https://github.com/maschinenlesbar-org/pegel-online-cli/actions/workflows/release.yml)
 [![npm](https://img.shields.io/npm/v/@maschinenlesbar.org/pegel-online-cli)](https://www.npmjs.com/package/@maschinenlesbar.org/pegel-online-cli)
 
+**Website:** [English](https://maschinenlesbar-org.github.io/pegel-online-cli/) · [Deutsch](https://maschinenlesbar-org.github.io/pegel-online-cli/de/) — command reference, guides and API docs
+
 Check live water levels and gauge readings for any German federal waterway station
 from your terminal. `pegel` is a command-line tool over the open
 [PEGELONLINE REST API v2](https://www.pegelonline.wsv.de/webservice/dokuRestapi)

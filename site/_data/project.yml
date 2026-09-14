@@ -1,0 +1,16 @@
+# The only repo-specific texts of the website. Everything else comes from the
+# repository: the English intro from README.md, the commands from the built CLI.
+
+# How the API is accessed: open | key (env: VAR) | account (token, user, password: VARs)
+access:
+  type: open
+
+de:
+  # German version of the README's intro paragraph. Keep it in step with README.md.
+  intro: >-
+    Aktuelle Wasserstände und Pegelmessungen an jeder Messstelle der Bundeswasserstraßen
+    direkt im Terminal prüfen. `pegel` ist ein Kommandozeilen-Tool für die offene
+    [PEGELONLINE-REST-API v2](https://www.pegelonline.wsv.de/webservice/dokuRestapi)
+    (`pegelonline.wsv.de`) der WSV: Messstellen finden, aktuelle Werte abfragen, Messreihen
+    abrufen und das Gesamtbild zu jedem Pegel erhalten – als sauberes JSON, das Sie direkt an
+    [`jq`](https://jqlang.github.io/jq/) weitergeben können.
