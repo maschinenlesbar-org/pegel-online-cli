@@ -54,16 +54,17 @@ test("enforces maxResponseBytes", async () => {
   );
 });
 
-test("enforces an overall deadline against a trickle response (PEGEL-02)", async () => {
+test("enforces the deadline against a trickle response (PEGEL-02)", async () => {
   // The server dribbles one byte every 20ms and never ends the response. Each
-  // byte resets the idle timeout (40ms), so the idle timer alone would never
-  // fire — the overall deadline (10 x timeoutMs = 400ms) must catch it.
-  let timer: ReturnType<typeof setInterval> | undefined;
+  // byte would reset an idle timeout (40ms), so only a deadline covering the
+  // whole response catches it.
   await withServer(
     (_req, res) => {
       res.setHeader("content-type", "application/json");
       res.writeHead(200);
-      timer = setInterval(() => res.write("x"), 20);
+      const timer = setInterval(() => res.write("x"), 20);
+      // Cleared on close, so a failing assertion cannot leave it running.
+      res.on("close", () => clearInterval(timer));
     },
     async (baseUrl) => {
       const started = Date.now();
@@ -71,7 +72,7 @@ test("enforces an overall deadline against a trickle response (PEGEL-02)", async
         () => nodeHttpTransport({ method: "GET", url: baseUrl, timeoutMs: 40 }),
         (err: unknown) => {
           assert.ok(err instanceof PegelNetworkError);
-          assert.match(err.message, /overall deadline/);
+          assert.match(err.message, /timed out after 40ms/);
           return true;
         },
       );
@@ -79,5 +80,28 @@ test("enforces an overall deadline against a trickle response (PEGEL-02)", async
       assert.ok(Date.now() - started < 4000, "did not reject within the deadline window");
     },
   );
-  if (timer !== undefined) clearInterval(timer);
+});
+
+test("timeoutMs bounds the whole response, not just idle gaps", async () => {
+  // A server that trickles a byte every 50 ms for 2 s never goes idle for the timeout.
+  await withServer(
+    (_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.write("[");
+      const drip = setInterval(() => res.write(" "), 50);
+      const finish = setTimeout(() => res.end("]"), 2000);
+      res.on("close", () => {
+        clearInterval(drip);
+        clearTimeout(finish);
+      });
+    },
+    async (baseUrl) => {
+      const started = Date.now();
+      await assert.rejects(
+        () => nodeHttpTransport({ method: "GET", url: baseUrl, timeoutMs: 300 }),
+        (err) => err instanceof PegelNetworkError && /timed out after 300ms/.test(err.message),
+      );
+      assert.ok(Date.now() - started < 1500, `took ${Date.now() - started} ms`);
+    },
+  );
 });

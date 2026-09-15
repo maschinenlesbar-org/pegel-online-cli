@@ -17,7 +17,7 @@ export interface HttpRequest {
   headers?: Record<string, string>;
   /** Optional request body (already serialised). */
   body?: string | Buffer;
-  /** Per-request timeout in milliseconds. */
+  /** Timeout for the whole request, response body included, in milliseconds. */
   timeoutMs?: number;
   /** Hard cap on the response body size in bytes; the request aborts if exceeded. */
   maxResponseBytes?: number;
@@ -36,15 +36,6 @@ export type Transport = (request: HttpRequest) => Promise<HttpResponse>;
  * interpretation is the client's job. Rejects only on transport-level failures
  * (connection errors, timeouts, malformed URLs).
  */
-/**
- * Multiplier applied to the per-request idle timeout to derive an overall
- * wall-clock deadline. `req.setTimeout` only fires on an *idle* socket — every
- * received byte resets it — so a hostile server can trickle one byte just under
- * the idle window forever and the request never times out. This bounds the total
- * time a single request may take before it is destroyed, regardless of trickle.
- */
-const OVERALL_DEADLINE_FACTOR = 10;
-
 export const nodeHttpTransport: Transport = (request) =>
   new Promise<HttpResponse>((resolve, reject) => {
     let url: URL;
@@ -67,8 +58,11 @@ export const nodeHttpTransport: Transport = (request) =>
     const driver = isHttps ? https : http;
     const maxBytes = request.maxResponseBytes;
 
-    // Overall wall-clock deadline (see OVERALL_DEADLINE_FACTOR). Cleared on the
-    // first settle so it never leaks or keeps the event loop alive.
+    // The timeout is a deadline for the whole exchange — connecting, waiting and
+    // reading the body. `req.setTimeout` would only fire on an *idle* socket (every
+    // received byte resets it), so a hostile server could trickle one byte just under
+    // the idle window and hold the request open far past the timeout. Cleared on
+    // the first settle so it never leaks or keeps the event loop alive.
     let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
     const clearDeadline = (): void => {
       if (deadlineTimer !== undefined) {
@@ -123,16 +117,12 @@ export const nodeHttpTransport: Transport = (request) =>
     );
 
     if (request.timeoutMs && request.timeoutMs > 0) {
-      // Idle-socket timeout: fires when no bytes move for timeoutMs.
-      req.setTimeout(request.timeoutMs, () => {
-        req.destroy(new PegelNetworkError(`Request timed out after ${request.timeoutMs}ms`));
-      });
-      // Overall deadline: a hostile server can trickle bytes just under the idle
-      // window forever, so cap total wall-clock time as well.
-      const overallMs = request.timeoutMs * OVERALL_DEADLINE_FACTOR;
+      const timeoutMs = request.timeoutMs;
       deadlineTimer = setTimeout(() => {
-        req.destroy(new PegelNetworkError(`Request exceeded overall deadline of ${overallMs}ms`));
-      }, overallMs);
+        const err = new PegelNetworkError(`Request timed out after ${timeoutMs}ms`);
+        settleReject(err);
+        req.destroy(err);
+      }, timeoutMs);
       // Do not let the deadline timer alone keep the process alive.
       deadlineTimer.unref?.();
     }

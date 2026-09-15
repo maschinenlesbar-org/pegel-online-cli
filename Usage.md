@@ -199,7 +199,7 @@ clearer):
 | --- | --- |
 | `-V, --version` | Print the version and exit |
 | `--base-url <url>` | API base URL (default `https://www.pegelonline.wsv.de`) |
-| `--timeout <ms>` | Per-request timeout in milliseconds |
+| `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |

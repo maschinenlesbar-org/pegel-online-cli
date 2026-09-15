@@ -188,8 +188,9 @@ exposes `isRetryable` for exactly these statuses.
 redirects (301/302/303/307/308), resolving `Location` relative to the current
 URL, and strips any credential-bearing headers when crossing origins.
 
-**Timeout (`timeoutMs`).** Per-request timeout in milliseconds (default
-`30000`; `0` disables). CLI: `--timeout`.
+**Timeout (`timeoutMs`).** Time limit per request in milliseconds, covering the
+whole response body, not only idle gaps (default `30000`; `0` disables). CLI:
+`--timeout`.
 
 **Response size cap (`maxResponseBytes`).** A hard cap on response body size to
 defend against memory exhaustion (default 100 MiB; `0` = unlimited). CLI:
