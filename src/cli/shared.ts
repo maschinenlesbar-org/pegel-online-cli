@@ -23,6 +23,17 @@ export function parseIntArg(value: string): number {
   return n;
 }
 
+/** Build a commander value-parser for an integer constrained to [min, max]. */
+export function parseBoundedInt(min: number, max: number): (value: string) => number {
+  return (value: string) => {
+    const n = parseIntArg(value);
+    if (n < min || n > max) {
+      throw new InvalidArgumentError(`Expected an integer from ${min} to ${max}.`);
+    }
+    return n;
+  };
+}
+
 /**
  * commander value-parser for `--base-url`: reject anything that is not a parseable
  * absolute `http:`/`https:` URL at *parse* time, so a bad scheme (`file:`, `ftp:`)

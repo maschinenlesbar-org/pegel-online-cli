@@ -153,6 +153,17 @@ test("blank / hex / scientific numeric flags are rejected with usage exit 2", as
   }
 });
 
+test("--timeout accepts up to the largest timer Node supports", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["--timeout", "2147483647", "waters"], cli.deps), 0);
+  assert.equal(cli.mt.last().timeoutMs, 2_147_483_647);
+
+  const over = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["--timeout", "2147483648", "waters"], over.deps), 2);
+  assert.equal(over.mt.calls.length, 0);
+  assert.match(over.err.join("\n"), /from 0 to 2147483647/);
+});
+
 test("a non-http(s) or malformed --base-url exits 2 at parse time (PEGEL-05)", async () => {
   for (const bad of ["file:///etc/passwd", "ftp://example.test", "not-a-url"]) {
     const cli = makeCli(() => jsonResponse([]));
