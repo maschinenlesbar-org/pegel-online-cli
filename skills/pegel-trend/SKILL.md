@@ -48,11 +48,14 @@ offset** (`+02:00` in summer); even when you pass `Z` (UTC) bounds, the returned
 timestamps are local. Default series sampling is ~15 min, so a week is ~670 points
 — never enumerate them; reduce.
 
-> **Trap: a bad `--start` does NOT fail loudly.** An unparseable period/date makes
-> the API return **HTTP 400**, but the CLI prints the error to stderr and still
-> **exits 0**. So check the stdout actually parsed as a non-empty JSON array before
-> trusting it; if stdout is empty/non-array, your `--start` was rejected — fix the
-> period (e.g. `P7D`, not `7d`) and retry.
+> **Trap: a bad `--start` is an error, an empty window is not.** An unparseable
+> period/date (e.g. `7d`) makes the API return **HTTP 400**; the CLI prints
+> `Error: HTTP 400 … Given start parameter is neither a valid ISO date time, nor an
+> ISO period.` to stderr, leaves stdout empty and **exits 1**. Fix the period
+> (`P7D`, not `7d`) and retry. A valid window with no data (e.g. one in the
+> future) returns `[]` with **exit 0**, and the reduction below fails on an empty
+> array — check `length > 0` first. A window longer than the data kept is
+> clamped: on 2026-09-15, `--start P60D` returned only about the last month.
 
 ## Step 3 — Reduce to a trend
 
