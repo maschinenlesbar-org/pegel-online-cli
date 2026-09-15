@@ -18,7 +18,7 @@ rediscover them each time.
 | Skill | What it does | Ask it… |
 |---|---|---|
 | **pegel-water-level-check** | Pulls the current reading at one or more named gauges and judges normal / high / low from the state classification — value, unit, time, verdict. | "what's the Rhine at Bonn?", "is the water high in Köln?", "flood risk at Emmerich?" |
-| **pegel-river-overview** | Merges every gauge on a river, orders them downstream by river-km, embeds live levels and ranks the high/low ones. | "show all gauges on the Rhine", "any flooding on the Mosel?", "rank Danube stations by level" |
+| **pegel-river-overview** | Merges every gauge on a river, orders them by river-km in flow direction, embeds live levels and ranks the high/low ones. | "show all gauges on the Rhine", "any flooding on the Mosel?", "rank Danube stations by level" |
 | **pegel-trend** | Reduces a measurement window to direction, delta, rate and min/max — a trend, not hundreds of points. | "is the Elbe at Dresden rising or falling?", "level trend last 7 days at Köln" |
 | **pegel-stations-geojson** | Exports gauges (optionally with live levels in the properties) as a valid GeoJSON `FeatureCollection` for Leaflet / geojson.io / QGIS. | "map the Rhine gauges", "export Elbe stations as GeoJSON", "plot gauges near Cologne" |
 
@@ -93,19 +93,26 @@ encode the non-obvious parts of this API, for example:
   `timeseries[]`, so both flags must be passed together to get levels (the README's
   `--waters RHEIN --include-current` example is misleading; see **pegel-river-overview**);
 - the reliable flood/low-water signal is **`stateMnwMhw`** on the *current measurement*
-  (`normal` / `high` / `low` / `unknown`), **not** the gauge marks — which are
-  river-specific codes like `GlW` / `M_I` / `M_II`, not the MNW/MHW pair the docs imply
-  (see **pegel-water-level-check**);
+  (`normal` / `high` / `low` / `unknown`), **not** the gauge marks — whose set differs
+  per gauge (KAUB has `MNW`/`MHW` plus codes like `GlW` / `M_I` / `M_II`, Basel-Rheinhalle
+  has no `MNW`/`MHW`, some gauges have no marks) (see **pegel-water-level-check**);
+- a **current reading can be hours old** while keeping its state flag — check each
+  `timestamp` before calling a river "normal" (see **pegel-river-overview**);
+- **river-km does not always grow downstream** — the Danube counts down to its mouth,
+  Mosel/Main/Neckar/Saar count up from theirs, and the Weser has two chainages
+  (see **pegel-river-overview**);
 - a measurement `value` carries **no unit** — the unit (`cm` for W, `m³/s` for Q, `°C` for
   temperatures) belongs to the series; default `W` is centimetres, never assume metres;
 - **timestamps are local German time** (`+02:00` in summer), even when you pass `Z`/UTC
   window bounds to `measurements`;
-- a **bad `--start` returns HTTP 400 but the CLI still exits 0** — check stdout actually
-  parsed as a non-empty array before trusting a trend (see **pegel-trend**);
+- a **bad `--start` returns HTTP 400 and exits 1**, while a valid window without data
+  returns `[]` with exit 0 — check for a non-empty array before computing a trend
+  (see **pegel-trend**);
 - there is **no `--bbox` flag** despite some docs — filter `latitude`/`longitude` with
   `jq` for a viewport (see **pegel-stations-geojson**);
 - station coordinates are already numeric WGS84 `longitude`/`latitude` — GeoJSON needs
-  `[longitude, latitude]` (x, y) order, not `[lat, lon]`.
+  `[longitude, latitude]` (x, y) order, not `[lat, lon]` — but some stations have none
+  and must be skipped (see **pegel-stations-geojson**).
 
 ## Contributing
 

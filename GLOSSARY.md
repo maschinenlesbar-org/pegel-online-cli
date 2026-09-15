@@ -74,9 +74,14 @@ CLI: `characteristic <station> [timeseries]`. Client:
 - **`number`** — the station's official number (string).
 - **`shortname`** — a short name, usually upper-case (e.g. `BONN`).
 - **`longname`** — the full human-readable name.
-- **`km`** — the river kilometre at which the station sits.
+- **`km`** — the river kilometre at which the station sits, on the waterway's
+  own chainage. It does not always grow downstream: on the Danube (`DONAU`) it
+  counts down towards the mouth, on the Mosel, Main, Neckar and Saar it counts
+  up from the mouth, and the Weser has two chainages that each start near 0
+  (above and below Bremen). A few stations have no `km`.
 - **`agency`** — the responsible WSV agency (*Behörde*).
-- **`longitude` / `latitude`** — WGS84 coordinates of the station.
+- **`longitude` / `latitude`** — WGS84 coordinates of the station. Absent for
+  some stations (57 of 787 on 2026-09-15).
 - **`water`** — the body of water the station measures (a `Water`).
 - **`timeseries`** — the station's timeseries, present only when requested.
 
@@ -117,7 +122,9 @@ hour).
 
 **Current measurement (`CurrentMeasurement`).** The latest reading of a
 timeseries: a `timestamp`, a `value`, and up to two state classifications
-(`stateMnwMhw`, `stateNswHsw`; see below).
+(`stateMnwMhw`, `stateNswHsw`; see below). "Latest" is not always recent: a
+gauge that stops reporting keeps its last reading and state, sometimes for
+hours, so check the `timestamp`.
 
 ---
 

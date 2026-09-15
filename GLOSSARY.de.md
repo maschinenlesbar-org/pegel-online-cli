@@ -73,9 +73,14 @@ CLI: `characteristic <station> [timeseries]`. Client:
 - **`number`** – die amtliche Pegelnummer (String).
 - **`shortname`** – ein Kurzname, meist in Großbuchstaben (z. B. `BONN`).
 - **`longname`** – der vollständige, lesbare Name.
-- **`km`** – der Flusskilometer, an dem der Pegel liegt.
+- **`km`** – der Flusskilometer, an dem der Pegel liegt, nach der Kilometrierung der
+  jeweiligen Wasserstraße. Er wächst nicht immer flussabwärts: An der Donau (`DONAU`) zählt
+  er zur Mündung hin abwärts, an Mosel, Main, Neckar und Saar zählt er von der Mündung aus
+  aufwärts, und die Weser hat zwei Kilometrierungen, die jeweils nahe 0 beginnen (oberhalb
+  und unterhalb von Bremen). Einige wenige Pegel haben keinen `km`.
 - **`agency`** – die zuständige WSV-Behörde.
-- **`longitude` / `latitude`** – WGS84-Koordinaten des Pegels.
+- **`longitude` / `latitude`** – WGS84-Koordinaten des Pegels. Fehlen bei manchen Pegeln
+  (57 von 787 am 15.09.2026).
 - **`water`** – das Gewässer, an dem der Pegel misst (ein `Water`).
 - **`timeseries`** – die Zeitreihen des Pegels, nur vorhanden, wenn angefordert.
 
@@ -115,7 +120,9 @@ und ein numerischer `value` in der Einheit der Zeitreihe.
 
 **Aktueller Messwert (`CurrentMeasurement`).** Der neueste Messwert einer Zeitreihe:
 ein `timestamp`, ein `value` und bis zu zwei Zustandseinstufungen
-(`stateMnwMhw`, `stateNswHsw`; siehe unten).
+(`stateMnwMhw`, `stateNswHsw`; siehe unten). „Neuester“ heißt nicht immer aktuell: Ein
+Pegel, der keine Daten mehr meldet, behält seinen letzten Messwert samt Einstufung,
+manchmal stundenlang – prüfen Sie daher den `timestamp`.
 
 ---
 
