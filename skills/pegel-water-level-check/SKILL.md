@@ -79,9 +79,11 @@ measurement, **not** the gauge marks. Map it to plain language:
 If the user explicitly wants the numeric flood thresholds, those live in the
 gauge marks: `pegel stations get <station> --include-timeseries
 --include-characteristic`, then read the `characteristicValues[]` of the `W`
-series. **Heads-up:** those marks are river-specific codes (e.g. `GlW`, `M_I`,
-`M_II` on the Rhine), **not** a tidy MNW/MHW pair — present them verbatim and
-don't invent a missing MNW/MHW.
+series. **Heads-up:** which marks a gauge publishes differs from gauge to gauge.
+On 2026-09-15 KAUB and KÖLN had `MNW` and `MHW` next to codes such as `NNW`,
+`MW`, `HHW`, `GlW`, `M_I`, `M_II`, `HSW` and `TuGLW`; Basel-Rheinhalle had only
+`GlW`, `M_I`, `M_II` and `HSW`; BREISACH had none. Present the marks that are
+there, verbatim, and don't invent a missing one.
 
 ## Step 4 — Report
 
@@ -98,6 +100,11 @@ Rhine water levels (as of 11 Jun, 00:00 local):
 Rules:
 - Always show the **unit** and the **timestamp** — a level with no unit/time is
   useless. Note the timestamp is local German time.
+- **Check that the reading is current.** Most gauges report every 15 minutes, but
+  some lag by hours and keep their last state flag: on 2026-09-15 at 22:20, the
+  Elbe gauge NEU DARCHAU still showed 23:00 the day before, flagged `low`. Call
+  a reading older than about two hours stale, and give each station its own
+  time instead of one "as of" line that hides it.
 - Lead with anything `high` or `low`; group the `normal`/`unknown` ones.
 - For multiple stations, fetch each with its own `current` call (they're cheap)
   or, if they share one water, use the river overview approach (one list call
