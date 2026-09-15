@@ -80,8 +80,8 @@ function stripSensitiveHeaders(headers: Record<string, string>): void {
  * byte, so without this a hostile or MITM'd endpoint
  * could drive ANSI/OSC escape sequences into the user's terminal once the message
  * is printed raw to stderr (title spoofing, output overwrite, OSC 52 clipboard).
- * The success path is already safe (`JSON.stringify` escapes these), so this only
- * needs to cover text that flows into an error message.
+ * The CLI's JSON output is escaped separately (`escapeControlChars` in
+ * cli/shared.ts): `JSON.stringify` alone leaves DEL and the C1 range raw.
  */
 function sanitizeServerText(text: string): string {
   let out = "";
