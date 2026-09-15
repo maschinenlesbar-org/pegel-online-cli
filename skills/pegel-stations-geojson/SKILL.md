@@ -52,7 +52,9 @@ pegel --compact stations list --waters RHEIN --include-timeseries --include-curr
 ## Step 2 — Build the GeoJSON
 
 Each station carries numeric `longitude` and `latitude` (WGS84, already decimal
-degrees — **not** strings, no split needed). GeoJSON wants `[longitude, latitude]`
+degrees — **not** strings, no split needed) — **when it has coordinates at all**:
+57 of 787 stations had none on 2026-09-15 (on `DONAU` 9 of 27, mostly the
+Austrian VIA DONAU gauges). Skip those. GeoJSON wants `[longitude, latitude]`
 (x, y) order:
 
 ```js
@@ -76,22 +78,35 @@ const feature = {
   },
 };
 // where: const w = (station.timeseries || []).find(t => t.shortname === "W");
+// and only for stations with station.longitude != null && station.latitude != null.
+// A station without a W series stays in, with level/unit/state undefined.
 ```
 
 Wrap them: `{ "type": "FeatureCollection", "features": [ … ] }`.
 
-A jq one-liner that does the whole thing (with levels):
+A jq one-liner that does the whole thing (with levels). It skips stations without
+coordinates, keeps stations without a `W` series (their `level` is `null`), and
+uses only the first `W` series per station:
 
 ```bash
 pegel --compact stations list --waters RHEIN --include-timeseries --include-current \
   | jq '{type:"FeatureCollection", features: [ .[]
-      | . as $s | (.timeseries[]? | select(.shortname=="W")) as $w
+      | select(.longitude != null and .latitude != null)
+      | . as $s | ([.timeseries[]? | select(.shortname=="W")][0]) as $w
       | { type:"Feature",
           geometry:{type:"Point", coordinates:[$s.longitude, $s.latitude]},
           properties:{ shortname:$s.shortname, longname:$s.longname, km:$s.km,
                        agency:$s.agency, water:$s.water.shortname,
                        level:$w.currentMeasurement.value, unit:$w.unit,
-                       state:$w.currentMeasurement.stateMnwMhw } } ] }'
+                       state:$w.currentMeasurement.stateMnwMhw,
+                       measuredAt:$w.currentMeasurement.timestamp } } ] }'
+```
+
+The stations it skipped, to report with the feature count:
+
+```bash
+pegel --compact stations list --waters RHEIN \
+  | jq -r '.[] | select(.longitude == null or .latitude == null) | .shortname'
 ```
 
 ## Step 3 — (Optional) viewport filter
@@ -113,12 +128,17 @@ If a name the user supplied already exists, confirm before overwriting it (re-ru
 the default name to refresh is fine). Validity checklist before handing it over:
 
 - coordinates are `[longitude, latitude]` (x, y) — **not** `[lat, lon]`;
-- they're **numbers** (the API already gives numbers; don't quote them);
+- they're **numbers**, never `null` (the API gives numbers; don't quote them, and
+  skip stations that have none);
 - the whole thing parses as JSON and is a single `FeatureCollection`.
 
 Notes:
-- Skip any station missing `longitude`/`latitude` (rare) and report how many were
-  dropped.
+- Skip any station missing `longitude`/`latitude` (not rare: about 7 % of the
+  network, a third of the `DONAU` list, on 2026-09-15) and report how many were
+  dropped and which.
+- `measuredAt` shows how fresh each level is; a few gauges lag by hours while
+  keeping their last `state`. Mention stale ones when the map is about current
+  levels.
 - The full network is hundreds of gauges — fine as a map layer, but warn before
   pasting it inline as text; offer to open it at https://geojson.io.
 - Offer to color points by `state` (high/low/normal) when levels were embedded.
