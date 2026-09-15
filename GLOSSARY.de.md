@@ -155,15 +155,11 @@ statt als geratenen Typ.
 Liste eingeschränkt wird. Wird kommagetrennt an die API gesendet. CLI: wiederholbares
 `--ids <id>`.
 
-**Filter `longname` / `agency` / `waters` / `fuzzyId`.** Schränken `stations
-list` ein: nach (einem Teilstring des) longname, nach zuständiger Behörde, nach
-Gewässer-shortname oder über einen unscharfen ID-Abgleich (`--fuzzy-id`).
-
-**Bounding Box (`bbox`).** Ein geografischer Filter aus vier Zahlen
-`latbottom,lattop,longleft,longright`. Die CLI liest und prüft sie
-(vier endliche Dezimalzahlen; Breitengrade in `[-90, 90]`, Längengrade in `[-180, 180]`;
-`latbottom <= lattop`, `longleft <= longright`) und gibt sie als vier
-getrennte API-Parameter weiter. CLI: `--bbox`.
+**Filter `ids` / `waters` / `fuzzyId`.** Schränken `stations list` ein: nach
+Pegel-ID (`--ids`, wiederholbar), nach Gewässer-shortname (`--waters`) oder über
+einen unscharfen ID-Abgleich (`--fuzzy-id`). Nach Behörde oder Gebiet filtert die
+CLI nicht; filtern Sie dafür die JSON-Ausgabe (z. B. mit `jq` auf `agency`,
+`latitude`, `longitude`).
 
 **Einbettungs-Flags.** Optionale Erweiterungen, die zusätzliche Daten in eine Pegel- bzw.
 Zeitreihen-Antwort einbetten; standardmäßig aus:

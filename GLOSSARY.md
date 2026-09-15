@@ -157,15 +157,10 @@ type.
 restrict a listing to. Sent to the API comma-separated. CLI: repeatable
 `--ids <id>`.
 
-**`longname` / `agency` / `waters` / `fuzzyId` filters.** Narrow a `stations
-list` by (a substring of) longname, by responsible agency, by water shortname,
-or by a fuzzy id match (`--fuzzy-id`).
-
-**Bounding box (`bbox`).** A geographic filter expressed as four numbers
-`latbottom,lattop,longleft,longright`. The CLI parses and validates them
-(four finite decimals; latitudes in `[-90, 90]`, longitudes in `[-180, 180]`;
-`latbottom <= lattop`, `longleft <= longright`) and forwards them as the four
-separate API parameters. CLI: `--bbox`.
+**`ids` / `waters` / `fuzzyId` filters.** Narrow a `stations list` by station
+id (`--ids`, repeatable), by water shortname (`--waters`) or by a fuzzy id match
+(`--fuzzy-id`). The CLI has no filter by agency or by area; filter the JSON
+output instead (e.g. with `jq` on `agency`, `latitude`, `longitude`).
 
 **Include flags.** Optional expansions that embed extra data in a station /
 timeseries response, off by default:
