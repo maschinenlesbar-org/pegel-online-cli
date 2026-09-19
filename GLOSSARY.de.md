@@ -105,7 +105,8 @@ löst jede dieser Formen auf. Die CLI lehnt eine leere Angabe sowie die Pfadsegm
 in der CLI ist **`W`** (Wasserstand). Weitere Codes, die ein Pegel anbieten kann, sind
 **`Q`** (Durchfluss/Abfluss), **`WT`** (Wassertemperatur) und **`LT`**
 (Lufttemperatur) – was verfügbar ist, hängt vom Pegel ab. Der Code wird als optionales
-Positionsargument `[timeseries]` übergeben und ist `W`, wenn er fehlt oder leer ist.
+Positionsargument `[timeseries]` übergeben und ist `W`, wenn er fehlt; ein leerer Wert
+wird als Bedienfehler abgelehnt.
 
 **Einheit (`unit`).** Die physikalische Einheit der Werte einer Zeitreihe, wie von der
 API veröffentlicht – z. B. `cm` für den Wasserstand, `m³/s` für den Abfluss, `°C` für
@@ -174,7 +175,7 @@ Zeitreihen-Antwort einbetten; standardmäßig aus:
 **Zeitfenster (`start` / `end`).** Die Grenzen einer `measurements`-Anfrage als
 ISO-8601-Zeitpunkte. `start` kann stattdessen auch eine **ISO-8601-Periode/Dauer** sein,
 etwa `P7D` („die letzten 7 Tage“) oder `P3D`. CLI: `--start`, `--end`. Ein leerer Wert
-gilt als nicht angegeben und wird nicht leer gesendet.
+wird als Bedienfehler abgelehnt, statt still auf das Standardfenster zurückzufallen.
 
 ---
 

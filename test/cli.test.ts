@@ -113,12 +113,38 @@ test("a 404 from the API maps to exit code 4", async () => {
   assert.equal(code, 4);
 });
 
-test("empty [timeseries] positional defaults to W", async () => {
+test("omitted [timeseries] positional defaults to W", async () => {
   const cli = makeCli(() => jsonResponse({ shortname: "W" }));
-  const code = await run(["timeseries", "BONN", ""], cli.deps);
+  const code = await run(["timeseries", "BONN"], cli.deps);
   assert.equal(code, 0);
   assert.equal(new URL(cli.mt.last().url).pathname, `${V2}/stations/BONN/W.json`);
 });
+
+// A blank filter, id, timeseries or date (often an unset shell variable) must
+// never be dropped or sent empty: that would run the command unfiltered, or over
+// its default window, and exit 0. Each is a usage error before any request.
+const blankCases: { name: string; argv: (blank: string) => string[] }[] = [
+  { name: "stations list --ids", argv: (b) => ["stations", "list", "--ids", b] },
+  { name: "stations list --ids (repeated)", argv: (b) => ["stations", "list", "--ids", "BONN", "--ids", b] },
+  { name: "stations list --waters", argv: (b) => ["stations", "list", "--waters", b] },
+  { name: "stations list --fuzzy-id", argv: (b) => ["stations", "list", "--fuzzy-id", b] },
+  { name: "timeseries [timeseries]", argv: (b) => ["timeseries", "BONN", b] },
+  { name: "current [timeseries]", argv: (b) => ["current", "BONN", b] },
+  { name: "measurements [timeseries]", argv: (b) => ["measurements", "BONN", b] },
+  { name: "measurements --start", argv: (b) => ["measurements", "BONN", "W", "--start", b] },
+  { name: "measurements --end", argv: (b) => ["measurements", "BONN", "W", "--end", b] },
+];
+
+for (const { name, argv } of blankCases) {
+  for (const blank of ["", "  "]) {
+    test(`blank ${name} (${JSON.stringify(blank)}) is a usage error and makes no request`, async () => {
+      const cli = makeCli(() => jsonResponse([]));
+      const code = await run(argv(blank), cli.deps);
+      assert.notEqual(code, 0);
+      assert.equal(cli.mt.calls.length, 0);
+    });
+  }
+}
 
 test("empty <station> is a usage-style error and makes no request", async () => {
   const cli = makeCli(() => jsonResponse({}));
@@ -136,9 +162,9 @@ test('"." / ".." station is rejected before any request', async () => {
   }
 });
 
-test("empty --start / --end are omitted, not sent blank", async () => {
+test("--start is sent and an omitted --end is not", async () => {
   const cli = makeCli(() => jsonResponse([]));
-  await run(["measurements", "BONN", "W", "--start", "P3D", "--end", ""], cli.deps);
+  await run(["measurements", "BONN", "W", "--start", "P3D"], cli.deps);
   const url = new URL(cli.mt.last().url);
   assert.equal(url.searchParams.get("start"), "P3D");
   assert.equal(url.searchParams.has("end"), false);

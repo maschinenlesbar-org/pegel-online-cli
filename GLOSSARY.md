@@ -107,7 +107,7 @@ is **`W`** (water level / *Wasserstand*). Other codes a station may expose
 include **`Q`** (flow / discharge, *Durchfluss*), **`WT`** (water temperature),
 and **`LT`** (air temperature) — availability varies per station. The code is
 passed as the optional `[timeseries]` positional and defaults to `W` when
-omitted or blank.
+omitted; a blank value is rejected as a usage error.
 
 **Unit (`unit`).** The physical unit of a timeseries' values, as published by the
 API — e.g. `cm` for water level, `m³/s` for flow, `°C` for temperatures. The
@@ -174,8 +174,8 @@ timeseries response, off by default:
 
 **Time window (`start` / `end`).** The bounds of a `measurements` request, as
 ISO-8601 instants. `start` may instead be an **ISO-8601 period/duration** such
-as `P7D` ("the last 7 days") or `P3D`. CLI: `--start`, `--end`. An empty value
-is treated as omitted rather than sent blank.
+as `P7D` ("the last 7 days") or `P3D`. CLI: `--start`, `--end`. A blank value
+is rejected as a usage error rather than silently falling back to the default window.
 
 ---
 

@@ -1,12 +1,12 @@
 import type { Command } from "commander";
 import { Option } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, renderJson, requireArg } from "../shared.js";
+import { action, parseNonEmpty, renderJson, requireArg } from "../shared.js";
 import type { IncludeParams, StationListParams } from "../../client/types.js";
 
 /** commander accumulator for a repeatable string option. */
 function collect(value: string, previous: string[] = []): string[] {
-  return previous.concat([value]);
+  return previous.concat([parseNonEmpty(value)]);
 }
 
 /** Read the three include flags off a parsed-options object. */
@@ -32,8 +32,8 @@ export function registerStationCommands(program: Command, deps: CliDeps): void {
     .command("list")
     .description("List/filter stations")
     .option("--ids <id>", "station id (uuid/number/shortname/longname); repeatable", collect)
-    .option("--waters <shortname>", "filter by water shortname (see `waters`)")
-    .option("--fuzzy-id <id>", "fuzzy id match");
+    .option("--waters <shortname>", "filter by water shortname (see `waters`)", parseNonEmpty)
+    .option("--fuzzy-id <id>", "fuzzy id match", parseNonEmpty);
   addIncludeOptions(list).action(
     action(deps, async ({ client, global, opts }) => {
       const params: StationListParams = {

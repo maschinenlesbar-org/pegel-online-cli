@@ -35,6 +35,17 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
 }
 
 /**
+ * commander value-parser: a value that is not blank. A blank filter would
+ * otherwise be dropped and the command would silently run unfiltered.
+ */
+export function parseNonEmpty(value: string): string {
+  if (value.trim() === "") {
+    throw new InvalidArgumentError("Expected a non-empty value.");
+  }
+  return value;
+}
+
+/**
  * commander value-parser for `--base-url`: reject anything that is not a parseable
  * absolute `http:`/`https:` URL at *parse* time, so a bad scheme (`file:`, `ftp:`)
  * or malformed URL exits 2 (usage) — consistent with the blueprint — instead of
@@ -73,12 +84,12 @@ export function requireArg(name: string, value: string | undefined): string {
 }
 
 /**
- * Normalise an optional `[timeseries]` positional: an empty/blank value behaves
- * like omitting it and defaults to "W" (water level), matching the documented
- * default. (`??` alone would forward an empty string into the path.)
+ * Default an omitted optional `[timeseries]` positional to "W" (water level),
+ * matching the documented default. A blank value never reaches here: the
+ * positional's `parseNonEmpty` parser rejects it as a usage error.
  */
 export function timeseriesOr(value: string | undefined, fallback = "W"): string {
-  return value && value.trim() !== "" ? value : fallback;
+  return value ?? fallback;
 }
 
 export interface GlobalOptions {
