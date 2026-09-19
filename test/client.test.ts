@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PegelOnlineClient } from "../src/client/client.js";
-import { PegelApiError } from "../src/client/errors.js";
+import { PegelApiError, PegelNetworkError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>): PegelOnlineClient {
@@ -84,4 +84,15 @@ test("a 404 raises PegelApiError with status 404", async () => {
     () => clientWith(mt).stations.get("nope"),
     (err) => err instanceof PegelApiError && err.status === 404,
   );
+});
+
+test("the client rejects a non-http(s) base URL before any request, even with a custom transport", () => {
+  for (const baseUrl of ["file:///etc/passwd", "ftp://example.org"]) {
+    const mt = makeMockTransport(() => jsonResponse([]));
+    assert.throws(
+      () => new PegelOnlineClient({ baseUrl, transport: mt.transport }),
+      PegelNetworkError,
+    );
+    assert.equal(mt.calls.length, 0);
+  }
 });
