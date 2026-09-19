@@ -8,8 +8,10 @@ description: >
   dropping?", "plot the last 3 days for Dresden", "min/max/now this week", or
   wants a time-series summary instead of one instantaneous reading. Pulls the
   measurement window and reduces it to direction, delta, rate and extremes.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `pegel` CLI (npm package @maschinenlesbar.org/pegel-online-cli)
+  on PATH, installed by the user; the skill never installs it. Uses jq for JSON
+  filtering. Network access to www.pegelonline.wsv.de.
 ---
 
 # Pegel Trend
@@ -21,6 +23,8 @@ the window — instead of dumping hundreds of timestamped points.
 ## Tooling
 
 This skill drives the `pegel` command. **Before anything else, validate it is available** — run `command -v pegel` (or `pegel --version`). If it is not on your PATH, STOP and inform the user that the `pegel` CLI (`@maschinenlesbar.org/pegel-online-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
+
+This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
 Data is fetched from the open PEGELONLINE REST API — read-only, **no API key**. Always `--compact`. `<station>` may be a shortname (`BONN`), number, longname or uuid; `[timeseries]` defaults to **`W`** (water level, cm). `Q` = flow (m³/s), `WT`/`LT` = temperatures.
 

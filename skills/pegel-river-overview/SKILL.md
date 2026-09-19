@@ -8,8 +8,10 @@ description: >
   now?", "rank Danube stations by level", "which stations on the Weser are high?",
   or wants the state of a river end-to-end rather than one spot. Does the
   cross-station merge, km-ordering and flood ranking the bare CLI doesn't.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `pegel` CLI (npm package @maschinenlesbar.org/pegel-online-cli)
+  on PATH, installed by the user; the skill never installs it. Uses jq for JSON
+  filtering. Network access to www.pegelonline.wsv.de.
 ---
 
 # Pegel River Overview
@@ -22,6 +24,8 @@ water.
 ## Tooling
 
 This skill drives the `pegel` command. **Before anything else, validate it is available** — run `command -v pegel` (or `pegel --version`). If it is not on your PATH, STOP and inform the user that the `pegel` CLI (`@maschinenlesbar.org/pegel-online-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
+
+This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
 Data is fetched from the open PEGELONLINE REST API — read-only, **no API key**. Always `--compact`. The whole job of this skill is the cross-station merge, ordering and ranking the CLI deliberately leaves to you.
 

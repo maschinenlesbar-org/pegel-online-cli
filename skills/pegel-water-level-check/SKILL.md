@@ -8,8 +8,10 @@ description: >
   "how high is the Elbe at Dresden right now?", or wants a quick now-cast for
   named gauges. Pulls the current measurement plus its state classification and
   reports value, unit, timestamp and a plain-language verdict — not raw JSON.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `pegel` CLI (npm package @maschinenlesbar.org/pegel-online-cli)
+  on PATH, installed by the user; the skill never installs it. Uses jq for JSON
+  filtering. Network access to www.pegelonline.wsv.de.
 ---
 
 # Pegel Water-Level Check
@@ -21,6 +23,8 @@ low verdict, across as many stations as the user named.
 ## Tooling
 
 This skill drives the `pegel` command. **Before anything else, validate it is available** — run `command -v pegel` (or `pegel --version`). If it is not on your PATH, STOP and inform the user that the `pegel` CLI (`@maschinenlesbar.org/pegel-online-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
+
+This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
 Data is fetched from the open PEGELONLINE REST API — read-only, **no API key**. Pass `--compact` so each result is one line, easy to pipe into `jq`. A `<station>` may be a **shortname** (`BONN`, `KÖLN`), a **number**, a **longname** or a **uuid**.
 
