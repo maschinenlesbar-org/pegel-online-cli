@@ -78,7 +78,7 @@ const feature = {
     // when embeds were requested, pull the W series' current reading:
     level: w?.currentMeasurement?.value,          // cm
     unit: w?.unit,                                 // "cm"
-    state: w?.currentMeasurement?.stateMnwMhw,     // normal | high | low | unknown
+    state: w?.currentMeasurement?.stateMnwMhw,     // normal | high | low | unknown | out-dated
     measuredAt: w?.currentMeasurement?.timestamp,  // local German offset
   },
 };

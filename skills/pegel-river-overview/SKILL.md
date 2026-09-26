@@ -68,7 +68,9 @@ Each item is a station. Fields that matter:
 
 Inside the `W` timeseries' `currentMeasurement`: `value` (cm), `timestamp` (local
 German offset), and `stateMnwMhw` / `stateNswHsw` (the flood/low-water flags;
-values seen: `normal`, `high`, `low`, `unknown`).
+values seen: `normal`, `high`, `low`, `unknown`, `out-dated`). `out-dated` is the
+API's own staleness flag: the reading is too old to classify (ELBE's SANDAU and
+NEU DARCHAU on 2026-09-26), so it is no verdict at all.
 
 ## Step 3 — Order along the river and rank
 
@@ -104,7 +106,8 @@ values seen: `normal`, `high`, `low`, `unknown`).
    ELBE's PIRNA still showed 12:15 and NEU DARCHAU 23:00 the day before, both
    `low`. Mark readings older than about two hours as stale.
 4. **Rank the alert list** by `stateMnwMhw`: `high` first (flood-leaning), then
-   `low`, then `normal`/`unknown`. The headline is *how many gauges are not
+   `low`, then `normal`/`unknown`; list `out-dated` gauges apart as "no current
+   reading", never as normal. The headline is *how many gauges are not
    normal*, not the longest list.
 
 One-liner to flatten the merged data, one row per station (set `dir` to `1`

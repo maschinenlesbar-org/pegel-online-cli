@@ -60,8 +60,8 @@ The response is a single object:
 |---|---|
 | `value` | The reading, a number **in the series' unit** (W → cm, Q → m³/s, WT → °C) |
 | `timestamp` | ISO-8601 with a **local German offset** (`+02:00` in summer), not UTC |
-| `stateMnwMhw` | Classification vs. mean low / mean high water — the flood/low-water verdict. Seen values: `normal`, `high`, `low`, `unknown` |
-| `stateNswHsw` | Classification vs. lowest / highest *navigable* water (shipping bounds). Often `unknown` |
+| `stateMnwMhw` | Classification vs. mean low / mean high water — the flood/low-water verdict. Seen values: `normal`, `high`, `low`, `unknown`, `out-dated` |
+| `stateNswHsw` | Classification vs. lowest / highest *navigable* water (shipping bounds). Often `unknown`; also `out-dated` |
 
 > **Unit is not in this response.** `value` is just a number; the unit (`cm`,
 > `m³/s`, `°C`) belongs to the series, not the measurement. Default `W` is **cm**.
@@ -79,6 +79,8 @@ measurement, **not** the gauge marks. Map it to plain language:
 - `unknown` → the station has no MNW/MHW reference for this series; say "no flood
   reference published" rather than implying it's fine. (`Q` flow and many
   temperature series carry **no** state fields at all — same handling.)
+- `out-dated` → the reading is too old for the API to classify; say "no current
+  reading" and give its timestamp, never "normal".
 
 If the user explicitly wants the numeric flood thresholds, those live in the
 gauge marks: `pegel stations get <station> --include-timeseries
