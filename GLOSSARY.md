@@ -188,9 +188,12 @@ is rejected as a usage error rather than silently falling back to the default wi
 ## Reliability and limits
 
 **Retry / backoff.** Transient **`429`** (Too Many Requests) and **`503`**
-(Service Unavailable) responses are retried automatically with linear backoff,
-up to `maxRetries` times (default `2`). CLI: `--max-retries`. `PegelApiError`
-exposes `isRetryable` for exactly these statuses.
+(Service Unavailable) responses are retried automatically, up to `maxRetries`
+times (default `2`; the CLI's `--max-retries` takes `0`–`10`). Each retry waits
+the response's `Retry-After` (seconds or an HTTP date) when it is at most 30 s
+(`MAX_RETRY_AFTER_MS`); a longer one is not retried and the error surfaces at
+once. Without a usable `Retry-After` the wait grows linearly (200 ms × attempt).
+`PegelApiError` exposes `isRetryable` for exactly these statuses.
 
 **Redirects.** The engine follows up to `maxRedirects` (default `5`) HTTP
 redirects (301/302/303/307/308), resolving `Location` relative to the current

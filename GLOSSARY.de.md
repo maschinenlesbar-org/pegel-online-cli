@@ -189,9 +189,12 @@ wird als Bedienfehler abgelehnt, statt still auf das Standardfenster zurückzufa
 ## Zuverlässigkeit und Grenzen
 
 **Retry / Backoff.** Vorübergehende Antworten **`429`** (Too Many Requests) und **`503`**
-(Service Unavailable) werden automatisch mit linearem Backoff wiederholt, bis zu
-`maxRetries`-mal (Standard `2`). CLI: `--max-retries`. `PegelApiError`
-stellt `isRetryable` für genau diese Status bereit.
+(Service Unavailable) werden automatisch wiederholt, bis zu `maxRetries`-mal
+(Standard `2`; `--max-retries` der CLI nimmt `0`–`10`). Jede Wiederholung wartet das
+`Retry-After` der Antwort ab (Sekunden oder HTTP-Datum), sofern es höchstens 30 s
+beträgt (`MAX_RETRY_AFTER_MS`); ein längeres wird nicht wiederholt, der Fehler kommt
+sofort. Ohne brauchbares `Retry-After` wächst die Wartezeit linear (200 ms × Versuch).
+`PegelApiError` stellt `isRetryable` für genau diese Status bereit.
 
 **Weiterleitungen.** Die Engine folgt bis zu `maxRedirects` (Standard `5`)
 HTTP-Weiterleitungen (301/302/303/307/308), löst `Location` relativ zur aktuellen

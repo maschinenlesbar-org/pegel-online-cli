@@ -62,7 +62,7 @@ defaults (defaults are `maxRetries: 2`, `maxResponseBytes: 100 MiB`, `timeoutMs:
 new PegelOnlineClient({
   baseUrl: "https://www.pegelonline.wsv.de",
   timeoutMs: 15_000,
-  maxRetries: 3,              // 429 / 503 are retried with linear backoff
+  maxRetries: 3,              // 429 / 503: waits Retry-After (<= 30 s), else linear backoff
   maxResponseBytes: 50 << 20, // abort responses larger than 50 MiB (0 = unlimited)
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
@@ -124,9 +124,12 @@ decodes JSON and maps errors. Sits between the client's resource methods and the
 ([`src/client/http.ts`](src/client/http.ts)). The default (`nodeHttpTransport`) uses Node's
 built-in `http`/`https`; tests inject a mock. This is the only HTTP seam.
 
-**Retry / backoff.** Transient `429` (rate limit) and `503` responses are retried automatically
-with linear backoff, up to `maxRetries` (default `2`). `PegelApiError` exposes `isRetryable`
-for exactly these statuses. CLI: `--max-retries`.
+**Retry / backoff.** Transient `429` (rate limit) and `503` responses are retried automatically,
+up to `maxRetries` (default `2`; CLI `--max-retries`, `0`–`10`). Each retry waits the
+response's `Retry-After` (`parseRetryAfter`: delay-seconds or an IMF-fixdate, anything else is
+ignored) when it is at most `MAX_RETRY_AFTER_MS` (30 s); a longer one is not retried and the
+error surfaces at once. Without a usable header the wait is `retryDelayMs * attempt`.
+`PegelApiError` exposes `isRetryable` for exactly these statuses.
 
 **Redirects.** The engine follows up to `maxRedirects` (default `5`) HTTP redirects
 (301/302/303/307/308), resolving `Location` relative to the current URL. When a hop

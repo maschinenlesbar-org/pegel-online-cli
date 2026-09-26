@@ -258,3 +258,14 @@ test('"." / ".." [timeseries] is a usage error and makes no request', async () =
   assert.equal(await run(["current", "BONN", "..."], ok.deps), 0);
   assert.equal(new URL(ok.mt.last().url).pathname, `${V2}/stations/BONN/.../currentmeasurement.json`);
 });
+
+test("--max-retries is bounded to 0..10", async () => {
+  for (const bad of ["11", "9007199254740991"]) {
+    const cli = makeCli(() => jsonResponse([]));
+    assert.equal(await run(["--max-retries", bad, "waters"], cli.deps), 2, bad);
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), /from 0 to 10/);
+  }
+  const ok = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["--max-retries", "10", "waters"], ok.deps), 0);
+});
