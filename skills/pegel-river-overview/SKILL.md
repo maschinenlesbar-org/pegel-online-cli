@@ -47,12 +47,13 @@ ambiguous, show the candidates and ask.
 pegel --compact stations list --waters RHEIN --include-timeseries --include-current
 ```
 
-> **The critical trap: `--include-current` does nothing on its own here.** The
-> current reading is nested **inside** each station's `timeseries[]`, so without
-> `--include-timeseries` there is no array to attach it to and the embed is
-> silently dropped — you get bare station metadata and *no levels*. **Always pass
-> both `--include-timeseries` and `--include-current` together.** (The README's
-> `--waters RHEIN --include-current` example is misleading for this reason.)
+> **The critical trap: the current reading lives inside `timeseries[]`.** The API
+> nests it **inside** each station's `timeseries[]` and silently drops it without
+> `--include-timeseries`. Current `pegel` versions turn that flag on for you when
+> `--include-current` is given, but pegel 0.0.8 and older do not — you would get
+> bare station metadata and *no levels*. **Always pass both
+> `--include-timeseries` and `--include-current` together**; that works on every
+> version.
 
 Each item is a station. Fields that matter:
 

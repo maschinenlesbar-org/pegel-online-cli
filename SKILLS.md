@@ -9,7 +9,7 @@ Each skill teaches Claude how to drive the `pegel` CLI to answer a specific, rea
 question — "what's the Rhine level at Bonn?", "any flooding along the Elbe?", "is the level
 rising or falling?", "map the gauges with their levels" — and to report the answer with
 evidence rather than guesswork. They encode the parts that are easy to get wrong (the
-`--include-current` embed that silently needs `--include-timeseries`, the flood signal
+`--include-current` embed that lives inside `--include-timeseries`, the flood signal
 living on the current reading rather than the gauge marks) so Claude doesn't have to
 rediscover them each time.
 
@@ -88,10 +88,10 @@ Every skill is a single `SKILL.md` — a short, model-facing playbook describing
 `pegel` subcommands to call, in what order, and how to interpret the JSON. The skills
 encode the non-obvious parts of this API, for example:
 
-- **`--include-current` is silently dropped without `--include-timeseries`** on
-  `stations list` / `stations get` — the current reading is nested *inside* each station's
-  `timeseries[]`, so both flags must be passed together to get levels (the README's
-  `--waters RHEIN --include-current` example is misleading; see **pegel-river-overview**);
+- **the current reading is nested *inside* each station's `timeseries[]`** on
+  `stations list` / `stations get`, and the API drops it without `--include-timeseries`;
+  current `pegel` versions imply that flag for `--include-current`, pegel 0.0.8 and older
+  do not, so the skills pass both flags together (see **pegel-river-overview**);
 - the reliable flood/low-water signal is **`stateMnwMhw`** on the *current measurement*
   (`normal` / `high` / `low` / `unknown`), **not** the gauge marks — whose set differs
   per gauge (KAUB has `MNW`/`MHW` plus codes like `GlW` / `M_I` / `M_II`, Basel-Rheinhalle

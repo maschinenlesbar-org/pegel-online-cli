@@ -128,6 +128,11 @@ can fetch a water plus live levels in one request:
 pegel stations list --waters RHEIN --include-current
 ```
 
+The API nests the current measurement (and the gauge marks) *inside* each
+station's timeseries and drops them without the timeseries list, so
+`--include-current` and `--include-characteristic` imply `--include-timeseries`.
+The reading is at `.timeseries[] | select(.shortname == "W") | .currentMeasurement`.
+
 ### 7. Characteristic (gauge-mark) values for a station
 
 Compare today's level against statistical marks such as MNW/MHW (mean low/high

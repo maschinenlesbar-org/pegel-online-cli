@@ -31,6 +31,21 @@ function prune(params: Record<string, unknown>): QueryParams {
   return out;
 }
 
+/**
+ * The station include parameters. The API nests the current measurement and the
+ * gauge marks *inside* each timeseries, so without `includeTimeseries=true` it
+ * silently drops both. Asking for either therefore implies `includeTimeseries`
+ * unless the caller set it explicitly.
+ */
+function stationIncludes(p: IncludeParams): QueryParams {
+  const nested = p.includeCurrentMeasurement === true || p.includeCharacteristicValues === true;
+  return prune({
+    includeTimeseries: p.includeTimeseries ?? (nested ? true : undefined),
+    includeCurrentMeasurement: p.includeCurrentMeasurement,
+    includeCharacteristicValues: p.includeCharacteristicValues,
+  });
+}
+
 function includeQuery(p: IncludeParams): QueryParams {
   return prune({
     includeTimeseries: p.includeTimeseries,
@@ -48,15 +63,13 @@ class StationsResource {
       ids: params.ids && params.ids.length > 0 ? params.ids.join(",") : undefined,
       waters: params.waters,
       fuzzyId: params.fuzzyId,
-      includeTimeseries: params.includeTimeseries,
-      includeCurrentMeasurement: params.includeCurrentMeasurement,
-      includeCharacteristicValues: params.includeCharacteristicValues,
+      ...stationIncludes(params),
     });
     return this.e.getJson(`${API}/stations.json`, query);
   }
 
   get(station: string, params: IncludeParams = {}): Promise<Station> {
-    return this.e.getJson(`${API}/stations/${enc(station)}.json`, includeQuery(params));
+    return this.e.getJson(`${API}/stations/${enc(station)}.json`, stationIncludes(params));
   }
 }
 

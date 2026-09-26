@@ -64,12 +64,24 @@ export interface StationListParams {
   /** Water shortname filter. */
   waters?: string;
   fuzzyId?: string;
+  /** Embed each station's timeseries list. */
   includeTimeseries?: boolean;
+  /**
+   * Embed the current measurement inside each timeseries. Implies
+   * `includeTimeseries: true` unless that is set explicitly: the API drops the
+   * measurement without the timeseries list.
+   */
   includeCurrentMeasurement?: boolean;
+  /** Embed the gauge marks inside each timeseries. Implies `includeTimeseries` like the above. */
   includeCharacteristicValues?: boolean;
 }
 
-/** Optional includes for a single-station or single-timeseries request. */
+/**
+ * Optional includes for a single-station or single-timeseries request. On a
+ * station request, `includeCurrentMeasurement` / `includeCharacteristicValues`
+ * imply `includeTimeseries: true` unless that is set explicitly (the API nests
+ * both inside the timeseries list and drops them without it).
+ */
 export interface IncludeParams {
   includeTimeseries?: boolean;
   includeCurrentMeasurement?: boolean;

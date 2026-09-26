@@ -52,6 +52,21 @@ test("stations.get sends includes and prune keeps no key when all undefined", as
   assert.equal(url.searchParams.get("includeCurrentMeasurement"), null);
 });
 
+test("includeCurrentMeasurement / includeCharacteristicValues imply includeTimeseries on stations", async () => {
+  const mt = constantJson([]);
+  const c = clientWith(mt);
+  await c.stations.list({ waters: "RHEIN", includeCurrentMeasurement: true });
+  assert.equal(new URL(mt.last().url).searchParams.get("includeTimeseries"), "true");
+  await c.stations.get("BONN", { includeCharacteristicValues: true });
+  assert.equal(new URL(mt.last().url).searchParams.get("includeTimeseries"), "true");
+  // An explicit value is kept as given.
+  await c.stations.get("BONN", { includeTimeseries: false, includeCurrentMeasurement: true });
+  assert.equal(new URL(mt.last().url).searchParams.get("includeTimeseries"), "false");
+  // Nothing requested, nothing implied.
+  await c.stations.list({ waters: "RHEIN" });
+  assert.equal(new URL(mt.last().url).searchParams.has("includeTimeseries"), false);
+});
+
 test("prune keeps falsy-but-defined values (false) and drops undefined", async () => {
   const mt = constantJson([]);
   // includeCurrentMeasurement false is meaningful and must survive;

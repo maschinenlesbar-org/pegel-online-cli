@@ -74,7 +74,9 @@ new PegelOnlineClient({
 `client.stations` (`.list` / `.get`), `client.timeseries` (`.get` /
 `.currentMeasurement` / `.measurements`), and `client.waters()`. Characteristic
 (gauge-mark) values are available via the `includeCharacteristicValues` embed on
-`.get` / `.list`.
+`.get` / `.list`. On those two station methods, `includeCurrentMeasurement` and
+`includeCharacteristicValues` imply `includeTimeseries: true` unless it is set
+explicitly: the API nests both inside the timeseries list and drops them without it.
 
 ## Architecture
 

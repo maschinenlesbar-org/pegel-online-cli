@@ -168,9 +168,13 @@ timeseries response, off by default:
 - **`includeTimeseries`** (`--include-timeseries`) — embed each station's
   timeseries list.
 - **`includeCurrentMeasurement`** (`--include-current`) — embed the current
-  measurement.
+  measurement inside each timeseries.
 - **`includeCharacteristicValues`** (`--include-characteristic`) — embed the
-  characteristic (gauge-mark) values.
+  characteristic (gauge-mark) values inside each timeseries.
+
+The API nests both inside the timeseries list and silently drops them without
+`includeTimeseries`, so on a station request either one implies
+`includeTimeseries` (CLI and client) unless that is set explicitly.
 
 **Time window (`start` / `end`).** The bounds of a `measurements` request, as
 ISO-8601 instants. `start` may instead be an **ISO-8601 period/duration** such

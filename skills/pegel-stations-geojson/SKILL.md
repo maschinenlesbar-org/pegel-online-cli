@@ -44,10 +44,11 @@ To bake **live levels** into the map, add **both** embed flags (see trap):
 pegel --compact stations list --waters RHEIN --include-timeseries --include-current
 ```
 
-> **Trap: `--include-current` is silently ignored without `--include-timeseries`.**
-> The current reading lives **inside** each station's `timeseries[]`; with no
-> `--include-timeseries` there's no array to attach it to, so you get bare metadata
-> and no levels. To enrich points with levels, **pass both flags together.**
+> **Trap: the current reading lives inside `timeseries[]`.** The API drops it
+> without `--include-timeseries`; current `pegel` versions imply that flag for
+> `--include-current`, but pegel 0.0.8 and older silently return bare metadata and
+> no levels. To enrich points with levels, **pass both flags together** (works on
+> every version).
 
 > **No `--bbox` flag exists.** Despite what some docs imply, the CLI has no
 > bounding-box option. To restrict to a map viewport, fetch the listing and filter

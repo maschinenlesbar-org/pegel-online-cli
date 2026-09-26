@@ -86,16 +86,20 @@ level); other codes include `Q` (flow/discharge), `WT` (water temperature), and
 | `--waters <shortname>` | filter by water shortname (see `waters`) |
 | `--fuzzy-id <id>` | fuzzy match against short/long name |
 | `--include-timeseries` | embed each station's timeseries list |
-| `--include-current` | embed the current measurement |
-| `--include-characteristic` | embed characteristic (gauge-mark) values |
+| `--include-current` | embed the current measurement in each timeseries (implies `--include-timeseries`) |
+| `--include-characteristic` | embed characteristic (gauge-mark) values in each timeseries (implies `--include-timeseries`) |
 
 ### `stations get` options
 
 | Flag | Meaning |
 | --- | --- |
 | `--include-timeseries` | embed the station's timeseries list |
-| `--include-current` | embed the current measurement |
-| `--include-characteristic` | embed characteristic (gauge-mark) values |
+| `--include-current` | embed the current measurement in each timeseries (implies `--include-timeseries`) |
+| `--include-characteristic` | embed characteristic (gauge-mark) values in each timeseries (implies `--include-timeseries`) |
+
+The API nests the current measurement and the gauge marks *inside* each
+timeseries and drops them without the timeseries list, so `--include-current` and
+`--include-characteristic` turn on `--include-timeseries` themselves.
 
 ### `measurements` options
 

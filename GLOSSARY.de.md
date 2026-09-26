@@ -168,9 +168,14 @@ Zeitreihen-Antwort einbetten; standardmäßig aus:
 - **`includeTimeseries`** (`--include-timeseries`) – bettet die Zeitreihenliste jedes
   Pegels ein.
 - **`includeCurrentMeasurement`** (`--include-current`) – bettet den aktuellen
-  Messwert ein.
+  Messwert in jede Zeitreihe ein.
 - **`includeCharacteristicValues`** (`--include-characteristic`) – bettet die
-  Kennwerte (Pegelmarken) ein.
+  Kennwerte (Pegelmarken) in jede Zeitreihe ein.
+
+Die API verschachtelt beides in der Zeitreihenliste und verwirft es ohne
+`includeTimeseries` stillschweigend; bei einer Pegel-Anfrage schaltet daher jedes der
+beiden `includeTimeseries` mit ein (CLI und Client), sofern es nicht ausdrücklich
+gesetzt ist.
 
 **Zeitfenster (`start` / `end`).** Die Grenzen einer `measurements`-Anfrage als
 ISO-8601-Zeitpunkte. `start` kann stattdessen auch eine **ISO-8601-Periode/Dauer** sein,

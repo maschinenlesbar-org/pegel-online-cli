@@ -21,8 +21,18 @@ function includesFrom(opts: Record<string, unknown>): IncludeParams {
 function addIncludeOptions(cmd: Command): Command {
   return cmd
     .addOption(new Option("--include-timeseries", "embed each station's timeseries list"))
-    .addOption(new Option("--include-current", "embed the current measurement"))
-    .addOption(new Option("--include-characteristic", "embed characteristic (gauge-mark) values"));
+    .addOption(
+      new Option(
+        "--include-current",
+        "embed the current measurement in each timeseries (implies --include-timeseries)",
+      ),
+    )
+    .addOption(
+      new Option(
+        "--include-characteristic",
+        "embed characteristic (gauge-mark) values in each timeseries (implies --include-timeseries)",
+      ),
+    );
 }
 
 export function registerStationCommands(program: Command, deps: CliDeps): void {

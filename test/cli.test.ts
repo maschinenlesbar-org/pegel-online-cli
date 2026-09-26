@@ -34,6 +34,20 @@ test("stations list with filters builds the query", async () => {
   assert.equal(url.pathname, `${V2}/stations.json`);
   assert.equal(url.searchParams.get("waters"), "RHEIN");
   assert.equal(url.searchParams.get("includeCurrentMeasurement"), "true");
+  // The API nests the current measurement inside the timeseries list and drops it
+  // without includeTimeseries, so --include-current implies it (the README recipe).
+  assert.equal(url.searchParams.get("includeTimeseries"), "true");
+});
+
+test("--include-current / --include-characteristic imply --include-timeseries on stations get", async () => {
+  for (const flag of ["--include-current", "--include-characteristic"]) {
+    const cli = makeCli(() => jsonResponse({ uuid: "x" }));
+    assert.equal(await run(["stations", "get", "BONN", flag], cli.deps), 0);
+    assert.equal(new URL(cli.mt.last().url).searchParams.get("includeTimeseries"), "true", flag);
+  }
+  const plain = makeCli(() => jsonResponse({ uuid: "x" }));
+  assert.equal(await run(["stations", "get", "BONN"], plain.deps), 0);
+  assert.equal(new URL(plain.mt.last().url).search, "");
 });
 
 test("stations list maps both include flags to API param names", async () => {
