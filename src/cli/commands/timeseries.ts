@@ -1,14 +1,13 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, parseNonEmpty, parsePathArg, renderJson, requireArg, timeseriesOr } from "../shared.js";
+import { STATION_HELP, action, parseNonEmpty, parsePathArg, renderJson, timeseriesOr } from "../shared.js";
 
-const STATION_HELP = "station uuid, number, shortname or longname";
 const TIMESERIES_HELP = "timeseries shortname, e.g. W (water level) or Q (flow)";
 
 export function registerTimeseriesCommands(program: Command, deps: CliDeps): void {
   program
     .command("timeseries")
-    .argument("<station>", STATION_HELP)
+    .argument("<station>", STATION_HELP, parsePathArg)
     .argument("[timeseries]", TIMESERIES_HELP, parsePathArg)
     .description("Timeseries metadata (timeseries defaults to 'W' = water level)")
     .action(
@@ -16,14 +15,14 @@ export function registerTimeseriesCommands(program: Command, deps: CliDeps): voi
         renderJson(
           deps,
           global,
-          await client.timeseries.get(requireArg("station", station), timeseriesOr(ts)),
+          await client.timeseries.get(station!, timeseriesOr(ts)),
         );
       }),
     );
 
   program
     .command("current")
-    .argument("<station>", STATION_HELP)
+    .argument("<station>", STATION_HELP, parsePathArg)
     .argument("[timeseries]", TIMESERIES_HELP, parsePathArg)
     .description("The current measurement (timeseries defaults to 'W')")
     .action(
@@ -31,14 +30,14 @@ export function registerTimeseriesCommands(program: Command, deps: CliDeps): voi
         renderJson(
           deps,
           global,
-          await client.timeseries.currentMeasurement(requireArg("station", station), timeseriesOr(ts)),
+          await client.timeseries.currentMeasurement(station!, timeseriesOr(ts)),
         );
       }),
     );
 
   program
     .command("measurements")
-    .argument("<station>", STATION_HELP)
+    .argument("<station>", STATION_HELP, parsePathArg)
     .argument("[timeseries]", TIMESERIES_HELP, parsePathArg)
     .description("A window of measurements (timeseries defaults to 'W')")
     .option("--start <iso>", "window start: ISO-8601 instant, or a period like P7D", parseNonEmpty)
@@ -48,7 +47,7 @@ export function registerTimeseriesCommands(program: Command, deps: CliDeps): voi
         renderJson(
           deps,
           global,
-          await client.timeseries.measurements(requireArg("station", station), timeseriesOr(ts), {
+          await client.timeseries.measurements(station!, timeseriesOr(ts), {
             start: opts["start"] as string | undefined,
             end: opts["end"] as string | undefined,
           }),

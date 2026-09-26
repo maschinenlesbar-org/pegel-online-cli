@@ -5,7 +5,9 @@ import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { EngineOptions } from "../client/engine.js";
-import { PegelError } from "../client/errors.js";
+
+/** Help text of every `<station>` positional. */
+export const STATION_HELP = "station uuid, number, shortname or longname";
 
 /** commander value-parser: a non-negative integer. */
 export function parseIntArg(value: string): number {
@@ -47,7 +49,8 @@ export function parseNonEmpty(value: string): string {
 
 /**
  * commander value-parser for an id that becomes a URL path segment (the
- * `[timeseries]` positional): not blank, and not "." / "..", which
+ * `<station>` and `[timeseries]` positionals): not blank (which would build
+ * `/stations//W/...`), and not "." / "..", which
  * encodeURIComponent leaves untouched and URL parsing would resolve, sending the
  * request to a different resource. A usage error, before any request.
  */
@@ -76,23 +79,6 @@ export function parseBaseUrl(value: string): string {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new InvalidArgumentError("Only http and https URLs are supported.");
-  }
-  return value;
-}
-
-/**
- * Validate a required positional argument: reject an empty/blank value rather
- * than forwarding it into the URL path (which would produce a malformed request
- * like `/stations//W/...`). Returns the trimmed value.
- */
-export function requireArg(name: string, value: string | undefined): string {
-  if (value === undefined || value.trim() === "") {
-    throw new PegelError(`Missing required <${name}> argument.`);
-  }
-  // Reject "." / ".." which encodeURIComponent leaves untouched and which would
-  // otherwise inject a relative path segment into the request URL.
-  if (value === "." || value === "..") {
-    throw new PegelError(`Invalid <${name}> argument: "${value}".`);
   }
   return value;
 }

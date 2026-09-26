@@ -160,19 +160,29 @@ for (const { name, argv } of blankCases) {
   }
 }
 
-test("empty <station> is a usage-style error and makes no request", async () => {
-  const cli = makeCli(() => jsonResponse({}));
-  const code = await run(["current", ""], cli.deps);
-  assert.notEqual(code, 0);
-  assert.equal(cli.mt.calls.length, 0);
+const stationCommands = [["stations", "get"], ["timeseries"], ["current"], ["measurements"]];
+
+test("blank <station> is a usage error (exit 2) and makes no request", async () => {
+  for (const cmd of stationCommands) {
+    for (const blank of ["", "  "]) {
+      const cli = makeCli(() => jsonResponse({}));
+      const code = await run([...cmd, blank], cli.deps);
+      assert.equal(code, 2, `${cmd.join(" ")} ${JSON.stringify(blank)}`);
+      assert.equal(cli.mt.calls.length, 0);
+      assert.match(cli.err.join("\n"), /Expected a non-empty value/);
+    }
+  }
 });
 
-test('"." / ".." station is rejected before any request', async () => {
-  for (const bad of [".", ".."]) {
-    const cli = makeCli(() => jsonResponse({}));
-    const code = await run(["current", bad], cli.deps);
-    assert.notEqual(code, 0);
-    assert.equal(cli.mt.calls.length, 0);
+test('"." / ".." <station> is a usage error (exit 2) before any request', async () => {
+  for (const cmd of stationCommands) {
+    for (const bad of [".", ".."]) {
+      const cli = makeCli(() => jsonResponse({}));
+      const code = await run([...cmd, bad], cli.deps);
+      assert.equal(code, 2, `${cmd.join(" ")} ${bad}`);
+      assert.equal(cli.mt.calls.length, 0);
+      assert.match(cli.err.join("\n"), /"\." and "\.\." cannot be used as an id/);
+    }
   }
 });
 

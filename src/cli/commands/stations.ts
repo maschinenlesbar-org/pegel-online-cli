@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { Option } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, parseNonEmpty, renderJson, requireArg } from "../shared.js";
+import { STATION_HELP, action, parseNonEmpty, parsePathArg, renderJson } from "../shared.js";
 import type { IncludeParams, StationListParams } from "../../client/types.js";
 
 /** commander accumulator for a repeatable string option. */
@@ -57,14 +57,15 @@ export function registerStationCommands(program: Command, deps: CliDeps): void {
   );
 
   const get = stations
-    .command("get <station>")
+    .command("get")
+    .argument("<station>", STATION_HELP, parsePathArg)
     .description("Get one station by uuid/number/shortname/longname");
   addIncludeOptions(get).action(
     action(deps, async ({ client, global, opts }, [station]) => {
       renderJson(
         deps,
         global,
-        await client.stations.get(requireArg("station", station), includesFrom(opts)),
+        await client.stations.get(station!, includesFrom(opts)),
       );
     }),
   );
