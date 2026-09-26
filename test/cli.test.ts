@@ -242,3 +242,19 @@ test("a control character in --user-agent is a typed error, not 'Unexpected erro
   assert.equal(code, 1);
   assert.ok(cli.err.join("\n").startsWith("Error:"));
 });
+
+test('"." / ".." [timeseries] is a usage error and makes no request', async () => {
+  for (const cmd of ["timeseries", "current", "measurements"]) {
+    for (const bad of [".", ".."]) {
+      const cli = makeCli(() => jsonResponse({}));
+      const code = await run([cmd, "BONN", bad], cli.deps);
+      assert.equal(code, 2, `${cmd} ${bad}`);
+      assert.equal(cli.mt.calls.length, 0);
+      assert.match(cli.err.join("\n"), /"\." and "\.\." cannot be used as an id/);
+    }
+  }
+  // Names that merely contain dots still pass.
+  const ok = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["current", "BONN", "..."], ok.deps), 0);
+  assert.equal(new URL(ok.mt.last().url).pathname, `${V2}/stations/BONN/.../currentmeasurement.json`);
+});

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RequestEngine } from "../src/client/engine.js";
-import { PegelApiError, PegelNetworkError, PegelParseError } from "../src/client/errors.js";
+import { PegelApiError, PegelError, PegelNetworkError, PegelParseError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 test("buildUrl normalises the path and appends the query", () => {
@@ -191,4 +191,16 @@ test("an unparseable base URL is rejected at construction", () => {
     (err) => err instanceof PegelNetworkError && /Invalid base URL/.test(err.message),
   );
   assert.equal(mt.calls.length, 0);
+});
+
+test('buildUrl rejects a "." or ".." path segment; dotted names and %2e pass', () => {
+  const e = new RequestEngine({ baseUrl: "https://example.test" });
+  for (const path of ["/a/../b.json", "/a/./b", "/.."]) {
+    assert.throws(() => e.buildUrl(path), (err: unknown) =>
+      err instanceof PegelError &&
+      /^Invalid path segment "\.{1,2}" in .*: "\." and "\.\." cannot be used as an id\.$/.test(err.message));
+  }
+  assert.equal(e.buildUrl("/a/.../b"), "https://example.test/a/.../b");
+  assert.equal(e.buildUrl("/a/1.0.0/b"), "https://example.test/a/1.0.0/b");
+  assert.equal(e.buildUrl("/a/%252e%252e/b"), "https://example.test/a/%252e%252e/b");
 });

@@ -46,6 +46,20 @@ export function parseNonEmpty(value: string): string {
 }
 
 /**
+ * commander value-parser for an id that becomes a URL path segment (the
+ * `[timeseries]` positional): not blank, and not "." / "..", which
+ * encodeURIComponent leaves untouched and URL parsing would resolve, sending the
+ * request to a different resource. A usage error, before any request.
+ */
+export function parsePathArg(value: string): string {
+  parseNonEmpty(value);
+  if (value === "." || value === "..") {
+    throw new InvalidArgumentError('"." and ".." cannot be used as an id.');
+  }
+  return value;
+}
+
+/**
  * commander value-parser for `--base-url`: reject anything that is not a parseable
  * absolute `http:`/`https:` URL at *parse* time, so a bad scheme (`file:`, `ftp:`)
  * or malformed URL exits 2 (usage) — consistent with the blueprint — instead of

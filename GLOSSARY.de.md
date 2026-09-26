@@ -87,7 +87,9 @@ CLI: `characteristic <station> [timeseries]`. Client:
 **Pegelangabe (`<station>`).** Überall, wo ein Pegel angegeben wird, kann der Wert
 eine **uuid**, eine **number**, ein **shortname** *oder* ein **longname** sein. Die API
 löst jede dieser Formen auf. Die CLI lehnt eine leere Angabe sowie die Pfadsegmente
-`.` / `..` ab, bevor sie die Anfrage-URL baut.
+`.` / `..` für `<station>` und `[timeseries]` ab, bevor sie die Anfrage-URL baut (die
+URL-Auflösung würde sie sonst auflösen und eine andere Ressource abfragen); die
+Client-Bibliothek lehnt sie ebenfalls ab, mit einem `PegelError` vor jeder Anfrage.
 
 **Gewässer.** Eine Wasserstraße im Netz, modelliert durch den Typ `Water` mit einem
 `shortname` (z. B. `RHEIN`) und einem `longname`. Der Filter `waters` von

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PegelOnlineClient } from "../src/client/client.js";
-import { PegelApiError, PegelNetworkError } from "../src/client/errors.js";
+import { PegelApiError, PegelError, PegelNetworkError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>): PegelOnlineClient {
@@ -110,4 +110,29 @@ test("the client rejects a non-http(s) base URL before any request, even with a 
     );
     assert.equal(mt.calls.length, 0);
   }
+});
+
+test('library: "." / ".." ids are rejected before any request, in every method', async () => {
+  const mt = constantJson({});
+  const c = clientWith(mt);
+  const calls: Array<[string, () => Promise<unknown>]> = [
+    ["timeseries.get", () => c.timeseries.get("..", "waters")],
+    ["currentMeasurement", () => c.timeseries.currentMeasurement("..", "..")],
+    ["measurements", () => c.timeseries.measurements("BONN", ".")],
+    ["timeseries.get .", () => c.timeseries.get("BONN", ".")],
+  ];
+  for (const [name, call] of calls) {
+    await assert.rejects(call, (err: unknown) =>
+      err instanceof PegelError && /"\." and "\.\." cannot be used as an id/.test(err.message), name);
+  }
+  assert.equal(mt.calls.length, 0);
+});
+
+test("library: a blank station or timeseries is rejected before any request", async () => {
+  const mt = constantJson({});
+  const c = clientWith(mt);
+  await assert.rejects(() => c.stations.get(""), /Invalid station: expected a non-empty string, got ""\./);
+  await assert.rejects(() => c.timeseries.currentMeasurement("BONN", " "), /Invalid timeseries: expected a non-empty string, got " "\./);
+  await assert.rejects(() => c.timeseries.measurements("", "W"), PegelError);
+  assert.equal(mt.calls.length, 0);
 });

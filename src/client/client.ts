@@ -8,6 +8,7 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
+import { PegelError } from "./errors.js";
 import type {
   Station,
   Water,
@@ -20,7 +21,22 @@ import type {
 } from "./types.js";
 
 const API = "/webservices/rest-api/v2";
-const enc = encodeURIComponent;
+
+/**
+ * One URL path segment from a caller-supplied station or timeseries id. A blank
+ * value would build a different path (`stations/.json`, `stations//W.json`), and
+ * "." / ".." pass encodeURIComponent unchanged and are resolved by URL parsing
+ * (the engine's `buildUrl` refuses them as path segments too), so all are refused.
+ */
+function enc(name: string, value: string): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new PegelError(`Invalid ${name}: expected a non-empty string, got ${JSON.stringify(value)}.`);
+  }
+  if (value === "." || value === "..") {
+    throw new PegelError(`Invalid ${name} "${value}": "." and ".." cannot be used as an id.`);
+  }
+  return encodeURIComponent(value);
+}
 
 /** Drop undefined values so only the parameters the caller set are sent. */
 function prune(params: Record<string, unknown>): QueryParams {
@@ -68,8 +84,8 @@ class StationsResource {
     return this.e.getJson(`${API}/stations.json`, query);
   }
 
-  get(station: string, params: IncludeParams = {}): Promise<Station> {
-    return this.e.getJson(`${API}/stations/${enc(station)}.json`, stationIncludes(params));
+  async get(station: string, params: IncludeParams = {}): Promise<Station> {
+    return this.e.getJson(`${API}/stations/${enc("station", station)}.json`, stationIncludes(params));
   }
 }
 
@@ -78,26 +94,26 @@ class TimeseriesResource {
   constructor(private readonly e: RequestEngine) {}
 
   /** Timeseries metadata (e.g. "W" = water level, "Q" = flow). */
-  get(station: string, timeseries = "W", params: IncludeParams = {}): Promise<TimeseriesInfo> {
+  async get(station: string, timeseries = "W", params: IncludeParams = {}): Promise<TimeseriesInfo> {
     return this.e.getJson(
-      `${API}/stations/${enc(station)}/${enc(timeseries)}.json`,
+      `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}.json`,
       includeQuery(params),
     );
   }
 
-  currentMeasurement(station: string, timeseries = "W"): Promise<CurrentMeasurement> {
+  async currentMeasurement(station: string, timeseries = "W"): Promise<CurrentMeasurement> {
     return this.e.getJson(
-      `${API}/stations/${enc(station)}/${enc(timeseries)}/currentmeasurement.json`,
+      `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}/currentmeasurement.json`,
     );
   }
 
-  measurements(
+  async measurements(
     station: string,
     timeseries = "W",
     params: MeasurementsParams = {},
   ): Promise<Measurement[]> {
     return this.e.getJson(
-      `${API}/stations/${enc(station)}/${enc(timeseries)}/measurements.json`,
+      `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}/measurements.json`,
       prune({ start: params.start, end: params.end }),
     );
   }

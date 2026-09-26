@@ -151,9 +151,24 @@ export class RequestEngine {
     this.sleep = options.sleep ?? realSleep;
   }
 
-  /** Build a fully-qualified URL from a path and optional query parameters. */
+  /**
+   * Build a fully-qualified URL from a path and optional query parameters.
+   *
+   * Throws a PegelError for a path with a "." or ".." segment. The resource methods
+   * put ids into the path with `encodeURIComponent`, which leaves those two
+   * unchanged, and URL parsing then resolves them: `currentMeasurement("BONN", "..")`
+   * would request `/stations/currentmeasurement.json` (a station of that name).
+   * Neither can name a resource. (Percent-encoded forms such as "%2e%2e" are safe:
+   * encodeURIComponent turns their "%" into "%25".)
+   */
   buildUrl(path: string, query?: QueryParams): string {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+    const dotSegment = normalizedPath.split("/").find((s) => s === "." || s === "..");
+    if (dotSegment !== undefined) {
+      throw new PegelError(
+        `Invalid path segment "${dotSegment}" in ${normalizedPath}: "." and ".." cannot be used as an id.`,
+      );
+    }
     const qs = query ? buildQueryString(query) : "";
     return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }

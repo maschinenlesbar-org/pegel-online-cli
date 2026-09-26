@@ -88,7 +88,9 @@ CLI: `characteristic <station> [timeseries]`. Client:
 **Station selector (`<station>`).** Anywhere a station is addressed, the value
 may be a **uuid**, **number**, **shortname** *or* **longname**. The API resolves
 any of these forms. The CLI rejects an empty selector and the path segments
-`.` / `..` before building the request URL.
+`.` / `..` for both `<station>` and `[timeseries]` before building the request
+URL (URL parsing would otherwise resolve them and query a different resource); the
+client library refuses them too, with a `PegelError` before any request.
 
 **Gewässer (water / body of water).** A waterway in the network, modelled by the
 `Water` type with a `shortname` (e.g. `RHEIN`) and a `longname`. The `waters`
