@@ -56,9 +56,11 @@ timestamps are local. Default series sampling is ~15 min, so a week is ~670 poin
 > period/date (e.g. `7d`) makes the API return **HTTP 400**; the CLI prints
 > `Error: HTTP 400 … Given start parameter is neither a valid ISO date time, nor an
 > ISO period.` to stderr, leaves stdout empty and **exits 1**. Fix the period
-> (`P7D`, not `7d`) and retry. A valid window with no data (e.g. one in the
-> future) returns `[]` with **exit 0**, and the reduction below fails on an empty
-> array — check `length > 0` first. A window longer than the data kept is
+> (`P7D`, not `7d`) and retry. A window that starts in the future is also an
+> **HTTP 400 / exit 1** (`Start datetime … not before end datetime …`). A valid
+> window outside the data kept (e.g. January when it is September) returns `[]`
+> with **exit 0**, and the reduction below fails on an empty array — check
+> `length > 0` first. A window longer than the data kept is
 > clamped: on 2026-09-15, `--start P60D` returned only about the last month.
 
 ## Step 3 — Reduce to a trend

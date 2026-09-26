@@ -191,15 +191,23 @@ both `pegel --compact waters` and `pegel waters --compact` do the same thing.
   `PATH`. Run `npm bin -g` to find it and add it, or run via
   `npx @maschinenlesbar.org/pegel-online-cli …`.
 - **Exit `2` / "invalid argument"** — check the command syntax: a `<station>`
-  argument is required, and `--start` / `--end` must be valid ISO-8601 instants or
-  periods (e.g. `P7D`). Run `pegel <command> --help` for the exact signature.
-- **Exit `4` / "not found"** — the station shortname or id doesn't exist. Run
-  `pegel stations list --fuzzy-id <name>` or `pegel waters` to find the right
-  shortname.
+  argument is required, and no argument or option value may be blank (or `.` /
+  `..` for an id). Run `pegel <command> --help` for the exact signature.
+- **Exit `4` / "not found"** — the station shortname or id doesn't exist, or the
+  station doesn't publish the requested series (`Timeseries does not exist.` /
+  `Current measurement does not exist.`). Run `pegel stations list --fuzzy-id <name>`
+  or `pegel waters` to find the right shortname, and
+  `pegel stations get <station> --include-timeseries | jq -r '.timeseries[].shortname'`
+  to see which series codes it exposes.
+- **Exit `1` / `HTTP 400` on `measurements`** — `--start` / `--end` are not checked
+  locally; the API rejects a value that is not an ISO-8601 instant or period
+  (`Given start parameter is neither a valid ISO date time, nor an ISO period.`) and
+  a window whose start is not before its end (e.g. a start in the future). Use
+  `P7D`, not `7d`.
+- **Empty `[]` from `measurements`** — the window lies outside the data the API
+  keeps (about the last month), e.g. a date from earlier in the year.
 - **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again, or
   raise the limit with `--timeout 60000`.
-- **Empty `timeseries` array** — the station doesn't publish the requested series.
-  Run `pegel timeseries <station>` to see which codes it actually exposes.
 
 ## Global options
 
