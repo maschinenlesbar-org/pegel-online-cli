@@ -3,7 +3,8 @@
 Echte Beispiele für die Claude-Code-Skills des Plugins `pegel`, eines pro Skill: eine
 Anfrage, die `pegel`-Befehle, die der Skill ausgeführt hat, und Claudes Antwort.
 
-Jedes Beispiel lief am 15. September 2026 mit `pegel` 0.0.5 gegen die Live-API.
+Jedes Beispiel lief am 15. September 2026 mit `pegel` 0.0.5 gegen die Live-API, außer
+pegel-river-overview, das am 26. September 2026 mit 0.1.0 neu lief.
 Die Daten ändern sich, Ihre Ergebnisse werden also abweichen; mit den gezeigten IDs und
 Schlüsseln können Sie die Anfragen selbst ausprobieren. Lange Listen sind gekürzt.
 
@@ -18,38 +19,42 @@ Skills: [pegel-river-overview](#pegel-river-overview) · [pegel-stations-geojson
 ```bash
 pegel --compact waters | jq -r '.[] | [.shortname, .longname] | @tsv'          # ELBE
 pegel --compact stations list --waters ELBE --include-timeseries --include-current
-pegel --compact stations list --waters ELBE --include-current | jq '.[0] | keys'  # kein timeseries-Schlüssel: Embed verworfen
+pegel --compact stations list --waters ELBE --include-current | jq '.[0] | keys'  # mit timeseries: impliziert
 ```
 
-Ohne `--include-timeseries` wird der aktuelle Messwert stillschweigend verworfen, deshalb hat der
-Skill beide Flags gesetzt. Stationen ohne `W`-Reihe blieben in der Liste und sind markiert – die
-Tabelle umfasst also alle 73 Pegel, nicht nur die 67 mit Wasserstand.
+Seit 0.1.0 schaltet `--include-current` `--include-timeseries` selbst ein: Der dritte Befehl
+lieferte dieselben 73 Stationen, jede mit ihrem `timeseries[]` und dem aktuellen Messwert, wie der
+zweite. Der Skill setzt trotzdem beide Flags, weil pegel 0.0.8 und älter den Messwert ohne
+`--include-timeseries` verwerfen. Stationen ohne `W`-Reihe blieben in der Liste und sind markiert –
+die Tabelle umfasst also alle 73 Pegel, nicht nur die 67 mit Wasserstand.
 
 ```
-ELBE: 73 Pegel, 0 Hochwasser, 38 Niedrigwasser (Stand 15.09.2026, 17:45 Ortszeit)
-  Alle Pegel von SCHÖNA (km 2,05) bis hinunter nach HOHNSTORF (km 568,987) melden low.
+ELBE: 73 Pegel, 0 Hochwasser, 36 Niedrigwasser (Stand 26.09.2026, 21:00–21:07 Ortszeit)
+  Alle Pegel von SCHÖNA (km 2,05) bis hinunter nach HOHNSTORF (km 568,987) melden low, außer
+  SANDAU und NEU DARCHAU, deren Messwerte veraltet sind (Zustand out-dated).
   ARTLENBURG und GEESTHACHT sind normal. Die 27 Pegel von WEHR GEESTHACHT UP bis
   CUXHAVEN STEUBENHÖFT haben keinen Bezug auf mittleres Niedrig-/Hochwasser (unknown).
 
   km       Pegel                   Stand    Zustand
-  2,05     SCHÖNA                   71 cm   low ⬇
-  55,63    DRESDEN                  56 cm   low ⬇
-  154,15   TORGAU                   54 cm   low ⬇
-  294,82   BARBY                    26 cm   low ⬇
+  2,05     SCHÖNA                   79 cm   low ⬇
+  55,63    DRESDEN                  63 cm   low ⬇
+  154,15   TORGAU                   49 cm   low ⬇
+  294,82   BARBY                    32 cm   low ⬇
   326,67   MAGDEBURG-STROMBRÜCKE    48 cm   low ⬇
-  350,64   ROGÄTZ                   -3 cm   low ⬇
-  453,98   WITTENBERGE              77 cm   low ⬇
-  504,7    DÖMITZ                    5 cm   low ⬇
-  568,987  HOHNSTORF               412 cm   low ⬇
-  573,86   ARTLENBURG              410 cm   normal
-  583,393  GEESTHACHT              404 cm   normal
-  623,1    HAMBURG ST. PAULI       636 cm   unknown
-  724      CUXHAVEN STEUBENHÖFT    652 cm   unknown
-  … 60 weitere in der vollständigen Tabelle
+  350,64   ROGÄTZ                    0 cm   low ⬇
+  416,06   SANDAU                  151 cm   out-dated (24.09. 18:30)
+  453,98   WITTENBERGE              92 cm   low ⬇
+  504,7    DÖMITZ                    9 cm   low ⬇
+  568,987  HOHNSTORF               414 cm   low ⬇
+  573,86   ARTLENBURG              412 cm   normal
+  583,393  GEESTHACHT              408 cm   normal
+  623,1    HAMBURG ST. PAULI       488 cm   unknown
+  724      CUXHAVEN STEUBENHÖFT    366 cm   unknown
+  … 59 weitere in der vollständigen Tabelle
 
   Ohne Wasserstandsreihe (6): PRELOUC (km -220,1, nur Q), WITTENBERGGÜTE (km 1, nur TR)
     und 4 LF/WT-Stationen zwischen km 641,5 und 685,1.
-  Ältere Messwerte: PIRNA 12:15, MÜHLBERG 14:45, NEU DARCHAU 14.09. 23:00.
+  Ältere Messwerte: SANDAU 24.09. 18:30, NEU DARCHAU 25.09. 06:00.
   Die Stände sind in cm über dem jeweiligen Pegelnullpunkt und lassen sich nicht zwischen Pegeln vergleichen.
 ```
 

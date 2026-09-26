@@ -3,7 +3,8 @@
 Real examples for the Claude Code skills of the `pegel` plugin, one per skill: a request,
 the `pegel` commands the skill ran, and the answer Claude gave.
 
-Every example ran against the live API on 15 September 2026 with `pegel` 0.0.5.
+Every example ran against the live API on 15 September 2026 with `pegel` 0.0.5, except
+pegel-river-overview, re-run on 26 September 2026 with 0.1.0.
 The data changes, so your results will differ; the ids and keys shown work for trying the
 requests yourself. Long lists are shortened.
 
@@ -18,38 +19,42 @@ Skills: [pegel-river-overview](#pegel-river-overview) · [pegel-stations-geojson
 ```bash
 pegel --compact waters | jq -r '.[] | [.shortname, .longname] | @tsv'          # ELBE
 pegel --compact stations list --waters ELBE --include-timeseries --include-current
-pegel --compact stations list --waters ELBE --include-current | jq '.[0] | keys'  # no timeseries key: embed dropped
+pegel --compact stations list --waters ELBE --include-current | jq '.[0] | keys'  # has timeseries: implied
 ```
 
-Without `--include-timeseries`, the current reading is silently dropped, so the skill passed
-both flags. It kept stations that have no `W` series in the list and marked them, so the table
-has all 73 gauges, not just the 67 that have a level.
+Since 0.1.0, `--include-current` turns `--include-timeseries` on by itself: the third command
+returned the same 73 stations, each with its `timeseries[]` and current reading, as the second.
+The skill still passes both flags, because pegel 0.0.8 and older drop the reading without
+`--include-timeseries`. It kept stations that have no `W` series in the list and marked them, so
+the table has all 73 gauges, not just the 67 that have a level.
 
 ```
-ELBE: 73 gauges, 0 high, 38 low water (as of 15 Sep 2026, 17:45 local time)
-  Every gauge from SCHÖNA (km 2.05) down to HOHNSTORF (km 568.987) reports low.
+ELBE: 73 gauges, 0 high, 36 low water (as of 26 Sep 2026, 21:00–21:07 local time)
+  Every gauge from SCHÖNA (km 2.05) down to HOHNSTORF (km 568.987) reports low, except
+  SANDAU and NEU DARCHAU, whose readings are out of date (state out-dated).
   ARTLENBURG and GEESTHACHT are normal. The 27 gauges from WEHR GEESTHACHT UP to
   CUXHAVEN STEUBENHÖFT have no mean-low/high reference (unknown).
 
   km       gauge                   level    state
-  2.05     SCHÖNA                   71 cm   low ⬇
-  55.63    DRESDEN                  56 cm   low ⬇
-  154.15   TORGAU                   54 cm   low ⬇
-  294.82   BARBY                    26 cm   low ⬇
+  2.05     SCHÖNA                   79 cm   low ⬇
+  55.63    DRESDEN                  63 cm   low ⬇
+  154.15   TORGAU                   49 cm   low ⬇
+  294.82   BARBY                    32 cm   low ⬇
   326.67   MAGDEBURG-STROMBRÜCKE    48 cm   low ⬇
-  350.64   ROGÄTZ                   -3 cm   low ⬇
-  453.98   WITTENBERGE              77 cm   low ⬇
-  504.7    DÖMITZ                    5 cm   low ⬇
-  568.987  HOHNSTORF               412 cm   low ⬇
-  573.86   ARTLENBURG              410 cm   normal
-  583.393  GEESTHACHT              404 cm   normal
-  623.1    HAMBURG ST. PAULI       636 cm   unknown
-  724      CUXHAVEN STEUBENHÖFT    652 cm   unknown
-  … 60 more in the full table
+  350.64   ROGÄTZ                    0 cm   low ⬇
+  416.06   SANDAU                  151 cm   out-dated (24 Sep 18:30)
+  453.98   WITTENBERGE              92 cm   low ⬇
+  504.7    DÖMITZ                    9 cm   low ⬇
+  568.987  HOHNSTORF               414 cm   low ⬇
+  573.86   ARTLENBURG              412 cm   normal
+  583.393  GEESTHACHT              408 cm   normal
+  623.1    HAMBURG ST. PAULI       488 cm   unknown
+  724      CUXHAVEN STEUBENHÖFT    366 cm   unknown
+  … 59 more in the full table
 
   No water-level series (6): PRELOUC (km -220.1, Q only), WITTENBERGGÜTE (km 1, TR only),
     and 4 LF/WT stations between km 641.5 and 685.1.
-  Older readings: PIRNA 12:15, MÜHLBERG 14:45, NEU DARCHAU 14 Sep 23:00.
+  Older readings: SANDAU 24 Sep 18:30, NEU DARCHAU 25 Sep 06:00.
   Levels are in cm relative to each gauge's own zero, so they can't be compared between gauges.
 ```
 
