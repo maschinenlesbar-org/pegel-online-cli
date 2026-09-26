@@ -255,3 +255,11 @@ test("parseRetryAfter reads delay-seconds and IMF-fixdate only", () => {
   assert.equal(parseRetryAfter(undefined, now), undefined);
   assert.equal(MAX_RETRY_AFTER_MS, 30_000);
 });
+
+test("the engine refuses an unsendable userAgent with a typed error; tab and Latin-1 pass", () => {
+  assert.throws(() => new RequestEngine({ userAgent: "a\r\nb" }), /control characters are not allowed/);
+  assert.throws(() => new RequestEngine({ userAgent: "Pegel€" }), (err: unknown) =>
+    err instanceof PegelError && /outside Latin-1/.test(err.message));
+  new RequestEngine({ userAgent: "a\tb" });
+  new RequestEngine({ userAgent: "Müller" });
+});

@@ -211,8 +211,10 @@ Größe des Antwortkörpers zum Schutz vor Speichererschöpfung (Standard 100 Mi
 `0` = unbegrenzt). CLI: `--max-response-bytes`.
 
 **User-Agent (`userAgent`).** Der Wert des Headers `User-Agent` (Standard
-`pegel-online-cli`). Steuerzeichen werden vorab abgelehnt, um Header-Injection
-auszuschließen. CLI: `--user-agent`.
+`pegel-online-cli`). Steuerzeichen (außer Tab) und Zeichen oberhalb von U+00FF, die
+ein HTTP-Header nicht tragen kann, werden vorab abgelehnt; das schließt auch
+Header-Injection aus. CLI: `--user-agent`, wo auch ein leerer Wert ein Bedienfehler
+ist (Exit 2).
 
 ---
 

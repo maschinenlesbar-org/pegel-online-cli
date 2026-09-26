@@ -174,11 +174,15 @@ export class RequestEngine {
     assertHttpScheme(this.baseUrl);
     this.transport = options.transport ?? nodeHttpTransport;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
-    // Reject control characters (CR/LF in particular) up front with a typed error
-    // instead of letting Node throw a raw TypeError during header validation,
-    // which would surface as an "Unexpected error". Also closes header-injection.
-    if (/[\x00-\x1f\x7f]/.test(this.userAgent)) {
+    // Reject what Node's header validation would throw a raw TypeError for (it
+    // would surface as an "Unexpected error") with a typed error up front: control
+    // characters (CR/LF in particular, which also closes header injection; tab is
+    // allowed, as in HTTP) and characters above U+00FF.
+    if (/[\x00-\x08\x0a-\x1f\x7f]/.test(this.userAgent)) {
       throw new PegelError("Invalid User-Agent: control characters are not allowed.");
+    }
+    if (/[^\x00-\xff]/.test(this.userAgent)) {
+      throw new PegelError("Invalid User-Agent: characters outside Latin-1 (above U+00FF) are not allowed.");
     }
     this.extraHeaders = options.headers ?? {};
     this.timeoutMs = options.timeoutMs ?? 30_000;

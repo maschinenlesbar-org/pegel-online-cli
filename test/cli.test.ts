@@ -246,11 +246,26 @@ test("no arguments prints help to stdout and exits 0", async () => {
   assert.ok(cli.out.join("\n").includes("Usage: pegel"));
 });
 
-test("a control character in --user-agent is a typed error, not 'Unexpected error'", async () => {
-  const cli = makeCli(() => jsonResponse([]));
-  const code = await run(["--user-agent", "x\r\nX-Inject: 1", "waters"], cli.deps);
-  assert.equal(code, 1);
-  assert.ok(cli.err.join("\n").startsWith("Error:"));
+test("--user-agent: blank, control characters and non-Latin-1 are usage errors before any request", async () => {
+  const cases: Array<[string, RegExp]> = [
+    ["", /Expected a non-empty value/],
+    ["  ", /Expected a non-empty value/],
+    ["x\r\nX-Inject: 1", /Value contains control characters/],
+    ["a\u007fb", /Value contains control characters/],
+    ["Pegel\u20ac", /outside Latin-1/],
+  ];
+  for (const [ua, message] of cases) {
+    const cli = makeCli(() => jsonResponse([]));
+    const code = await run(["--user-agent", ua, "waters"], cli.deps);
+    assert.equal(code, 2, JSON.stringify(ua));
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), message);
+  }
+  for (const ua of ["a\tb", "M\u00fcller/1.0"]) {
+    const cli = makeCli(() => jsonResponse([]));
+    assert.equal(await run(["--user-agent", ua, "waters"], cli.deps), 0, JSON.stringify(ua));
+    assert.equal(cli.mt.last().headers?.["User-Agent"], ua);
+  }
 });
 
 test('"." / ".." [timeseries] is a usage error and makes no request', async () => {
