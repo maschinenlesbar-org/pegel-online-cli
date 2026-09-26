@@ -203,7 +203,7 @@ clearer):
 | Option | Description |
 | --- | --- |
 | `-V, --version` | Print the version and exit |
-| `--base-url <url>` | API base URL (default `https://www.pegelonline.wsv.de`) |
+| `--base-url <url>` | API base URL (default `https://www.pegelonline.wsv.de`); http(s) only, a path prefix is fine, no query (`?`), fragment (`#`) or surrounding whitespace; userinfo is sent as Basic auth but shown as `***` in messages |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; Latin-1, no control characters) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses, `0`–`10` (default `2`); each waits the server's `Retry-After` (up to 30 s; a longer one is not retried), else 200 ms × attempt |

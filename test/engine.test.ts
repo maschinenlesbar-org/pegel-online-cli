@@ -263,3 +263,14 @@ test("the engine refuses an unsendable userAgent with a typed error; tab and Lat
   new RequestEngine({ userAgent: "a\tb" });
   new RequestEngine({ userAgent: "Müller" });
 });
+
+test("the engine refuses a base URL with a query or fragment, redacting userinfo", () => {
+  for (const baseUrl of ["http://h.test/?x=1", "http://u:pw@h.test/#f"]) {
+    assert.throws(() => new RequestEngine({ baseUrl }), (err: unknown) =>
+      err instanceof PegelNetworkError &&
+      /^Base URL must not contain a query or fragment: /.test(err.message) &&
+      !err.message.includes("pw"));
+  }
+  assert.throws(() => new RequestEngine({ baseUrl: "ftp://u:pw@h.test" }), (err: unknown) =>
+    err instanceof Error && err.message.includes("ftp://***@h.test") && !err.message.includes("pw"));
+});

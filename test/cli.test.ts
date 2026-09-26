@@ -294,3 +294,31 @@ test("--max-retries is bounded to 0..10", async () => {
   const ok = makeCli(() => jsonResponse([]));
   assert.equal(await run(["--max-retries", "10", "waters"], ok.deps), 0);
 });
+
+test("--base-url with a query, fragment or surrounding whitespace is a usage error", async () => {
+  const cases: Array<[string, RegExp]> = [
+    ["http://127.0.0.1:1?x=1", /query \(\?\) or fragment \(#\)/],
+    ["http://127.0.0.1:1#frag", /query \(\?\) or fragment \(#\)/],
+    [" https://example.test", /surrounding whitespace/],
+    ["https://example.test ", /surrounding whitespace/],
+  ];
+  for (const [url, message] of cases) {
+    const cli = makeCli(() => jsonResponse([]));
+    assert.equal(await run(["--base-url", url, "waters"], cli.deps), 2, url);
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), message);
+  }
+  const prefix = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["--base-url", "https://mirror.test/pegel/", "waters"], prefix.deps), 0);
+  assert.equal(prefix.mt.last().url, `https://mirror.test/pegel${V2}/waters.json`);
+});
+
+test("userinfo in --base-url is sent but redacted in error messages", async () => {
+  const cli = makeCli(() => jsonResponse({ message: "Station not found" }, 404));
+  const code = await run(["--base-url", "http://user:s3cret@127.0.0.1:1", "stations", "get", "S404"], cli.deps);
+  assert.equal(code, 4);
+  assert.ok(cli.mt.last().url.includes("user:s3cret@"));
+  const text = cli.err.join("\n");
+  assert.doesNotMatch(text, /s3cret/);
+  assert.match(text, /http:\/\/\*\*\*@127\.0\.0\.1:1\/webservices/);
+});
