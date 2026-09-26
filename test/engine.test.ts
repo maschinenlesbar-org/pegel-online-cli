@@ -319,3 +319,20 @@ test("a redirect loop stops at maxRedirects and says so; the target is sanitised
     err instanceof PegelApiError && !err.message.includes("pw") && !err.message.includes("\u001b") &&
     /redirect to https:\/\/\*\*\*@b\.test\/.*not followed$/.test(err.message));
 });
+
+test("numeric engine options must be integers in range, or the constructor throws", () => {
+  const bad: Array<[string, number]> = [
+    ["timeoutMs", NaN], ["timeoutMs", -5], ["timeoutMs", 2_147_483_648], ["timeoutMs", 1.5],
+    ["maxRetries", NaN], ["maxRetries", Infinity], ["maxRetries", 11],
+    ["retryDelayMs", -1], ["retryDelayMs", 30_001],
+    ["maxRedirects", NaN], ["maxRedirects", 21],
+    ["maxResponseBytes", -1], ["maxResponseBytes", 2 ** 53],
+  ];
+  for (const [name, value] of bad) {
+    assert.throws(() => new RequestEngine({ [name]: value }), (err: unknown) =>
+      err instanceof PegelError &&
+      err.message.startsWith(`Invalid option ${name}: expected an integer from 0 to `) &&
+      err.message.endsWith(`, got ${String(value)}.`), `${name}=${value}`);
+  }
+  new RequestEngine({ timeoutMs: 0, maxRetries: 10, retryDelayMs: 0, maxRedirects: 20, maxResponseBytes: 0 });
+});

@@ -9,6 +9,7 @@ import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { PegelOnlineClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
+import { MAX_RETRIES } from "../client/engine.js";
 import { parseBoundedInt, parseIntArg, parseBaseUrl, parseHeaderValue } from "./shared.js";
 import { registerStationCommands } from "./commands/stations.js";
 import { registerTimeseriesCommands } from "./commands/timeseries.js";
@@ -57,7 +58,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .option(
       "--max-retries <n>",
       "retries for transient 429/503 responses (0..10; each waits the server's Retry-After, up to 30 s)",
-      parseBoundedInt(0, 10),
+      parseBoundedInt(0, MAX_RETRIES),
     )
     .option(
       "--max-response-bytes <n>",
