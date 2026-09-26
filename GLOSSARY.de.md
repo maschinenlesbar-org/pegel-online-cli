@@ -56,11 +56,13 @@ CLI: `current <station> [timeseries]`. Client:
 `measurements <station> [timeseries] [--start] [--end]`. Client:
 `client.timeseries.measurements()`.
 
-**Kennwerte (`characteristicvalues`).** Die für eine Zeitreihe veröffentlichten
-Pegelmarken bzw. Kennwerte (siehe *Kennwerte* unten).
-`GET /stations/{station}/{timeseries}/characteristicvalues.json`.
-CLI: `characteristic <station> [timeseries]`. Client:
-`client.timeseries.characteristicValues()`.
+**Kennwerte (`characteristicValues`).** Die für eine Zeitreihe veröffentlichten
+Pegelmarken bzw. Kennwerte (siehe *Kennwerte* unten). Einen eigenen Befehl bzw. eine
+eigene Methode gibt es dafür nicht: Sie sind eine Einbettung der Pegel-Anfrage,
+`GET /stations/{station}.json?includeTimeseries=true&includeCharacteristicValues=true`,
+und stehen in jedem Eintrag von `timeseries[]`. CLI:
+`stations get <station> --include-characteristic` (schaltet `--include-timeseries` mit ein).
+Client: `client.stations.get(station, { includeCharacteristicValues: true })`.
 
 ---
 
@@ -144,9 +146,9 @@ standardisierten Bezugsmarken ein. Der Client gibt den Wert der API unverändert
 Schifffahrt erlaubt ist.
 
 **Kennwerte (Pegelmarken).** Die Menge der Bezugsmarken, die für eine Zeitreihe
-veröffentlicht werden (z. B. die oben genannten Stände MNW/MHW/NSW/HSW). Geliefert vom
-Befehl `characteristic` bzw. der Methode `characteristicValues()` und einbettbar über
-`--include-characteristic`. Die genaue Struktur hängt vom jeweiligen Standard ab,
+veröffentlicht werden (z. B. die oben genannten Stände MNW/MHW/NSW/HSW). Eingebettet in jede
+Zeitreihe über `--include-characteristic` (Client: `includeCharacteristicValues`) bei
+`stations get` / `stations list`; einen eigenen Befehl gibt es nicht. Die genaue Struktur hängt vom jeweiligen Standard ab,
 deshalb gibt der Client sie als unverändertes JSON-Rohobjekt (`JsonObject`) zurück
 statt als geratenen Typ.
 

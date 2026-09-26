@@ -57,11 +57,13 @@ CLI: `current <station> [timeseries]`. Client:
 `measurements <station> [timeseries] [--start] [--end]`. Client:
 `client.timeseries.measurements()`.
 
-**Characteristic values (`characteristicvalues`).** The gauge marks /
+**Characteristic values (`characteristicValues`).** The gauge marks /
 characteristic values published for a timeseries (see *Characteristic values*
-below). `GET /stations/{station}/{timeseries}/characteristicvalues.json`.
-CLI: `characteristic <station> [timeseries]`. Client:
-`client.timeseries.characteristicValues()`.
+below). There is no separate command or method for them: they are an embed on
+the station request, `GET /stations/{station}.json?includeTimeseries=true&includeCharacteristicValues=true`,
+and sit in each `timeseries[]` entry. CLI:
+`stations get <station> --include-characteristic` (implies `--include-timeseries`).
+Client: `client.stations.get(station, { includeCharacteristicValues: true })`.
 
 ---
 
@@ -145,9 +147,9 @@ standard reference marks. The client surfaces the API's value verbatim.
 the bounds within which shipping is permitted.
 
 **Characteristic values (gauge marks).** The set of reference marks published
-for a timeseries (e.g. the MNW/MHW/NSW/HSW levels above). Returned by the
-`characteristic` command / `characteristicValues()` method, and embeddable via
-`--include-characteristic`. The exact shape is standard-specific, so the client
+for a timeseries (e.g. the MNW/MHW/NSW/HSW levels above). Embedded in each
+timeseries via `--include-characteristic` (client: `includeCharacteristicValues`)
+on `stations get` / `stations list`; there is no separate command. The exact shape is standard-specific, so the client
 returns it as a faithful raw JSON object (`JsonObject`) rather than a guessed
 type.
 
