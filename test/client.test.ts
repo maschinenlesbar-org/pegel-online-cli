@@ -136,3 +136,21 @@ test("library: a blank station or timeseries is rejected before any request", as
   await assert.rejects(() => c.timeseries.measurements("", "W"), PegelError);
   assert.equal(mt.calls.length, 0);
 });
+
+test("the Station and TimeseriesInfo types carry voiceServiceNumber and gaugeZero", async () => {
+  // Trimmed from the live `stations get BONN --include-characteristic` (2026-09-26).
+  const served = {
+    uuid: "593647aa", number: "2710080", shortname: "BONN", longname: "BONN",
+    voiceServiceNumber: "+49228 286527 566",
+    timeseries: [{
+      shortname: "W", longname: "WASSERSTAND ROHDATEN", unit: "cm", equidistance: 15,
+      gaugeZero: { unit: "m. ü. NHN", value: 42.713, validFrom: "2019-11-01" },
+      characteristicValues: [],
+    }],
+  };
+  const station = await clientWith(constantJson(served)).stations.get("BONN", { includeCharacteristicValues: true });
+  const voice: string | undefined = station.voiceServiceNumber;
+  const zero: number | undefined = station.timeseries?.[0]?.gaugeZero?.value;
+  assert.equal(voice, "+49228 286527 566");
+  assert.equal(zero, 42.713);
+});

@@ -26,6 +26,8 @@ export interface Station {
   agency?: string;
   longitude?: number;
   latitude?: number;
+  /** Phone number of the station's voice announcement service, e.g. "+49228 286527 566". */
+  voiceServiceNumber?: string;
   water?: Water;
   timeseries?: TimeseriesInfo[];
 }
@@ -40,14 +42,28 @@ export interface CurrentMeasurement {
   stateNswHsw?: string;
 }
 
+/** The datum a water-level series is measured from (Pegelnullpunkt). */
+export interface GaugeZero {
+  /** Height system, e.g. "m. ü. NHN". */
+  unit: string;
+  value: number;
+  /** Date the datum applies from, e.g. "2019-11-01". */
+  validFrom?: string;
+}
+
 /** Metadata for one timeseries of a station (e.g. "W" water level, "Q" flow). */
 export interface TimeseriesInfo {
   shortname: string;
   longname: string;
   unit: string;
   equidistance?: number;
+  /** Gauge zero of a water-level series (absent on e.g. flow series). */
+  gaugeZero?: GaugeZero;
   currentMeasurement?: CurrentMeasurement;
-  /** Characteristic values (gauge marks), present only when requested. */
+  /**
+   * Characteristic values (gauge marks), present only when requested; an empty
+   * array for a series without marks.
+   */
   characteristicValues?: JsonObject[] | null;
 }
 

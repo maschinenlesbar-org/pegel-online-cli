@@ -149,8 +149,8 @@ Pull just the marks for the `W` (water level) series:
 pegel stations get KÖLN --include-timeseries --include-characteristic | jq '.timeseries[] | select(.shortname == "W") | .characteristicValues'
 ```
 
-Not every station publishes characteristic values; those that do not simply omit
-the `characteristicValues` field.
+Not every series has characteristic values; one without marks comes back with an
+empty `"characteristicValues": []` (at BONN, `Q` does; `W` has seven marks).
 
 ### 8. Timeseries metadata for a station
 
