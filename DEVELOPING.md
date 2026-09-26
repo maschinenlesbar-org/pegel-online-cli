@@ -132,7 +132,11 @@ error surfaces at once. Without a usable header the wait is `retryDelayMs * atte
 `PegelApiError` exposes `isRetryable` for exactly these statuses.
 
 **Redirects.** The engine follows up to `maxRedirects` (default `5`) HTTP redirects
-(301/302/303/307/308), resolving `Location` relative to the current URL. When a hop
+(301/302/303/307/308), resolving `Location` relative to the current URL. Any other 3xx,
+a missing or malformed `Location` and a hop past the limit surface as a `PegelApiError`
+whose `location` field and message name the target (`redirect to <url> not followed`,
+plus `(stopped after N redirects)` at the limit; resolved, userinfo redacted,
+sanitised). When a hop
 crosses to a different **origin** (scheme + host + port) — including a same-host
 `https:` -> `http:` downgrade — credential-bearing headers (`Authorization`, `Cookie`,
 `X-API-Key`, `Proxy-Authorization`) are stripped, case-insensitively, before the next

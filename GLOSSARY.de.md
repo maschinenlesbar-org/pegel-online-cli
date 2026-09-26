@@ -200,7 +200,11 @@ sofort. Ohne brauchbares `Retry-After` wächst die Wartezeit linear (200 ms × V
 
 **Weiterleitungen.** Die Engine folgt bis zu `maxRedirects` (Standard `5`)
 HTTP-Weiterleitungen (301/302/303/307/308), löst `Location` relativ zur aktuellen
-URL auf und entfernt beim Wechsel des Origins alle Header mit Zugangsdaten.
+URL auf und entfernt beim Wechsel des Origins alle Header mit Zugangsdaten. Jeder
+andere 3xx-Status (300, 304, 305), ein fehlendes oder fehlerhaftes `Location` und ein
+Sprung über das Limit hinaus sind ein Fehler (Exit 1), der das Ziel nennt:
+`redirect to <url> not followed` (am Limit mit `(stopped after 5 redirects)`) oder
+`redirect not followed (no Location header)`.
 
 **Timeout (`timeoutMs`).** Zeitlimit pro Anfrage in Millisekunden; es gilt für den
 gesamten Antwortkörper, nicht nur für Leerlaufpausen (Standard `30000`; `0` schaltet es

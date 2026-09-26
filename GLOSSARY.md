@@ -199,7 +199,11 @@ once. Without a usable `Retry-After` the wait grows linearly (200 ms × attempt)
 
 **Redirects.** The engine follows up to `maxRedirects` (default `5`) HTTP
 redirects (301/302/303/307/308), resolving `Location` relative to the current
-URL, and strips any credential-bearing headers when crossing origins.
+URL, and strips any credential-bearing headers when crossing origins. Any other
+3xx (300, 304, 305), a missing or malformed `Location`, and a hop past the limit
+are an error (exit 1) that names the target: `redirect to <url> not followed`
+(with `(stopped after 5 redirects)` at the limit) or `redirect not followed (no
+Location header)`.
 
 **Timeout (`timeoutMs`).** Time limit per request in milliseconds, covering the
 whole response body, not only idle gaps (default `30000`; `0` disables). CLI:

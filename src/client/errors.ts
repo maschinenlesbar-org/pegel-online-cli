@@ -37,6 +37,12 @@ export class PegelApiError extends PegelError {
   readonly url: string;
   readonly method: string;
   readonly body: string;
+  /**
+   * For a 3xx that was not followed (not a followed status, a malformed Location,
+   * or past `maxRedirects`): the redirect target, absolute, sanitised, userinfo
+   * redacted. The message names it.
+   */
+  readonly location: string | undefined;
 
   constructor(args: {
     status: number;
@@ -44,8 +50,24 @@ export class PegelApiError extends PegelError {
     method: string;
     body: string;
     detail?: string;
+    location?: string;
+    /** Redirects already followed when the limit stopped this one (> 0 only). */
+    redirectsFollowed?: number;
   }) {
-    const detailPart = args.detail ? `: ${args.detail}` : "";
+    const parts: string[] = [];
+    if (args.detail) parts.push(args.detail);
+    if (args.status >= 300 && args.status < 400) {
+      const limit =
+        args.redirectsFollowed !== undefined && args.redirectsFollowed > 0
+          ? ` (stopped after ${args.redirectsFollowed} redirects)`
+          : "";
+      parts.push(
+        args.location
+          ? `redirect to ${args.location} not followed${limit}`
+          : "redirect not followed (no Location header)",
+      );
+    }
+    const detailPart = parts.length > 0 ? `: ${parts.join("; ")}` : "";
     // The URL is shown without userinfo: a credential in --base-url must not leak.
     const url = redactUrl(args.url);
     super(`HTTP ${args.status} for ${args.method} ${url}${detailPart}`);
@@ -54,6 +76,7 @@ export class PegelApiError extends PegelError {
     this.method = args.method;
     this.body = args.body;
     this.detail = args.detail;
+    this.location = args.location;
   }
 
   /** True for statuses the API documents as transient and retry-able. */

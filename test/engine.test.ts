@@ -274,3 +274,48 @@ test("the engine refuses a base URL with a query or fragment, redacting userinfo
   assert.throws(() => new RequestEngine({ baseUrl: "ftp://u:pw@h.test" }), (err: unknown) =>
     err instanceof Error && err.message.includes("ftp://***@h.test") && !err.message.includes("pw"));
 });
+
+function redirectEngine(responder: (url: string) => { status: number; headers: Record<string, string> }, maxRedirects?: number) {
+  const mt = makeMockTransport((req) => {
+    const r = responder(req.url);
+    return { status: r.status, headers: r.headers, body: Buffer.from(r.status < 300 ? '{"ok":1}' : "") };
+  });
+  const e = new RequestEngine({ baseUrl: "https://a.test", transport: mt.transport, ...(maxRedirects !== undefined ? { maxRedirects } : {}) });
+  return { e, mt };
+}
+
+test("only 301/302/303/307/308 are followed; 300/304/305 surface naming the target", async () => {
+  for (const status of [301, 302, 303, 307, 308]) {
+    const { e, mt } = redirectEngine((url): { status: number; headers: Record<string, string> } => (url.endsWith("/x") ? { status, headers: { location: "/y" } } : { status: 200, headers: {} }));
+    assert.deepEqual(await e.getJson("/x"), { ok: 1 });
+    assert.equal(mt.calls.length, 2, String(status));
+  }
+  for (const status of [300, 304, 305]) {
+    const { e, mt } = redirectEngine(() => ({ status, headers: { location: "/y" } }));
+    await assert.rejects(() => e.getJson("/x"), (err: unknown) =>
+      err instanceof PegelApiError && err.status === status && err.location === "https://a.test/y" &&
+      err.message === `HTTP ${status} for GET https://a.test/x: redirect to https://a.test/y not followed`);
+    assert.equal(mt.calls.length, 1);
+  }
+});
+
+test("a malformed or missing Location is a PegelApiError, not a raw TypeError", async () => {
+  const bad = redirectEngine(() => ({ status: 302, headers: { location: "http://[::1" } }));
+  await assert.rejects(() => bad.e.getJson("/x"), (err: unknown) =>
+    err instanceof PegelApiError && err.message === "HTTP 302 for GET https://a.test/x: redirect to http://[::1 not followed");
+  const none = redirectEngine(() => ({ status: 302, headers: {} }));
+  await assert.rejects(() => none.e.getJson("/x"), (err: unknown) =>
+    err instanceof PegelApiError && /redirect not followed \(no Location header\)$/.test(err.message));
+});
+
+test("a redirect loop stops at maxRedirects and says so; the target is sanitised and redacted", async () => {
+  const loop = redirectEngine(() => ({ status: 302, headers: { location: "/loop" } }));
+  await assert.rejects(() => loop.e.getJson("/loop"), (err: unknown) =>
+    err instanceof PegelApiError &&
+    err.message === "HTTP 302 for GET https://a.test/loop: redirect to https://a.test/loop not followed (stopped after 5 redirects)");
+  assert.equal(loop.mt.calls.length, 6);
+  const zero = redirectEngine(() => ({ status: 301, headers: { location: "https://u:pw@b.test/\u001b[2Jz" } }), 0);
+  await assert.rejects(() => zero.e.getJson("/x"), (err: unknown) =>
+    err instanceof PegelApiError && !err.message.includes("pw") && !err.message.includes("\u001b") &&
+    /redirect to https:\/\/\*\*\*@b\.test\/.*not followed$/.test(err.message));
+});
