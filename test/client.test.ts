@@ -154,3 +154,17 @@ test("the Station and TimeseriesInfo types carry voiceServiceNumber and gaugeZer
   assert.equal(voice, "+49228 286527 566");
   assert.equal(zero, 42.713);
 });
+
+test("decomposed (NFD) umlauts in station, timeseries, waters, ids and fuzzyId are sent composed (NFC)", async () => {
+  const mt = constantJson([]);
+  const c = clientWith(mt);
+  await c.stations.get("KÖLN");
+  assert.equal(new URL(mt.last().url).pathname, `${V2}/stations/K%C3%96LN.json`);
+  await c.timeseries.currentMeasurement("KÖLN", "W");
+  assert.equal(new URL(mt.last().url).pathname, `${V2}/stations/K%C3%96LN/W/currentmeasurement.json`);
+  await c.stations.list({ ids: ["KÖLN", "BONN"], waters: "KÜSTENKANAL", fuzzyId: "münster" });
+  const url = new URL(mt.last().url);
+  assert.equal(url.searchParams.get("ids"), "KÖLN,BONN");
+  assert.equal(url.searchParams.get("waters"), "KÜSTENKANAL");
+  assert.equal(url.searchParams.get("fuzzyId"), "münster");
+});

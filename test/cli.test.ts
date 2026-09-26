@@ -336,3 +336,9 @@ test("a deeply nested response is a clear error, not a stack overflow", async ()
     assert.deepEqual(compact.err, ["Error: The response is nested too deeply to print."]);
   }
 });
+
+test("an NFD-typed station name is sent composed", async () => {
+  const cli = makeCli(() => jsonResponse({ uuid: "x" }));
+  assert.equal(await run(["stations", "get", "KÖLN"], cli.deps), 0);
+  assert.equal(new URL(cli.mt.last().url).pathname, `${V2}/stations/K%C3%96LN.json`);
+});

@@ -23,6 +23,16 @@ import type {
 const API = "/webservices/rest-api/v2";
 
 /**
+ * Station names, waters and ids are matched exactly by the API, which stores them
+ * composed (NFC): a decomposed umlaut ("KO" + U+0308 + "LN", as pasted from macOS
+ * file names or some PDFs) is a 404 / an empty list. Compose every such input.
+ * NFC, not NFKC: an id lookup must not rewrite compatibility characters.
+ */
+function nfc(value: string): string {
+  return value.normalize("NFC");
+}
+
+/**
  * One URL path segment from a caller-supplied station or timeseries id. A blank
  * value would build a different path (`stations/.json`, `stations//W.json`), and
  * "." / ".." pass encodeURIComponent unchanged and are resolved by URL parsing
@@ -35,7 +45,7 @@ function enc(name: string, value: string): string {
   if (value === "." || value === "..") {
     throw new PegelError(`Invalid ${name} "${value}": "." and ".." cannot be used as an id.`);
   }
-  return encodeURIComponent(value);
+  return encodeURIComponent(nfc(value));
 }
 
 /** Drop undefined values so only the parameters the caller set are sent. */
@@ -76,9 +86,9 @@ class StationsResource {
 
   list(params: StationListParams = {}): Promise<Station[]> {
     const query = prune({
-      ids: params.ids && params.ids.length > 0 ? params.ids.join(",") : undefined,
-      waters: params.waters,
-      fuzzyId: params.fuzzyId,
+      ids: params.ids && params.ids.length > 0 ? params.ids.map(nfc).join(",") : undefined,
+      waters: params.waters === undefined ? undefined : nfc(params.waters),
+      fuzzyId: params.fuzzyId === undefined ? undefined : nfc(params.fuzzyId),
       ...stationIncludes(params),
     });
     return this.e.getJson(`${API}/stations.json`, query);

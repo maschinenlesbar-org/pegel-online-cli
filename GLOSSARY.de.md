@@ -92,6 +92,9 @@ löst jede dieser Formen auf. Die CLI lehnt eine leere Angabe sowie die Pfadsegm
 `.` / `..` für `<station>` und `[timeseries]` ab, bevor sie die Anfrage-URL baut (die
 URL-Auflösung würde sie sonst auflösen und eine andere Ressource abfragen); die
 Client-Bibliothek lehnt sie ebenfalls ab, mit einem `PegelError` vor jeder Anfrage.
+Pegel- und Zeitreihennamen, `--ids`, `--waters` und `--fuzzy-id` werden in
+zusammengesetzter Unicode-Form (NFC) gesendet, sodass ein zerlegter Umlaut (`KÖLN` als
+`KO` + U+0308 + `LN`, häufig in Text aus macOS-Dateinamen oder PDFs) denselben Pegel findet.
 
 **Gewässer.** Eine Wasserstraße im Netz, modelliert durch den Typ `Water` mit einem
 `shortname` (z. B. `RHEIN`) und einem `longname`. Der Filter `waters` von

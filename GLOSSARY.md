@@ -92,7 +92,10 @@ may be a **uuid**, **number**, **shortname** *or* **longname**. The API resolves
 any of these forms. The CLI rejects an empty selector and the path segments
 `.` / `..` for both `<station>` and `[timeseries]` before building the request
 URL (URL parsing would otherwise resolve them and query a different resource); the
-client library refuses them too, with a `PegelError` before any request.
+client library refuses them too, with a `PegelError` before any request. Station
+and timeseries names, `--ids`, `--waters` and `--fuzzy-id` are sent in composed
+Unicode form (NFC), so a decomposed umlaut (`KÖLN` typed as `KO` + U+0308 + `LN`,
+common in text pasted from macOS file names or PDFs) finds the same station.
 
 **Gewässer (water / body of water).** A waterway in the network, modelled by the
 `Water` type with a `shortname` (e.g. `RHEIN`) and a `longname`. The `waters`
