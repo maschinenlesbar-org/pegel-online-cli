@@ -4,6 +4,7 @@ import { run } from "../src/cli/run.js";
 import { PegelOnlineClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
+import { PegelValidationError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse } from "./helpers.js";
 
 const V2 = "/webservices/rest-api/v2";
@@ -341,4 +342,20 @@ test("an NFD-typed station name is sent composed", async () => {
   const cli = makeCli(() => jsonResponse({ uuid: "x" }));
   assert.equal(await run(["stations", "get", "KÖLN"], cli.deps), 0);
   assert.equal(new URL(cli.mt.last().url).pathname, `${V2}/stations/K%C3%96LN.json`);
+});
+
+test("a PegelValidationError raised in an action is a usage error: exit 2, 'Error: <message>'", async () => {
+  const out: string[] = [];
+  const err: string[] = [];
+  const client = new PegelOnlineClient({ transport: makeMockTransport(() => jsonResponse([])).transport });
+  client.waters = async () => {
+    throw new PegelValidationError("Invalid waters: Expected a non-empty value.");
+  };
+  const code = await run(["waters"], {
+    io: { out: (s) => out.push(s), err: (s) => err.push(s) },
+    createClient: () => client,
+  });
+  assert.equal(code, 2);
+  assert.deepEqual(out, []);
+  assert.deepEqual(err, ["Error: Invalid waters: Expected a non-empty value."]);
 });

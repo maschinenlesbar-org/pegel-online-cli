@@ -92,7 +92,8 @@ src/
     query.ts     # dependency-free query-string builder
     http.ts      # the Transport interface + default node:http/https transport
     engine.ts    # URL building, retry/backoff, redirects, JSON decoding, error mapping
-    errors.ts    # PegelError / PegelApiError / PegelNetworkError / PegelParseError
+    errors.ts    # PegelError / PegelApiError / PegelNetworkError / PegelParseError / PegelValidationError
+    validate.ts  # input rules (Problem functions) + assertValid, shared by library and CLI
     client.ts    # PegelOnlineClient — stations + timeseries resources over the engine
   cli/
     io.ts        # injectable I/O seam (stdout/stderr)
@@ -165,7 +166,18 @@ whole CLI run in tests with a mocked client and captured output — no subproces
 **Error types.** [`src/client/errors.ts`](src/client/errors.ts):
 `PegelApiError` (non-2xx; carries `status`, `detail`, `url`, `method`, `body`),
 `PegelNetworkError` (transport failure/timeout), `PegelParseError` (bad JSON),
-all extending the base `PegelError`.
+`PegelValidationError` (an input rejected before any request), all extending the
+base `PegelError`.
+
+**Input validation.** [`src/client/validate.ts`](src/client/validate.ts) holds the
+library's input rules as pure `<thing>Problem(value)` functions, which return the
+reason a value is invalid or `undefined`. The client enforces them with
+`assertValid(name, value, problem)` before any request, so a rejected input sends
+nothing: it throws (from a constructor) or rejects (from a method) with
+`PegelValidationError` and the message `Invalid <name>: <reason>`. The CLI's
+commander parsers call the same functions, so a rule exists once; `run.ts` maps a
+`PegelValidationError` raised during an action to the usage exit code 2, printed as
+`Error: <message>`.
 
 ## Testing
 
@@ -178,6 +190,10 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry — mocked transport.
 - **`client.test.ts`** — every endpoint's method/URL/query mapping — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
+- **`validate.test.ts`** — the input rules and `assertValid`.
+- **Parity tests** use `parity()` from `test/helpers.ts`: one input through `run()` and through
+  the library call on recording mock transports; both must reject without a request, or both
+  send the same request.
 
 ## Continuous integration
 
