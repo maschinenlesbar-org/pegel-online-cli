@@ -9,6 +9,7 @@
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
 import { PegelError } from "./errors.js";
+import { assertValid, idListProblem, nonEmptyProblem } from "./validate.js";
 import type {
   Station,
   Water,
@@ -48,6 +49,20 @@ function enc(name: string, value: string): string {
   return encodeURIComponent(nfc(value));
 }
 
+/**
+ * An optional query value: `undefined` means omitted; anything else must be a
+ * non-blank string (nonEmptyProblem), or PegelValidationError is thrown.
+ */
+function optionalValue(name: string, value: string | undefined): string | undefined {
+  return value === undefined ? undefined : assertValid(name, value, nonEmptyProblem);
+}
+
+/** An optional filter value (optionalValue), composed to NFC like every name the API matches. */
+function optionalFilter(name: string, value: string | undefined): string | undefined {
+  const checked = optionalValue(name, value);
+  return checked === undefined ? undefined : nfc(checked);
+}
+
 /** Drop undefined values so only the parameters the caller set are sent. */
 function prune(params: Record<string, unknown>): QueryParams {
   const out: QueryParams = {};
@@ -84,11 +99,16 @@ function includeQuery(p: IncludeParams): QueryParams {
 class StationsResource {
   constructor(private readonly e: RequestEngine) {}
 
-  list(params: StationListParams = {}): Promise<Station[]> {
+  /**
+   * Rejects (PegelValidationError, no request) a blank `waters` or `fuzzyId`, a
+   * blank `ids` entry and an empty `ids` array: the API reads an empty parameter as
+   * no filter and would answer with every station.
+   */
+  async list(params: StationListParams = {}): Promise<Station[]> {
     const query = prune({
-      ids: params.ids && params.ids.length > 0 ? params.ids.map(nfc).join(",") : undefined,
-      waters: params.waters === undefined ? undefined : nfc(params.waters),
-      fuzzyId: params.fuzzyId === undefined ? undefined : nfc(params.fuzzyId),
+      ids: params.ids === undefined ? undefined : assertValid("ids", params.ids, idListProblem).map(nfc).join(","),
+      waters: optionalFilter("waters", params.waters),
+      fuzzyId: optionalFilter("fuzzyId", params.fuzzyId),
       ...stationIncludes(params),
     });
     return this.e.getJson(`${API}/stations.json`, query);
@@ -117,6 +137,7 @@ class TimeseriesResource {
     );
   }
 
+  /** Rejects (PegelValidationError, no request) a blank `start` or `end`. */
   async measurements(
     station: string,
     timeseries = "W",
@@ -124,7 +145,7 @@ class TimeseriesResource {
   ): Promise<Measurement[]> {
     return this.e.getJson(
       `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}/measurements.json`,
-      prune({ start: params.start, end: params.end }),
+      prune({ start: optionalValue("start", params.start), end: optionalValue("end", params.end) }),
     );
   }
 }

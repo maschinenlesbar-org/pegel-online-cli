@@ -167,7 +167,9 @@ Liste eingeschränkt wird. Wird kommagetrennt an die API gesendet. CLI: wiederho
 Pegel-ID (`--ids`, wiederholbar), nach Gewässer-shortname (`--waters`) oder über
 einen unscharfen ID-Abgleich (`--fuzzy-id`). Nach Behörde oder Gebiet filtert die
 CLI nicht; filtern Sie dafür die JSON-Ausgabe (z. B. mit `jq` auf `agency`,
-`latitude`, `longitude`).
+`latitude`, `longitude`). Die API liest einen leeren Parameter als „kein Filter“,
+daher wird ein leerer Wert (und im Client eine leere `ids`-Liste) vor jeder Anfrage
+abgelehnt: in der CLI als Bedienfehler, im Client mit `PegelValidationError`.
 
 **Einbettungs-Flags.** Optionale Erweiterungen, die zusätzliche Daten in eine Pegel- bzw.
 Zeitreihen-Antwort einbetten; standardmäßig aus:
@@ -187,7 +189,8 @@ gesetzt ist.
 **Zeitfenster (`start` / `end`).** Die Grenzen einer `measurements`-Anfrage als
 ISO-8601-Zeitpunkte. `start` kann stattdessen auch eine **ISO-8601-Periode/Dauer** sein,
 etwa `P7D` („die letzten 7 Tage“) oder `P3D`. CLI: `--start`, `--end`. Ein leerer Wert
-wird als Bedienfehler abgelehnt, statt still auf das Standardfenster zurückzufallen.
+wird abgelehnt (in der CLI als Bedienfehler, im Client mit `PegelValidationError`),
+statt still auf das Standardfenster zurückzufallen.
 
 ---
 

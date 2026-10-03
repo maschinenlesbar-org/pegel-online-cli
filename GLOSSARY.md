@@ -167,7 +167,10 @@ restrict a listing to. Sent to the API comma-separated. CLI: repeatable
 **`ids` / `waters` / `fuzzyId` filters.** Narrow a `stations list` by station
 id (`--ids`, repeatable), by water shortname (`--waters`) or by a fuzzy id match
 (`--fuzzy-id`). The CLI has no filter by agency or by area; filter the JSON
-output instead (e.g. with `jq` on `agency`, `latitude`, `longitude`).
+output instead (e.g. with `jq` on `agency`, `latitude`, `longitude`). The API
+reads an empty parameter as no filter, so a blank value (and, in the client, an
+empty `ids` list) is rejected before any request: a usage error in the CLI,
+`PegelValidationError` in the client.
 
 **Include flags.** Optional expansions that embed extra data in a station /
 timeseries response, off by default:
@@ -186,7 +189,8 @@ The API nests both inside the timeseries list and silently drops them without
 **Time window (`start` / `end`).** The bounds of a `measurements` request, as
 ISO-8601 instants. `start` may instead be an **ISO-8601 period/duration** such
 as `P7D` ("the last 7 days") or `P3D`. CLI: `--start`, `--end`. A blank value
-is rejected as a usage error rather than silently falling back to the default window.
+is rejected (a usage error in the CLI, `PegelValidationError` in the client)
+rather than silently falling back to the default window.
 
 ---
 

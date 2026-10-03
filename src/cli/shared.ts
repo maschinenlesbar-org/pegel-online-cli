@@ -6,6 +6,7 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { EngineOptions } from "../client/engine.js";
 import { PegelError } from "../client/errors.js";
+import { nonEmptyProblem } from "../client/validate.js";
 
 /** Help text of every `<station>` positional. */
 export const STATION_HELP = "station uuid, number, shortname or longname";
@@ -38,13 +39,14 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
 }
 
 /**
- * commander value-parser: a value that is not blank. A blank filter would
- * otherwise be dropped and the command would silently run unfiltered.
+ * commander value-parser: a value that is not blank. The rule is the library's
+ * nonEmptyProblem, which the client enforces on every filter value too (the API
+ * reads an empty parameter as no filter); here it only turns a blank value into an
+ * early usage error.
  */
 export function parseNonEmpty(value: string): string {
-  if (value.trim() === "") {
-    throw new InvalidArgumentError("Expected a non-empty value.");
-  }
+  const reason = nonEmptyProblem(value);
+  if (reason !== undefined) throw new InvalidArgumentError(reason);
   return value;
 }
 

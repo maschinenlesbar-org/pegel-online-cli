@@ -21,3 +21,31 @@ export function assertValid<T>(name: string, value: T, problem: Problem<T>): T {
   if (reason !== undefined) throw new PegelValidationError(`Invalid ${name}: ${reason}`);
   return value;
 }
+
+/** True for an empty or whitespace-only string. */
+export function isBlank(value: string): boolean {
+  return value.trim() === "";
+}
+
+/**
+ * A filter or query value must be a non-blank string: the API treats an empty
+ * parameter (`?waters=`, `?start=`) as no filter, so a blank value would silently
+ * return the unfiltered set or the default window.
+ */
+export const nonEmptyProblem: Problem<unknown> = (value) =>
+  typeof value !== "string" || isBlank(value) ? "Expected a non-empty value." : undefined;
+
+/**
+ * The `ids` filter of `stations.list`: at least one id, none of them blank. An
+ * empty list would be dropped and list every station; a blank entry would be sent
+ * as `ids=BONN,%20`.
+ */
+export const idListProblem: Problem<unknown> = (value) => {
+  if (!Array.isArray(value)) return "Expected an array of ids.";
+  if (value.length === 0) return "Expected at least one id.";
+  for (const id of value) {
+    const reason = nonEmptyProblem(id);
+    if (reason !== undefined) return reason;
+  }
+  return undefined;
+};

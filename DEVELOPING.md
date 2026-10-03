@@ -174,7 +174,15 @@ library's input rules as pure `<thing>Problem(value)` functions, which return th
 reason a value is invalid or `undefined`. The client enforces them with
 `assertValid(name, value, problem)` before any request, so a rejected input sends
 nothing: it throws (from a constructor) or rejects (from a method) with
-`PegelValidationError` and the message `Invalid <name>: <reason>`. The CLI's
+`PegelValidationError` and the message `Invalid <name>: <reason>`. The rules so far:
+
+- **Blank filters** (`nonEmptyProblem`, `idListProblem`): `stations.list` rejects a
+  blank `waters` or `fuzzyId`, a blank `ids` entry and an empty `ids` array, and
+  `timeseries.measurements` a blank `start` or `end`. The API reads an empty
+  parameter as no filter, so these would silently return every station or the
+  default window.
+
+The CLI's
 commander parsers call the same functions, so a rule exists once; `run.ts` maps a
 `PegelValidationError` raised during an action to the usage exit code 2, printed as
 `Error: <message>`.

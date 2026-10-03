@@ -75,10 +75,14 @@ export interface Measurement {
 
 /** Parameters for the stations listing. */
 export interface StationListParams {
-  /** Station identifiers (uuid/number/shortname/longname); sent comma-separated. */
+  /**
+   * Station identifiers (uuid/number/shortname/longname); sent comma-separated.
+   * At least one, none blank.
+   */
   ids?: string[];
-  /** Water shortname filter. */
+  /** Water shortname filter; not blank. */
   waters?: string;
+  /** Fuzzy id match; not blank. */
   fuzzyId?: string;
   /** Embed each station's timeseries list. */
   includeTimeseries?: boolean;
@@ -104,7 +108,7 @@ export interface IncludeParams {
   includeCharacteristicValues?: boolean;
 }
 
-/** Time window for a measurements request (ISO-8601 instants or periods, e.g. "P7D"). */
+/** Time window for a measurements request (ISO-8601 instants or periods, e.g. "P7D"); neither bound may be blank. */
 export interface MeasurementsParams {
   start?: string;
   end?: string;
