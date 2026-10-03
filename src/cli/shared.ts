@@ -6,7 +6,7 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { EngineOptions } from "../client/engine.js";
 import { PegelError } from "../client/errors.js";
-import { baseUrlWhitespaceProblem, nonEmptyProblem } from "../client/validate.js";
+import { baseUrlProblem, nonEmptyProblem } from "../client/validate.js";
 
 /** Help text of every `<station>` positional. */
 export const STATION_HELP = "station uuid, number, shortname or longname";
@@ -88,32 +88,15 @@ export function parsePathArg(value: string): string {
 }
 
 /**
- * commander value-parser for `--base-url`: reject anything that is not a parseable
- * absolute `http:`/`https:` URL at *parse* time, so a bad scheme (`file:`, `ftp:`)
- * or malformed URL exits 2 (usage) — consistent with the blueprint — instead of
- * surfacing later as a runtime PegelNetworkError (exit 1). The transport still
- * enforces the same allowlist as the authoritative egress control; this only moves
- * the user-facing rejection earlier and to the correct exit code.
+ * commander value-parser for `--base-url`: the library's baseUrlProblem rule (no
+ * whitespace or control characters, an absolute http(s) URL, no query or
+ * fragment), reported at *parse* time as a usage error (exit 2). The engine
+ * enforces the same rule when the client is built, and the transport still gates
+ * the scheme on every hop as the authoritative egress control.
  */
 export function parseBaseUrl(value: string): string {
-  // The library's whitespace rule: new URL() trims surrounding whitespace and
-  // strips an interior tab/newline silently, but the raw value is what the engine uses.
-  const whitespace = baseUrlWhitespaceProblem(value);
-  if (whitespace !== undefined) throw new InvalidArgumentError(whitespace);
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new InvalidArgumentError("Expected an absolute http(s) URL.");
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new InvalidArgumentError("Only http and https URLs are supported.");
-  }
-  // Paths are appended to the base URL as a string, so a query or fragment would
-  // swallow every request path ("http://h/#f" requests "/" for every command).
-  if (/[?#]/.test(value)) {
-    throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
-  }
+  const reason = baseUrlProblem(value);
+  if (reason !== undefined) throw new InvalidArgumentError(reason);
   return value;
 }
 

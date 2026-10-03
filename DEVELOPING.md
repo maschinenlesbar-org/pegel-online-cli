@@ -165,7 +165,8 @@ whole CLI run in tests with a mocked client and captured output — no subproces
 
 **Error types.** [`src/client/errors.ts`](src/client/errors.ts):
 `PegelApiError` (non-2xx; carries `status`, `detail`, `url`, `method`, `body`),
-`PegelNetworkError` (transport failure/timeout), `PegelParseError` (bad JSON),
+`PegelNetworkError` (transport failure/timeout, and the default transport's per-hop
+scheme check), `PegelParseError` (bad JSON),
 `PegelValidationError` (an input rejected before any request), all extending the
 base `PegelError`.
 
@@ -181,11 +182,15 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   `timeseries.measurements` a blank `start` or `end`. The API reads an empty
   parameter as no filter, so these would silently return every station or the
   default window.
-- **Base URL whitespace** (`baseUrlWhitespaceProblem`): the constructor rejects a
-  `baseUrl` with surrounding whitespace or any whitespace/control character inside,
-  checked on the raw value before trailing slashes are stripped. `new URL()` would
-  trim or strip it silently, but the engine glues request paths onto the raw string
-  (`"https://h/ "` requests `/%20/webservices/...`).
+- **Base URL** (`baseUrlProblem`, applied by the exported `validateBaseUrl`): the
+  constructor rejects, in this order, a `baseUrl` with surrounding whitespace or any
+  whitespace/control character inside (`baseUrlWhitespaceProblem`), one that is not
+  an absolute URL, a scheme other than `http:`/`https:`, and a query or fragment.
+  It checks the raw value, before trailing slashes are stripped: `new URL()` would
+  trim or strip whitespace silently, but the engine glues request paths onto the raw
+  string (`"https://h/ "` requests `/%20/webservices/...`). A bad base URL is a
+  `PegelValidationError`, not a `PegelNetworkError`; the CLI's `--base-url` parser
+  uses the same rule and messages.
 
 The CLI's
 commander parsers call the same functions, so a rule exists once; `run.ts` maps a

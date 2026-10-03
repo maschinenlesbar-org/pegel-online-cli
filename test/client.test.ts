@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PegelOnlineClient } from "../src/client/client.js";
-import { PegelApiError, PegelError, PegelNetworkError } from "../src/client/errors.js";
+import { PegelApiError, PegelError, PegelValidationError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>): PegelOnlineClient {
@@ -106,7 +106,7 @@ test("the client rejects a non-http(s) base URL before any request, even with a 
     const mt = makeMockTransport(() => jsonResponse([]));
     assert.throws(
       () => new PegelOnlineClient({ baseUrl, transport: mt.transport }),
-      PegelNetworkError,
+      PegelValidationError,
     );
     assert.equal(mt.calls.length, 0);
   }

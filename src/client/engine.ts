@@ -4,8 +4,8 @@
 
 import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { PegelApiError, PegelError, PegelNetworkError, PegelParseError, redactUrl } from "./errors.js";
-import { assertValid, baseUrlWhitespaceProblem } from "./validate.js";
+import { PegelApiError, PegelError, PegelParseError, redactUrl } from "./errors.js";
+import { assertValid, baseUrlProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://www.pegelonline.wsv.de";
 const DEFAULT_USER_AGENT = "pegel-online-cli";
@@ -177,30 +177,15 @@ function sanitizeServerText(text: string): string {
 }
 
 /**
- * Reject a base URL whose scheme is not http(s), or that has a query or fragment.
- * The default transport already gates the scheme per hop, but the engine is
- * exported as a library and may be handed a custom transport that does no such
- * check, so gate the configured base URL here too (a `file:`/`ftp:` base URL fails
- * fast with a typed error). Request paths are appended to the base URL as a string,
- * so a `?` or `#` in it would swallow every path: `http://h/?x=1` requests
- * `/?x=1/webservices/...` and `http://h/#f` requests `/`. Userinfo is allowed (Node
- * sends it as Basic auth) but redacted in every message.
+ * Check a base URL against the library's rules (baseUrlProblem: no whitespace or
+ * control characters, an absolute http(s) URL, no query or fragment) and return it
+ * without trailing slashes. Throws PegelValidationError `Invalid baseUrl: …`: a
+ * configuration mistake, not a PegelNetworkError. The RequestEngine constructor
+ * calls it on the raw value, so a custom transport never sees a bad base URL; the
+ * default transport still re-checks the scheme on every hop.
  */
-function assertHttpScheme(baseUrl: string): void {
-  let url: URL;
-  try {
-    url = new URL(baseUrl);
-  } catch {
-    throw new PegelNetworkError(`Invalid base URL: ${redactUrl(baseUrl)}`);
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new PegelNetworkError(
-      `Unsupported protocol "${url.protocol}" in base URL: ${redactUrl(baseUrl)}`,
-    );
-  }
-  if (/[?#]/.test(baseUrl)) {
-    throw new PegelNetworkError(`Base URL must not contain a query or fragment: ${redactUrl(baseUrl)}`);
-  }
+export function validateBaseUrl(raw: string): string {
+  return assertValid("baseUrl", raw, baseUrlProblem).replace(/\/+$/, "");
 }
 
 const realSleep = (ms: number): Promise<void> =>
@@ -221,9 +206,7 @@ export class RequestEngine {
   constructor(options: EngineOptions = {}) {
     // The raw value, before the slash strip: the engine glues it into every URL, so
     // "https://h/ " must not lose its slash first and slip past the check.
-    const baseUrl = assertValid("baseUrl", options.baseUrl ?? DEFAULT_BASE_URL, baseUrlWhitespaceProblem);
-    this.baseUrl = baseUrl.replace(/\/+$/, "");
-    assertHttpScheme(this.baseUrl);
+    this.baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
     this.transport = options.transport ?? nodeHttpTransport;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
     // Reject what Node's header validation would throw a raw TypeError for (it

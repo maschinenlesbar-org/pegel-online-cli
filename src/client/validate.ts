@@ -63,3 +63,26 @@ export const baseUrlWhitespaceProblem: Problem<unknown> = (value) => {
   if (/[\s\u0000-\u001f\u007f]/.test(value)) return "A base URL cannot contain whitespace or control characters.";
   return undefined;
 };
+
+/**
+ * The full base-URL rule set, in order: no whitespace or control characters
+ * (baseUrlWhitespaceProblem), an absolute URL, an `http:`/`https:` scheme, and no
+ * query or fragment. Request paths are appended to the base URL as a string, so a
+ * `?` or `#` in it would swallow every path: `http://h/?x=1` requests
+ * `/?x=1/webservices/...` and `http://h/#f` requests `/`. A path prefix is fine, and
+ * userinfo is allowed (Node sends it as Basic auth). The reasons name no URL, so a
+ * credential in it never reaches a message.
+ */
+export const baseUrlProblem: Problem<unknown> = (value) => {
+  const whitespace = baseUrlWhitespaceProblem(value);
+  if (whitespace !== undefined) return whitespace;
+  let url: URL;
+  try {
+    url = new URL(value as string);
+  } catch {
+    return "Expected an absolute http(s) URL.";
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return "Only http and https URLs are supported.";
+  if (/[?#]/.test(value as string)) return "A base URL cannot have a query (?) or fragment (#).";
+  return undefined;
+};

@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PegelOnlineClient } from "../src/client/client.js";
-import { PegelValidationError } from "../src/client/errors.js";
+import { PegelNetworkError, PegelValidationError } from "../src/client/errors.js";
 import type { Transport } from "../src/client/http.js";
 import { parity } from "./helpers.js";
 
@@ -104,3 +104,30 @@ test("parity: a clean base URL with a path prefix sends the same request from CL
   assert.deepEqual(cli.requests.map((r) => r.url), ["https://h.example/proxy/webservices/rest-api/v2/waters.json"]);
   assert.deepEqual(lib.requests.map((r) => r.url), cli.requests.map((r) => r.url));
 });
+
+// ---- Finding #4 (PAT-2): an invalid base URL is a validation error, with one rule set ----
+
+const invalidBaseUrls: Array<[string, string]> = [
+  ["ftp://x.example", "Only http and https URLs are supported."],
+  ["file:///etc", "Only http and https URLs are supported."],
+  ["", "Expected an absolute http(s) URL."],
+  ["   ", "A base URL cannot have surrounding whitespace."],
+  ["not-a-url", "Expected an absolute http(s) URL."],
+  ["https://x.example/?q=1", "A base URL cannot have a query (?) or fragment (#)."],
+  ["https://x.example/#f", "A base URL cannot have a query (?) or fragment (#)."],
+];
+
+for (const [baseUrl, reason] of invalidBaseUrls) {
+  test(`parity: an invalid base URL gets one reason and a validation error on both sides (${JSON.stringify(baseUrl)})`, async () => {
+    const { cli, lib } = await parity(["--base-url", baseUrl, "waters"], (t) =>
+      new PegelOnlineClient({ baseUrl, transport: t }).waters(),
+    );
+    assert.equal(cli.code, 2);
+    assert.equal(cli.requests.length, 0);
+    assert.ok(cli.err.includes(`is invalid. ${reason}`), cli.err);
+    assert.ok(lib.error instanceof PegelValidationError, String(lib.error));
+    assert.ok(!(lib.error instanceof PegelNetworkError), "a config mistake is not a network error");
+    assert.equal((lib.error as Error).message, `Invalid baseUrl: ${reason}`);
+    assert.equal(lib.requests.length, 0);
+  });
+}

@@ -1,7 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RequestEngine, parseRetryAfter, MAX_RETRY_AFTER_MS } from "../src/client/engine.js";
-import { PegelApiError, PegelError, PegelNetworkError, PegelParseError } from "../src/client/errors.js";
+import { RequestEngine, parseRetryAfter, MAX_RETRY_AFTER_MS, validateBaseUrl } from "../src/client/engine.js";
+import {
+  PegelApiError,
+  PegelError,
+  PegelNetworkError,
+  PegelParseError,
+  PegelValidationError,
+} from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 test("buildUrl normalises the path and appends the query", () => {
@@ -178,7 +184,10 @@ test("a non-http(s) base URL is rejected at construction, before any request", (
     const mt = makeMockTransport(() => jsonResponse({}));
     assert.throws(
       () => new RequestEngine({ baseUrl, transport: mt.transport }),
-      (err) => err instanceof PegelNetworkError && /Unsupported protocol/.test(err.message),
+      (err) =>
+        err instanceof PegelValidationError &&
+        !(err instanceof PegelNetworkError) &&
+        err.message === "Invalid baseUrl: Only http and https URLs are supported.",
     );
     assert.equal(mt.calls.length, 0);
   }
@@ -188,7 +197,8 @@ test("an unparseable base URL is rejected at construction", () => {
   const mt = makeMockTransport(() => jsonResponse({}));
   assert.throws(
     () => new RequestEngine({ baseUrl: "not-a-url", transport: mt.transport }),
-    (err) => err instanceof PegelNetworkError && /Invalid base URL/.test(err.message),
+    (err) =>
+      err instanceof PegelValidationError && err.message === "Invalid baseUrl: Expected an absolute http(s) URL.",
   );
   assert.equal(mt.calls.length, 0);
 });
@@ -264,15 +274,20 @@ test("the engine refuses an unsendable userAgent with a typed error; tab and Lat
   new RequestEngine({ userAgent: "Müller" });
 });
 
-test("the engine refuses a base URL with a query or fragment, redacting userinfo", () => {
+test("the engine refuses a base URL with a query or fragment, never echoing userinfo", () => {
   for (const baseUrl of ["http://h.test/?x=1", "http://u:pw@h.test/#f"]) {
     assert.throws(() => new RequestEngine({ baseUrl }), (err: unknown) =>
-      err instanceof PegelNetworkError &&
-      /^Base URL must not contain a query or fragment: /.test(err.message) &&
-      !err.message.includes("pw"));
+      err instanceof PegelValidationError &&
+      err.message === "Invalid baseUrl: A base URL cannot have a query (?) or fragment (#).");
   }
   assert.throws(() => new RequestEngine({ baseUrl: "ftp://u:pw@h.test" }), (err: unknown) =>
-    err instanceof Error && err.message.includes("ftp://***@h.test") && !err.message.includes("pw"));
+    err instanceof PegelValidationError && !err.message.includes("pw"));
+});
+
+test("validateBaseUrl returns the base URL without trailing slashes, or throws PegelValidationError", () => {
+  assert.equal(validateBaseUrl("https://h.test/proxy//"), "https://h.test/proxy");
+  assert.equal(validateBaseUrl("https://u:pw@h.test"), "https://u:pw@h.test");
+  assert.throws(() => validateBaseUrl("https://h.test/ "), PegelValidationError);
 });
 
 function redirectEngine(responder: (url: string) => { status: number; headers: Record<string, string> }, maxRedirects?: number) {

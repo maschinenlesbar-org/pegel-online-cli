@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   assertValid,
+  baseUrlProblem,
   baseUrlWhitespaceProblem,
   idListProblem,
   isBlank,
@@ -94,4 +95,16 @@ test("baseUrlWhitespaceProblem rejects surrounding and embedded whitespace or co
   }
   assert.equal(baseUrlWhitespaceProblem(7), "Expected a string.");
   assert.equal(baseUrlWhitespaceProblem("https://h.example/proxy/"), undefined);
+});
+
+test("baseUrlProblem checks whitespace, parse, scheme and query/fragment, in that order", () => {
+  assert.equal(baseUrlProblem(" ftp://x"), "A base URL cannot have surrounding whitespace.");
+  assert.equal(baseUrlProblem(""), "Expected an absolute http(s) URL.");
+  assert.equal(baseUrlProblem("not-a-url"), "Expected an absolute http(s) URL.");
+  assert.equal(baseUrlProblem("ftp://x.example/?q"), "Only http and https URLs are supported.");
+  assert.equal(baseUrlProblem("https://x.example/?q=1"), "A base URL cannot have a query (?) or fragment (#).");
+  assert.equal(baseUrlProblem("https://x.example#f"), "A base URL cannot have a query (?) or fragment (#).");
+  for (const ok of ["https://www.pegelonline.wsv.de", "http://h.example/proxy/", "https://u:p@h.example"]) {
+    assert.equal(baseUrlProblem(ok), undefined, ok);
+  }
 });
