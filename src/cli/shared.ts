@@ -6,7 +6,7 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { EngineOptions } from "../client/engine.js";
 import { PegelError } from "../client/errors.js";
-import { nonEmptyProblem } from "../client/validate.js";
+import { baseUrlWhitespaceProblem, nonEmptyProblem } from "../client/validate.js";
 
 /** Help text of every `<station>` positional. */
 export const STATION_HELP = "station uuid, number, shortname or longname";
@@ -96,6 +96,10 @@ export function parsePathArg(value: string): string {
  * the user-facing rejection earlier and to the correct exit code.
  */
 export function parseBaseUrl(value: string): string {
+  // The library's whitespace rule: new URL() trims surrounding whitespace and
+  // strips an interior tab/newline silently, but the raw value is what the engine uses.
+  const whitespace = baseUrlWhitespaceProblem(value);
+  if (whitespace !== undefined) throw new InvalidArgumentError(whitespace);
   let url: URL;
   try {
     url = new URL(value);
@@ -109,11 +113,6 @@ export function parseBaseUrl(value: string): string {
   // swallow every request path ("http://h/#f" requests "/" for every command).
   if (/[?#]/.test(value)) {
     throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
-  }
-  // new URL() trims surrounding whitespace silently; the raw value is what the
-  // engine uses, so reject it rather than guess.
-  if (value !== value.trim()) {
-    throw new InvalidArgumentError("A base URL cannot have surrounding whitespace.");
   }
   return value;
 }

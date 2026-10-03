@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertValid, idListProblem, isBlank, nonEmptyProblem, type Problem } from "../src/client/validate.js";
+import {
+  assertValid,
+  baseUrlWhitespaceProblem,
+  idListProblem,
+  isBlank,
+  nonEmptyProblem,
+  type Problem,
+} from "../src/client/validate.js";
 import { PegelError, PegelValidationError } from "../src/client/errors.js";
 import * as library from "../src/index.js";
 import { PegelOnlineClient } from "../src/client/client.js";
@@ -76,4 +83,15 @@ test("idListProblem needs at least one id and no blank entry", () => {
   assert.equal(idListProblem(["BONN", " "]), "Expected a non-empty value.");
   assert.equal(idListProblem("BONN"), "Expected an array of ids.");
   assert.equal(idListProblem(["BONN", "KÖLN"]), undefined);
+});
+
+test("baseUrlWhitespaceProblem rejects surrounding and embedded whitespace or controls", () => {
+  for (const value of [" https://h.example", "https://h.example ", "https://h.example/ ", "\thttps://h.example"]) {
+    assert.equal(baseUrlWhitespaceProblem(value), "A base URL cannot have surrounding whitespace.", JSON.stringify(value));
+  }
+  for (const value of ["https://h.example/p\tq", "https://h.ex\nample", "https://h.example/a b", "https://h.example/\u007f"]) {
+    assert.equal(baseUrlWhitespaceProblem(value), "A base URL cannot contain whitespace or control characters.", JSON.stringify(value));
+  }
+  assert.equal(baseUrlWhitespaceProblem(7), "Expected a string.");
+  assert.equal(baseUrlWhitespaceProblem("https://h.example/proxy/"), undefined);
 });

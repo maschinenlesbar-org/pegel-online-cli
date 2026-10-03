@@ -5,6 +5,7 @@
 import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import { PegelApiError, PegelError, PegelNetworkError, PegelParseError, redactUrl } from "./errors.js";
+import { assertValid, baseUrlWhitespaceProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://www.pegelonline.wsv.de";
 const DEFAULT_USER_AGENT = "pegel-online-cli";
@@ -218,7 +219,10 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    // The raw value, before the slash strip: the engine glues it into every URL, so
+    // "https://h/ " must not lose its slash first and slip past the check.
+    const baseUrl = assertValid("baseUrl", options.baseUrl ?? DEFAULT_BASE_URL, baseUrlWhitespaceProblem);
+    this.baseUrl = baseUrl.replace(/\/+$/, "");
     assertHttpScheme(this.baseUrl);
     this.transport = options.transport ?? nodeHttpTransport;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;

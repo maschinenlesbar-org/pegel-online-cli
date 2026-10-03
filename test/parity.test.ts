@@ -67,3 +67,40 @@ test("stations.list rejects an empty ids array instead of listing every station"
   assert.equal((lib.error as Error).message, "Invalid ids: Expected at least one id.");
   assert.equal(lib.requests.length, 0);
 });
+
+// ---- Finding #2 (PAT-1): base URL with whitespace ----
+
+const whitespaceBaseUrls = [
+  " https://h.example",
+  "https://h.example ",
+  "https://h.example\n",
+  "https://h.example\t",
+  "\thttps://h.example/",
+  "https://h.example/ ",
+  "https://h.example/p\tq",
+];
+
+for (const baseUrl of whitespaceBaseUrls) {
+  test(`parity: a base URL with whitespace is rejected by CLI and library alike (${JSON.stringify(baseUrl)})`, async () => {
+    const { cli, lib } = await parity(["--base-url", baseUrl, "waters"], (t) =>
+      new PegelOnlineClient({ baseUrl, transport: t }).waters(),
+    );
+    assert.equal(cli.code, 2);
+    assert.equal(cli.requests.length, 0);
+    assert.match(cli.err, /A base URL cannot (have surrounding whitespace|contain whitespace or control characters)\./);
+    assert.ok(lib.error instanceof PegelValidationError, String(lib.error));
+    assert.match((lib.error as Error).message, /^Invalid baseUrl: A base URL cannot /);
+    assert.equal(lib.requests.length, 0);
+  });
+}
+
+test("parity: a clean base URL with a path prefix sends the same request from CLI and library", async () => {
+  const baseUrl = "https://h.example/proxy/";
+  const { cli, lib } = await parity(["--compact", "--base-url", baseUrl, "waters"], (t) =>
+    new PegelOnlineClient({ baseUrl, transport: t }).waters(),
+  );
+  assert.equal(cli.code, 0, cli.err);
+  assert.equal(lib.ok, true);
+  assert.deepEqual(cli.requests.map((r) => r.url), ["https://h.example/proxy/webservices/rest-api/v2/waters.json"]);
+  assert.deepEqual(lib.requests.map((r) => r.url), cli.requests.map((r) => r.url));
+});

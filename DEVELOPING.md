@@ -181,6 +181,11 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   `timeseries.measurements` a blank `start` or `end`. The API reads an empty
   parameter as no filter, so these would silently return every station or the
   default window.
+- **Base URL whitespace** (`baseUrlWhitespaceProblem`): the constructor rejects a
+  `baseUrl` with surrounding whitespace or any whitespace/control character inside,
+  checked on the raw value before trailing slashes are stripped. `new URL()` would
+  trim or strip it silently, but the engine glues request paths onto the raw string
+  (`"https://h/ "` requests `/%20/webservices/...`).
 
 The CLI's
 commander parsers call the same functions, so a rule exists once; `run.ts` maps a
