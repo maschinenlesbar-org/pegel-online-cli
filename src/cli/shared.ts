@@ -6,7 +6,7 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { EngineOptions } from "../client/engine.js";
 import { PegelError } from "../client/errors.js";
-import { baseUrlProblem, nonEmptyProblem } from "../client/validate.js";
+import { baseUrlProblem, headerValueProblem, nonEmptyProblem } from "../client/validate.js";
 
 /** Help text of every `<station>` positional. */
 export const STATION_HELP = "station uuid, number, shortname or longname";
@@ -51,24 +51,14 @@ export function parseNonEmpty(value: string): string {
 }
 
 /**
- * commander value-parser for a value that ends up in an HTTP header (`--user-agent`).
- * Node's HTTP layer throws an opaque "Invalid character in header content" at request
- * time for a CR/LF (or any other C0 control or DEL) and for any character above
- * U+00FF, which surfaced as "Unexpected error". Reject those here as a usage error,
- * along with a blank value. Tab is allowed, as in HTTP. Checked by char code so the
- * source stays free of control bytes.
+ * commander value-parser for a value that ends up in an HTTP header (`--user-agent`):
+ * the library's headerValueProblem rule (not blank, no control character except tab,
+ * nothing above U+00FF), which the engine enforces when the client is built; here it
+ * only turns a bad value into an early usage error.
  */
 export function parseHeaderValue(value: string): string {
-  parseNonEmpty(value);
-  for (let i = 0; i < value.length; i++) {
-    const c = value.charCodeAt(i);
-    if ((c < 0x20 && c !== 0x09) || c === 0x7f) {
-      throw new InvalidArgumentError("Value contains control characters.");
-    }
-    if (c > 0xff) {
-      throw new InvalidArgumentError("Value contains characters outside Latin-1 (above U+00FF).");
-    }
-  }
+  const reason = headerValueProblem(value);
+  if (reason !== undefined) throw new InvalidArgumentError(reason);
   return value;
 }
 

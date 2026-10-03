@@ -5,7 +5,7 @@
 import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import { PegelApiError, PegelError, PegelParseError, redactUrl } from "./errors.js";
-import { assertValid, baseUrlProblem } from "./validate.js";
+import { assertValid, baseUrlProblem, headerValueProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://www.pegelonline.wsv.de";
 const DEFAULT_USER_AGENT = "pegel-online-cli";
@@ -208,17 +208,15 @@ export class RequestEngine {
     // "https://h/ " must not lose its slash first and slip past the check.
     this.baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
     this.transport = options.transport ?? nodeHttpTransport;
-    this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
-    // Reject what Node's header validation would throw a raw TypeError for (it
-    // would surface as an "Unexpected error") with a typed error up front: control
-    // characters (CR/LF in particular, which also closes header injection; tab is
-    // allowed, as in HTTP) and characters above U+00FF.
-    if (/[\x00-\x08\x0a-\x1f\x7f]/.test(this.userAgent)) {
-      throw new PegelError("Invalid User-Agent: control characters are not allowed.");
-    }
-    if (/[^\x00-\xff]/.test(this.userAgent)) {
-      throw new PegelError("Invalid User-Agent: characters outside Latin-1 (above U+00FF) are not allowed.");
-    }
+    // Only `undefined` selects the default. An explicit value must be one an HTTP
+    // header can carry (headerValueProblem): not blank, which would replace the
+    // default with an empty header, and no control character (CR/LF in particular,
+    // which also closes header injection; tab is allowed) or character above U+00FF,
+    // which Node would refuse late with a raw TypeError.
+    this.userAgent =
+      options.userAgent === undefined
+        ? DEFAULT_USER_AGENT
+        : assertValid("User-Agent", options.userAgent, headerValueProblem);
     this.extraHeaders = options.headers ?? {};
     this.timeoutMs = intOption("timeoutMs", options.timeoutMs, 30_000, MAX_TIMEOUT_MS);
     this.maxRetries = intOption("maxRetries", options.maxRetries, 2, MAX_RETRIES);

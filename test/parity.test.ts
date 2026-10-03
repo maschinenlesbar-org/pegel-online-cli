@@ -131,3 +131,41 @@ for (const [baseUrl, reason] of invalidBaseUrls) {
     assert.equal(lib.requests.length, 0);
   });
 }
+
+// ---- Finding #3 (PAT-4/PAT-5): User-Agent values ----
+
+const badUserAgents: Array<[string, string]> = [
+  ["", "Expected a non-empty value."],
+  [" ", "Expected a non-empty value."],
+  ["  ", "Expected a non-empty value."],
+  ["\t", "Expected a non-empty value."],
+  ["a\r\nb", "Value contains control characters."],
+  ["a\u007fb", "Value contains control characters."],
+  ["Pegel€", "Value contains characters outside Latin-1 (above U+00FF)."],
+];
+
+for (const [userAgent, reason] of badUserAgents) {
+  test(`parity: a bad User-Agent is rejected by CLI and library alike (${JSON.stringify(userAgent)})`, async () => {
+    const { cli, lib } = await parity(["--user-agent", userAgent, "waters"], (t) =>
+      new PegelOnlineClient({ userAgent, transport: t }).waters(),
+    );
+    assert.equal(cli.code, 2);
+    assert.equal(cli.requests.length, 0);
+    assert.ok(cli.err.includes(`is invalid. ${reason}`), cli.err);
+    assert.ok(lib.error instanceof PegelValidationError, String(lib.error));
+    assert.equal((lib.error as Error).message, `Invalid User-Agent: ${reason}`);
+    assert.equal(lib.requests.length, 0);
+  });
+}
+
+test("parity: a valid User-Agent (tab and Latin-1 allowed) is sent the same by CLI and library", async () => {
+  for (const userAgent of ["my-app/1.0", "a\tb", "Müller"]) {
+    const { cli, lib } = await parity(["--compact", "--user-agent", userAgent, "waters"], (t) =>
+      new PegelOnlineClient({ userAgent, transport: t }).waters(),
+    );
+    assert.equal(cli.code, 0, cli.err);
+    assert.equal(lib.ok, true);
+    assert.equal(cli.requests[0]?.headers?.["User-Agent"], userAgent);
+    assert.equal(lib.requests[0]?.headers?.["User-Agent"], userAgent);
+  }
+});

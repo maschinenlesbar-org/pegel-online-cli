@@ -26,6 +26,7 @@ export {
   assertValid,
   baseUrlProblem,
   baseUrlWhitespaceProblem,
+  headerValueProblem,
   idListProblem,
   isBlank,
   nonEmptyProblem,

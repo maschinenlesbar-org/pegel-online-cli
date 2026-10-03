@@ -267,9 +267,14 @@ test("parseRetryAfter reads delay-seconds and IMF-fixdate only", () => {
 });
 
 test("the engine refuses an unsendable userAgent with a typed error; tab and Latin-1 pass", () => {
-  assert.throws(() => new RequestEngine({ userAgent: "a\r\nb" }), /control characters are not allowed/);
+  assert.throws(() => new RequestEngine({ userAgent: "a\r\nb" }), (err: unknown) =>
+    err instanceof PegelValidationError && err.message === "Invalid User-Agent: Value contains control characters.");
   assert.throws(() => new RequestEngine({ userAgent: "Pegel€" }), (err: unknown) =>
-    err instanceof PegelError && /outside Latin-1/.test(err.message));
+    err instanceof PegelValidationError && /outside Latin-1/.test(err.message));
+  for (const userAgent of ["", "  ", "\t"]) {
+    assert.throws(() => new RequestEngine({ userAgent }), (err: unknown) =>
+      err instanceof PegelValidationError && err.message === "Invalid User-Agent: Expected a non-empty value.");
+  }
   new RequestEngine({ userAgent: "a\tb" });
   new RequestEngine({ userAgent: "Müller" });
 });

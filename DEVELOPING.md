@@ -191,6 +191,12 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   string (`"https://h/ "` requests `/%20/webservices/...`). A bad base URL is a
   `PegelValidationError`, not a `PegelNetworkError`; the CLI's `--base-url` parser
   uses the same rule and messages.
+- **User-Agent** (`headerValueProblem`): only an omitted `userAgent` selects the
+  default `pegel-online-cli`. An explicit value must not be blank (it would replace
+  the default with an empty header) and must not contain a control character other
+  than tab or a character above U+00FF, which an HTTP header cannot carry (CR/LF
+  would also allow header injection). The CLI's `--user-agent` parser uses the same
+  rule.
 
 The CLI's
 commander parsers call the same functions, so a rule exists once; `run.ts` maps a

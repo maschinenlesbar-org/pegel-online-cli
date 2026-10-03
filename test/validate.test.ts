@@ -4,6 +4,7 @@ import {
   assertValid,
   baseUrlProblem,
   baseUrlWhitespaceProblem,
+  headerValueProblem,
   idListProblem,
   isBlank,
   nonEmptyProblem,
@@ -107,4 +108,15 @@ test("baseUrlProblem checks whitespace, parse, scheme and query/fragment, in tha
   for (const ok of ["https://www.pegelonline.wsv.de", "http://h.example/proxy/", "https://u:p@h.example"]) {
     assert.equal(baseUrlProblem(ok), undefined, ok);
   }
+});
+
+test("headerValueProblem: not blank, no controls but tab, nothing above U+00FF", () => {
+  for (const value of ["", "  ", "\t", undefined]) {
+    assert.equal(headerValueProblem(value), "Expected a non-empty value.", JSON.stringify(value));
+  }
+  for (const value of ["a\r\nb", "a\u0000b", "a\u007fb"]) {
+    assert.equal(headerValueProblem(value), "Value contains control characters.", JSON.stringify(value));
+  }
+  assert.equal(headerValueProblem("Pegel€"), "Value contains characters outside Latin-1 (above U+00FF).");
+  for (const value of ["pegel-online-cli", "a\tb", "Müller"]) assert.equal(headerValueProblem(value), undefined);
 });

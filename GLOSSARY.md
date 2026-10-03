@@ -221,10 +221,10 @@ defend against memory exhaustion (default 100 MiB; `0` = unlimited). CLI:
 `--max-response-bytes`.
 
 **User-Agent (`userAgent`).** The `User-Agent` header value (default
-`pegel-online-cli`). Control characters (tab excepted) and characters above
-U+00FF, which an HTTP header cannot carry, are rejected up front, which also closes
-header injection. CLI: `--user-agent`, where a blank value is a usage error too
-(exit 2).
+`pegel-online-cli`, used only when the option is omitted). A blank value, control
+characters (tab excepted) and characters above U+00FF, which an HTTP header cannot
+carry, are rejected up front, which also closes header injection: the client throws
+`PegelValidationError`, and the CLI's `--user-agent` reports a usage error (exit 2).
 
 ---
 
