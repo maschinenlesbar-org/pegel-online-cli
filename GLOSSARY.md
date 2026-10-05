@@ -239,16 +239,19 @@ rather than silently falling back to the default window.
 ## Reliability and limits
 
 **Retry / backoff.** Transient **`429`** (Too Many Requests) and **`503`**
-(Service Unavailable) responses are retried automatically, up to `maxRetries`
-times (default `2`; the CLI's `--max-retries` takes `0`–`10`). Each retry waits
-the response's `Retry-After` (seconds or an HTTP date) when it is at most 30 s
-(`MAX_RETRY_AFTER_MS`); a longer one is not retried and the error surfaces at
-once. Without a usable `Retry-After` the wait grows linearly (200 ms × attempt).
-`PegelApiError` exposes `isRetryable` for exactly these statuses.
+(Service Unavailable) responses, and connections the server reset, are retried
+automatically, up to `maxRetries` times (default `2`; the CLI's `--max-retries` takes
+`0`–`10`); a timeout is not. Each retry waits 200 ms × attempt, or longer when the
+response's `Retry-After` (seconds or an HTTP date) asks — never shorter, so
+`Retry-After: 0` doesn't make a burst. A `Retry-After` above 30 s
+(`MAX_RETRY_AFTER_MS`) is not retried: the error surfaces at once and names the wait
+the server asked for. `PegelApiError` exposes `isRetryable` for these statuses.
 
 **Redirects.** The engine follows up to `maxRedirects` (default `5`) HTTP
 redirects (301/302/303/307/308), resolving `Location` relative to the current
-URL, and strips any credential-bearing headers when crossing origins. Any other
+URL. Credentials — the userinfo of the base URL and any credential-bearing header —
+stay on the same origin and are dropped when a redirect crosses to another one (a
+401/403 after such a hop says so). Any other
 3xx (300, 304, 305), a missing or malformed `Location`, and a hop past the limit
 are an error (exit 1) that names the target: `redirect to <url> not followed`
 (with `(stopped after 5 redirects)` at the limit) or `redirect not followed (no
@@ -256,11 +259,11 @@ Location header)`.
 
 **Timeout (`timeoutMs`).** Time limit per request in milliseconds, covering the
 whole response body, not only idle gaps (default `30000`; `0` disables). CLI:
-`--timeout`.
+`--timeout`. The client enforces it for every transport, a custom one included.
 
 **Response size cap (`maxResponseBytes`).** A hard cap on response body size to
 defend against memory exhaustion (default 100 MiB; `0` = unlimited). CLI:
-`--max-response-bytes`.
+`--max-response-bytes`; the error names that flag.
 
 **User-Agent (`userAgent`).** The `User-Agent` header value (default
 `pegel-online-cli`, used only when the option is omitted). A blank value, control
@@ -276,8 +279,13 @@ carry, are rejected up front, which also closes header injection: the client thr
 or on a single line with `--compact`.
 
 **Exit codes.** `0` success; `2` for usage/parse errors (unknown command/option,
-missing argument, invalid flag value); `4` on a `404` from the API; `1` for any
-other (runtime/network) error.
+missing argument, invalid flag value, a single-value option given twice); `4` on a
+`404` from the API; `1` for any other (runtime/network) error, an answer without the
+documented shape included. A failed run keeps its code even when nothing reads stderr.
+
+**Notes.** `stations list` prints `Note: …` lines on stderr — still with exit `0` — when
+an `--ids` entry, `--waters` or `--fuzzy-id` matched no station, and when two listed
+stations share a name.
 
 ---
 

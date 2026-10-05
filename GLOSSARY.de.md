@@ -241,16 +241,19 @@ statt still auf das Standardfenster zurückzufallen.
 ## Zuverlässigkeit und Grenzen
 
 **Retry / Backoff.** Vorübergehende Antworten **`429`** (Too Many Requests) und **`503`**
-(Service Unavailable) werden automatisch wiederholt, bis zu `maxRetries`-mal
-(Standard `2`; `--max-retries` der CLI nimmt `0`–`10`). Jede Wiederholung wartet das
-`Retry-After` der Antwort ab (Sekunden oder HTTP-Datum), sofern es höchstens 30 s
-beträgt (`MAX_RETRY_AFTER_MS`); ein längeres wird nicht wiederholt, der Fehler kommt
-sofort. Ohne brauchbares `Retry-After` wächst die Wartezeit linear (200 ms × Versuch).
-`PegelApiError` stellt `isRetryable` für genau diese Status bereit.
+(Service Unavailable) sowie vom Server zurückgesetzte Verbindungen werden automatisch
+wiederholt, bis zu `maxRetries`-mal (Standard `2`; `--max-retries` der CLI nimmt
+`0`–`10`); ein Timeout nicht. Jede Wiederholung wartet 200 ms × Versuch, oder länger,
+wenn das `Retry-After` der Antwort (Sekunden oder HTTP-Datum) es verlangt – nie kürzer,
+sodass `Retry-After: 0` keine Anfragesalve auslöst. Ein `Retry-After` über 30 s
+(`MAX_RETRY_AFTER_MS`) wird nicht wiederholt: Der Fehler kommt sofort und nennt die
+verlangte Wartezeit. `PegelApiError` stellt `isRetryable` für diese Status bereit.
 
 **Weiterleitungen.** Die Engine folgt bis zu `maxRedirects` (Standard `5`)
 HTTP-Weiterleitungen (301/302/303/307/308), löst `Location` relativ zur aktuellen
-URL auf und entfernt beim Wechsel des Origins alle Header mit Zugangsdaten. Jeder
+URL auf. Zugangsdaten – die Userinfo der Basis-URL und jeder Header mit Zugangsdaten –
+bleiben beim selben Origin und entfallen, wenn eine Weiterleitung zu einem anderen
+führt (ein 401/403 nach einem solchen Sprung sagt das). Jeder
 andere 3xx-Status (300, 304, 305), ein fehlendes oder fehlerhaftes `Location` und ein
 Sprung über das Limit hinaus sind ein Fehler (Exit 1), der das Ziel nennt:
 `redirect to <url> not followed` (am Limit mit `(stopped after 5 redirects)`) oder
@@ -258,11 +261,12 @@ Sprung über das Limit hinaus sind ein Fehler (Exit 1), der das Ziel nennt:
 
 **Timeout (`timeoutMs`).** Zeitlimit pro Anfrage in Millisekunden; es gilt für den
 gesamten Antwortkörper, nicht nur für Leerlaufpausen (Standard `30000`; `0` schaltet es
-ab). CLI: `--timeout`.
+ab). CLI: `--timeout`. Der Client setzt es für jeden Transport durch, auch für einen
+eigenen.
 
 **Obergrenze der Antwortgröße (`maxResponseBytes`).** Eine feste Obergrenze für die
 Größe des Antwortkörpers zum Schutz vor Speichererschöpfung (Standard 100 MiB;
-`0` = unbegrenzt). CLI: `--max-response-bytes`.
+`0` = unbegrenzt). CLI: `--max-response-bytes`; die Fehlermeldung nennt diese Option.
 
 **User-Agent (`userAgent`).** Der Wert des Headers `User-Agent` (Standard
 `pegel-online-cli`, nur wenn die Option fehlt). Ein leerer Wert, Steuerzeichen (außer
@@ -278,8 +282,14 @@ vorab abgelehnt; das schließt auch Header-Injection aus: Der Client wirft
 mit `--compact` in einer einzigen Zeile.
 
 **Exit-Codes.** `0` bei Erfolg; `2` bei Aufruf- bzw. Parse-Fehlern (unbekannter Befehl
-oder unbekannte Option, fehlendes Argument, ungültiger Flag-Wert); `4` bei einem `404`
-der API; `1` bei jedem anderen Fehler (Laufzeit/Netzwerk).
+oder unbekannte Option, fehlendes Argument, ungültiger Flag-Wert, eine Option mit einem
+Wert zweimal angegeben); `4` bei einem `404` der API; `1` bei jedem anderen Fehler
+(Laufzeit/Netzwerk), auch bei einer Antwort ohne die dokumentierte Form. Ein
+fehlgeschlagener Lauf behält seinen Code, auch wenn niemand mehr stderr liest.
+
+**Hinweise.** `stations list` gibt `Note: …`-Zeilen auf stderr aus – weiterhin mit
+Exit `0` –, wenn ein `--ids`-Eintrag, `--waters` oder `--fuzzy-id` keinen Pegel traf und
+wenn zwei gelistete Pegel denselben Namen tragen.
 
 ---
 
