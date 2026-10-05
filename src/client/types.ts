@@ -32,6 +32,20 @@ export interface Station {
   timeseries?: TimeseriesInfo[];
 }
 
+/**
+ * The API's classification of a current water level (`stateMnwMhw`, `stateNswHsw`), as
+ * documented upstream:
+ * - `low` — at or below MNW (stateMnwMhw only);
+ * - `normal` — between MNW and MHW, or between 0 and HSW;
+ * - `high` — at or above MHW, or HSW;
+ * - `unknown` — the series has no MNW/MHW (or HSW) mark to compare with;
+ * - `commented` — **gauge malfunction or disruption** ("Fehlfunktion oder Störung"): the
+ *   value may be wrong; the reason is in the series' `comment` (`TimeseriesInfo.comment`);
+ * - `out-dated` — the reading is older than 25 hours.
+ * Typed open (`string & {}`) so a value the API adds later still type-checks.
+ */
+export type MeasurementState = "low" | "normal" | "high" | "unknown" | "commented" | "out-dated" | (string & {});
+
 /** A measurement value plus the API's state classifications. */
 export interface CurrentMeasurement {
   timestamp: string;
@@ -41,10 +55,10 @@ export interface CurrentMeasurement {
    * `99999` (`NO_VALUE_SENTINEL`) the API relays for that to `null`.
    */
   value: number | null;
-  /** Classification vs. the mean low/high water marks. */
-  stateMnwMhw?: string;
-  /** Classification vs. the lowest/highest navigable water marks. */
-  stateNswHsw?: string;
+  /** Classification vs. the mean low/high water marks (water levels only). */
+  stateMnwMhw?: MeasurementState;
+  /** Classification vs. the lowest/highest navigable water marks (water levels only). */
+  stateNswHsw?: MeasurementState;
 }
 
 /** The datum a water-level series is measured from (Pegelnullpunkt). */
@@ -54,6 +68,18 @@ export interface GaugeZero {
   value: number;
   /** Date the datum applies from, e.g. "2019-11-01". */
   validFrom?: string;
+}
+
+/**
+ * An operator's note on a timeseries, present while something is wrong with it — e.g.
+ * "Funktionsstörung, fehlerhafte Messwerte" (malfunction, faulty readings) at RINTELN,
+ * "Techn. Störung", "Behelfspegel - Messwerte können Fehler aufweisen" (temporary gauge,
+ * values may be wrong), "vorübergehend außer Betrieb". A current measurement whose state
+ * is `commented` points here.
+ */
+export interface TimeseriesComment {
+  shortDescription: string;
+  longDescription?: string;
 }
 
 /** Metadata for one timeseries of a station (e.g. "W" water level, "Q" flow). */
@@ -71,6 +97,11 @@ export interface TimeseriesInfo {
   equidistance?: number;
   /** Gauge zero of a water-level series (absent on e.g. flow series). */
   gaugeZero?: GaugeZero;
+  /**
+   * The operator's note while the series is disturbed (see {@link TimeseriesComment});
+   * absent otherwise. Read it whenever a reading's state is `commented`.
+   */
+  comment?: TimeseriesComment;
   currentMeasurement?: CurrentMeasurement;
   /**
    * Characteristic values (gauge marks), present only when requested; an empty

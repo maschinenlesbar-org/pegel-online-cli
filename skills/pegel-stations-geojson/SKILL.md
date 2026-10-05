@@ -78,7 +78,8 @@ const feature = {
     // when embeds were requested, pull the W series' current reading:
     level: w?.currentMeasurement?.value,          // null = no reading (placeholder 99999)
     unit: w?.unit,                                 // "cm" — or "m+NN"/"m+PNP" (metres) on canals and reservoirs
-    state: w?.currentMeasurement?.stateMnwMhw,     // normal | high | low | unknown | out-dated
+    state: w?.currentMeasurement?.stateMnwMhw,     // normal | high | low | unknown | commented (gauge fault) | out-dated
+    comment: w?.comment?.shortDescription,         // the operator's note while the gauge is disturbed
     measuredAt: w?.currentMeasurement?.timestamp,  // local German offset
   },
 };
@@ -104,6 +105,7 @@ pegel --compact stations list --waters RHEIN --include-timeseries --include-curr
                        agency:$s.agency, water:$s.water.shortname,
                        level:$w.currentMeasurement.value, unit:$w.unit,
                        state:$w.currentMeasurement.stateMnwMhw,
+                       comment:$w.comment.shortDescription,
                        measuredAt:$w.currentMeasurement.timestamp } } ] }'
 ```
 
@@ -150,4 +152,5 @@ Notes:
   levels.
 - The full network is hundreds of gauges — fine as a map layer, but warn before
   pasting it inline as text; offer to open it at https://geojson.io.
-- Offer to color points by `state` (high/low/normal) when levels were embedded.
+- Offer to color points by `state` (high/low/normal) when levels were embedded; mark
+  `commented` points as a gauge fault (their `comment` says why), not by their level.

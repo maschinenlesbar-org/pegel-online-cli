@@ -39,8 +39,12 @@ selector returns **exit code 4**.
 The measurements carry no unit. Read it from the series first (one call):
 
 ```bash
-pegel --compact timeseries BONN W | jq '{unit}'
+pegel --compact timeseries BONN W | jq '{unit, comment}'
 ```
+
+If a `comment` comes back (e.g. `"Funktionsstörung, fehlerhafte Messwerte"`), the
+gauge is disturbed and its readings may be wrong: say so first, with the comment, and
+present any trend as unreliable.
 
 Most `W` series answer `cm`, but canal and reservoir gauges answer **`m+NN`** (metres
 above sea level, e.g. MÜNSTER OW ≈ 56.5) or **`m+PNP`** — there a change of `0.02` is

@@ -71,9 +71,13 @@ The `W` timeseries' **`unit`** is the unit of its readings: `cm` on rivers, but
 always print the unit from the data, never assume cm. Inside its `currentMeasurement`:
 `value` (in that unit), `timestamp` (local
 German offset), and `stateMnwMhw` / `stateNswHsw` (the flood/low-water flags;
-values seen: `normal`, `high`, `low`, `unknown`, `out-dated`). `out-dated` is the
-API's own staleness flag: the reading is too old to classify (ELBE's SANDAU and
-NEU DARCHAU on 2026-09-26), so it is no verdict at all.
+documented values: `normal`, `high`, `low`, `unknown`, `commented`, `out-dated`).
+`out-dated` is the API's own staleness flag: the reading is older than 25 hours
+(ELBE's SANDAU and NEU DARCHAU on 2026-09-26), so it is no verdict at all.
+`commented` means **gauge malfunction or disruption**: the value may be wrong, and the
+series' `comment.shortDescription` says why (RINTELN, Mehring AMS and DAGEBÜLL on
+2026-10-05: "Funktionsstörung, fehlerhafte Messwerte", "Techn. Störung",
+"Behelfspegel - Messwerte können Fehler aufweisen").
 
 ## Step 3 — Order along the river and rank
 
@@ -110,7 +114,8 @@ NEU DARCHAU on 2026-09-26), so it is no verdict at all.
    `low`. Mark readings older than about two hours as stale.
 4. **Rank the alert list** by `stateMnwMhw`: `high` first (flood-leaning), then
    `low`, then `normal`/`unknown`; list `out-dated` gauges apart as "no current
-   reading", never as normal. The headline is *how many gauges are not
+   reading" and `commented` ones apart as "gauge fault: <comment>", never as normal
+   or by their value. The headline is *how many gauges are not
    normal*, not the longest list.
 
 One-liner to flatten the merged data, one row per station (set `dir` to `1`
@@ -127,7 +132,8 @@ pegel --compact stations list --waters RHEIN --include-timeseries --include-curr
           elif $w.currentMeasurement.value == null then "no value"
           else $w.currentMeasurement.value end),
          ($w.unit // ""), ($w.currentMeasurement.stateMnwMhw // ""),
-         ($w.currentMeasurement.timestamp // "")] | @tsv'
+         ($w.currentMeasurement.timestamp // ""),
+         ($w.comment.shortDescription // "")] | @tsv'
 ```
 
 Readings older than two hours (German timestamps carry their offset, so they

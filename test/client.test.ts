@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { PegelOnlineClient } from "../src/client/client.js";
 import { PegelApiError, PegelError, PegelValidationError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson, validFor } from "./helpers.js";
+import type { MeasurementState, TimeseriesComment } from "../src/client/types.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>): PegelOnlineClient {
   return new PegelOnlineClient({ transport: mt.transport });
@@ -232,4 +233,17 @@ test("the no-value sentinel 99999 is a null reading wherever measurements appear
   // Real readings, 0 and negatives included, are untouched.
   const c6 = clientWith(constantJson([{ timestamp: t, value: 0 }, { timestamp: t, value: -12.5 }, { timestamp: t, value: 99998 }]));
   assert.deepEqual((await c6.timeseries.measurements("X")).map((m) => m.value), [0, -12.5, 99998]);
+});
+
+test("TimeseriesInfo types the operator's comment and the documented states (01#3)", async () => {
+  const served = {
+    shortname: "W", longname: "WASSERSTAND ROHDATEN", unit: "cm",
+    comment: { shortDescription: "Funktionsstörung, fehlerhafte Messwerte", longDescription: "Funktionsstörung, fehlerhafte Messwerte" },
+    currentMeasurement: { timestamp: "2026-10-05T17:00:00+02:00", value: 92, stateMnwMhw: "commented", stateNswHsw: "commented" },
+  };
+  const ts = await clientWith(constantJson(served)).timeseries.get("RINTELN", "W", { includeCurrentMeasurement: true });
+  const state: MeasurementState | undefined = ts.currentMeasurement?.stateMnwMhw;
+  const comment: TimeseriesComment | undefined = ts.comment;
+  assert.equal(state, "commented");
+  assert.equal(comment?.shortDescription, "Funktionsstörung, fehlerhafte Messwerte");
 });

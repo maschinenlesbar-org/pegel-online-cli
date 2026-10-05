@@ -154,7 +154,28 @@ hours, so check the `timestamp`.
 ## State classifications
 
 These string fields on a current measurement classify the reading against
-standard reference marks. The client surfaces the API's value verbatim.
+standard reference marks. They appear on water-level series only (not on `Q` or
+temperatures). The client surfaces the API's value verbatim; the API documents six:
+
+| Value | Meaning |
+| --- | --- |
+| `low` | at or below MNW (`stateMnwMhw` only) |
+| `normal` | between MNW and MHW (or between 0 and HSW) |
+| `high` | at or above MHW (or HSW) |
+| `unknown` | the series publishes no MNW/MHW (or HSW) mark to compare with |
+| `commented` | **gauge malfunction or disruption** — the value may be wrong; the reason is in the series' `comment` |
+| `out-dated` | the reading is older than 25 hours |
+
+A `commented` reading is not a level to judge: on 5 October 2026 RINTELN showed 92 cm,
+below its MNW, with the comment "Funktionsstörung, fehlerhafte Messwerte" (malfunction,
+faulty readings).
+
+**Comment (`comment`).** The operator's note on a disturbed timeseries —
+`{ shortDescription, longDescription }`, e.g. "Techn. Störung" or "Behelfspegel -
+Messwerte können Fehler aufweisen" (temporary gauge, values may be wrong). It is part
+of the timeseries (`pegel timeseries <station> <series>`, or `--include-timeseries` on
+`stations get` / `stations list`), not of the measurement; `current` alone doesn't show
+it.
 
 **`stateMnwMhw`.** Classification of the current value relative to the
 **mean low water (MNW, *Mittlerer Niedrigwasserstand*)** and **mean high water

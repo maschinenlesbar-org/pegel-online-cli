@@ -154,7 +154,28 @@ manchmal stundenlang – prüfen Sie daher den `timestamp`.
 ## Zustandseinstufungen
 
 Diese String-Felder eines aktuellen Messwerts stufen den Wert gegenüber
-standardisierten Bezugsmarken ein. Der Client gibt den Wert der API unverändert weiter.
+standardisierten Bezugsmarken ein. Es gibt sie nur bei Wasserstands-Zeitreihen (nicht bei
+`Q` oder Temperaturen). Der Client gibt den Wert der API unverändert weiter; die API
+dokumentiert sechs Werte:
+
+| Wert | Bedeutung |
+| --- | --- |
+| `low` | auf oder unter MNW (nur `stateMnwMhw`) |
+| `normal` | zwischen MNW und MHW (bzw. zwischen 0 und HSW) |
+| `high` | auf oder über MHW (bzw. HSW) |
+| `unknown` | die Zeitreihe hat keine MNW/MHW- (bzw. HSW-)Marke zum Vergleich |
+| `commented` | **Fehlfunktion oder Störung des Pegels** – der Wert kann falsch sein; der Grund steht im `comment` der Zeitreihe |
+| `out-dated` | der Messwert ist älter als 25 Stunden |
+
+Ein Messwert mit `commented` ist kein Wasserstand zum Einstufen: Am 5. Oktober 2026
+zeigte RINTELN 92 cm, unter seinem MNW, mit dem Kommentar „Funktionsstörung,
+fehlerhafte Messwerte“.
+
+**Kommentar (`comment`).** Der Hinweis des Betreibers zu einer gestörten Zeitreihe –
+`{ shortDescription, longDescription }`, z. B. „Techn. Störung“ oder „Behelfspegel -
+Messwerte können Fehler aufweisen“. Er gehört zur Zeitreihe (`pegel timeseries
+<station> <series>` oder `--include-timeseries` bei `stations get` / `stations list`),
+nicht zum Messwert; `current` allein zeigt ihn nicht.
 
 **`stateMnwMhw`.** Einstufung des aktuellen Werts gegenüber den Marken
 **Mittlerer Niedrigwasserstand (MNW)** und **Mittlerer Hochwasserstand

@@ -52,11 +52,13 @@ temperature, `LT` air temperature):
 
 ```bash
 pegel --compact stations get BONN --include-current \
-  | jq '.timeseries[] | select(.shortname == "W") | {unit, currentMeasurement}'
+  | jq '.timeseries[] | select(.shortname == "W") | {unit, comment, currentMeasurement}'
 ```
 
-(`pegel --compact current BONN` returns the bare measurement, **without a unit**; use
-it only together with `pegel --compact timeseries BONN W`, which has the `unit`.)
+(`pegel --compact current BONN` returns the bare measurement, **without a unit or
+comment**; use it only together with `pegel --compact timeseries BONN W`, which has
+both.) `comment` is present only while the gauge is disturbed — e.g.
+`{"shortDescription":"Funktionsstörung, fehlerhafte Messwerte"}`.
 
 The `currentMeasurement` is a single object:
 
@@ -64,8 +66,8 @@ The `currentMeasurement` is a single object:
 |---|---|
 | `value` | The reading, a number **in the series' `unit`** — or `null` when the gauge sent no value (the CLI turns its placeholder `99999` into `null`): report "no reading", never a level |
 | `timestamp` | ISO-8601 with a **local German offset** (`+02:00` in summer), not UTC |
-| `stateMnwMhw` | Classification vs. mean low / mean high water — the flood/low-water verdict. Seen values: `normal`, `high`, `low`, `unknown`, `out-dated` |
-| `stateNswHsw` | Classification vs. lowest / highest *navigable* water (shipping bounds). Often `unknown`; also `out-dated` |
+| `stateMnwMhw` | Classification vs. mean low / mean high water — the flood/low-water verdict. Documented values: `normal`, `high`, `low`, `unknown`, `commented` (gauge fault), `out-dated` |
+| `stateNswHsw` | Classification vs. lowest / highest *navigable* water (shipping bounds). Often `unknown`; same values |
 
 > **Never assume the unit — read `unit`.** It belongs to the series, not the
 > measurement, and not every `W` is in cm: most are, but canal and reservoir gauges
@@ -85,8 +87,13 @@ measurement, **not** the gauge marks. Map it to plain language:
 - `unknown` → the station has no MNW/MHW reference for this series; say "no flood
   reference published" rather than implying it's fine. (`Q` flow and many
   temperature series carry **no** state fields at all — same handling.)
-- `out-dated` → the reading is too old for the API to classify; say "no current
-  reading" and give its timestamp, never "normal".
+- `out-dated` → the reading is older than 25 hours; say "no current reading" and
+  give its timestamp, never "normal".
+- `commented` → **gauge malfunction or disruption**: the value may be wrong. Report
+  "gauge fault: " plus the series' `comment.shortDescription` (e.g. RINTELN on
+  5 Oct 2026: 92 cm, "Funktionsstörung, fehlerhafte Messwerte"), give the value only
+  as "reported, unreliable", and no normal/high/low verdict.
+- Whatever the state, if the series has a `comment`, show it next to the reading.
 
 If the user explicitly wants the numeric flood thresholds, those live in the
 gauge marks: `pegel stations get <station> --include-timeseries
