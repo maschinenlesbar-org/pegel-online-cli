@@ -292,6 +292,13 @@ npm test          # builds, then runs `node --test` over dist/test
 - **Parity tests** use `parity()` from `test/helpers.ts`: one input through `run()` and through
   the library call on recording mock transports; both must reject without a request, or both
   send the same request.
+- **`conformance-p*.test.ts`** — the shared checks of the 2026-10-05 fix patterns, copied
+  across the maschinenlesbar.org CLIs with only their adapter block changed: P1 (credentials
+  in CLI output), P2 (in logged clients and errors), P3 (credentials across redirects), P4
+  (base-URL rules; the P19 case is skipped — pegel reads no environment variable), P5 (the
+  transport contract), P6 (retry policy), P7 (pipes and exit codes, runs the built bin), P8/P9/P13
+  (charset, response shapes, validation errors) and P10 (strict filters). `validFor()` in
+  `test/helpers.ts` answers any endpoint with a body of its documented shape.
 
 ## Continuous integration
 
