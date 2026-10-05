@@ -66,7 +66,10 @@ Each item is a station. Fields that matter:
 | `water` | `{ shortname, longname }` |
 | `timeseries[]` | present only with `--include-timeseries`; each has `shortname`, `longname`, `unit`, and (with `--include-current`) a nested `currentMeasurement` |
 
-Inside the `W` timeseries' `currentMeasurement`: `value` (cm), `timestamp` (local
+The `W` timeseries' **`unit`** is the unit of its readings: `cm` on rivers, but
+**`m+NN`** (metres above sea level) on most canal gauges and `m+PNP` on reservoirs —
+always print the unit from the data, never assume cm. Inside its `currentMeasurement`:
+`value` (in that unit), `timestamp` (local
 German offset), and `stateMnwMhw` / `stateNswHsw` (the flood/low-water flags;
 values seen: `normal`, `high`, `low`, `unknown`, `out-dated`). `out-dated` is the
 API's own staleness flag: the reading is too old to classify (ELBE's SANDAU and
@@ -162,7 +165,9 @@ Rules:
   flooding?". If all normal, say so plainly.
 - Keep the table **km-ordered in flow direction** — that's the spatial story.
   Say which way it reads when the river's km count down or restart.
-- Show `value` + unit (W is **cm**) and the state per gauge.
+- Show `value` + the series' `unit` (cm on rivers; `m+NN` on canals such as `MLK`,
+  `DEK`, `WDK` — a surface height in metres, not comparable with a cm level) and the
+  state per gauge.
 - A river can have 30–60+ gauges; a table is fine, but call out the high/low ones
   up top so the user doesn't have to scan.
 - Don't fabricate a level for a gauge whose `currentMeasurement` is absent — say

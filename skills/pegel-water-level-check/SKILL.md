@@ -43,30 +43,36 @@ their `shortname`, `uuid`, `km`, `water` and coordinates. Use the `shortname` (o
 `uuid`) from there. Note: a station selector that doesn't exist returns **exit
 code 4** ("not found") — that means a wrong name, not a service outage.
 
-## Step 2 — Pull the current reading
+## Step 2 — Pull the current reading, with its unit
 
-For each resolved station, fetch the current measurement. Default series is **`W`**
-(water level, in `cm`); name another series for a different quantity (`Q` flow in
-`m³/s`, `WT` water temperature in `°C`, `LT` air temperature):
+For each resolved station, fetch the station with its series embedded: one call gives
+each series' **`unit`** next to its current measurement. Default series is **`W`**
+(water level); pick another for a different quantity (`Q` flow, `WT` water
+temperature, `LT` air temperature):
 
 ```bash
-pegel --compact current BONN          # W water level, the default
-pegel --compact current BONN Q        # flow / discharge
+pegel --compact stations get BONN --include-current \
+  | jq '.timeseries[] | select(.shortname == "W") | {unit, currentMeasurement}'
 ```
 
-The response is a single object:
+(`pegel --compact current BONN` returns the bare measurement, **without a unit**; use
+it only together with `pegel --compact timeseries BONN W`, which has the `unit`.)
+
+The `currentMeasurement` is a single object:
 
 | Field | Meaning |
 |---|---|
-| `value` | The reading, a number **in the series' unit** — or `null` when the gauge sent no value (the CLI turns its placeholder `99999` into `null`): report "no reading", never a level |
+| `value` | The reading, a number **in the series' `unit`** — or `null` when the gauge sent no value (the CLI turns its placeholder `99999` into `null`): report "no reading", never a level |
 | `timestamp` | ISO-8601 with a **local German offset** (`+02:00` in summer), not UTC |
 | `stateMnwMhw` | Classification vs. mean low / mean high water — the flood/low-water verdict. Seen values: `normal`, `high`, `low`, `unknown`, `out-dated` |
 | `stateNswHsw` | Classification vs. lowest / highest *navigable* water (shipping bounds). Often `unknown`; also `out-dated` |
 
-> **Unit is not in this response.** `value` is just a number; the unit (`cm`,
-> `m³/s`, `°C`) belongs to the series, not the measurement. Default `W` is **cm**.
-> If you need to state the unit and it isn't obvious, get it from
-> `pegel timeseries <station> <series>` (its `unit` field) — don't assume metres.
+> **Never assume the unit — read `unit`.** It belongs to the series, not the
+> measurement, and not every `W` is in cm: most are, but canal and reservoir gauges
+> (Mittellandkanal, Dortmund-Ems-Kanal, Wesel-Datteln-Kanal, EDERTALSPERRE …) publish
+> `W` in **`m+NN`** (metres above sea level: MÜNSTER OW 56.54 m+NN, not 56.54 cm) or
+> **`m+PNP`** (metres above the gauge zero). Report the value with the unit as given;
+> such a level is a surface height, not a depth, and carries no flood state (`unknown`).
 
 ## Step 3 — Judge the level
 
@@ -115,4 +121,5 @@ Rules:
 - For multiple stations, fetch each with its own `current` call (they're cheap)
   or, if they share one water, use the river overview approach (one list call
   with embeds — see `pegel-river-overview`).
-- Don't convert cm↔m or fabricate a flood percentage the data doesn't give.
+- Don't convert cm↔m or fabricate a flood percentage the data doesn't give, and never
+  print a `W` value with a unit you didn't read from its series.

@@ -118,7 +118,14 @@ omitted; a blank value is rejected as a usage error.
 
 **Unit (`unit`).** The physical unit of a timeseries' values, as published by the
 API — e.g. `cm` for water level, `m³/s` for flow, `°C` for temperatures. The
-client surfaces the API's string verbatim.
+client surfaces the API's string verbatim. The unit belongs to the series, not to the
+code: **not every `W` is in cm.** On 5 October 2026, 668 of 737 `W` series were in `cm`,
+but 67 canal gauges (Mittellandkanal, Wesel-Datteln-, Rhein-Herne-, Elbe-Seiten-,
+Dortmund-Ems-, Datteln-Hamm-Kanal, Ruhr) published `m+NN` — metres above sea level, so
+MÜNSTER OW reads 56.54 — and two reservoirs (EDERTALSPERRE, DIEMELTALSPERRE) `m+PNP`,
+metres above the gauge zero. A current measurement carries no unit; read it from the
+series (`pegel timeseries <station> <series>`, or `.timeseries[].unit` with
+`--include-timeseries`) every time.
 
 **Equidistance (`equidistance`).** The nominal spacing between consecutive
 measurements of a timeseries, in minutes (e.g. `15` for a reading every quarter

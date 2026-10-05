@@ -60,6 +60,13 @@ export interface GaugeZero {
 export interface TimeseriesInfo {
   shortname: string;
   longname: string;
+  /**
+   * The unit of every value of this series, as the API publishes it. Read it; never
+   * assume it from the shortname: most `W` (water level) series are in `cm`, but canal
+   * and reservoir gauges publish `W` in `m+NN` (metres above sea level) or `m+PNP`
+   * (metres above the gauge zero) — 69 of 737 W series on 5 October 2026, e.g. MÜNSTER OW
+   * at 56.54 m+NN. `Q` is usually `m³/s`, temperatures `°C`.
+   */
   unit: string;
   equidistance?: number;
   /** Gauge zero of a water-level series (absent on e.g. flow series). */

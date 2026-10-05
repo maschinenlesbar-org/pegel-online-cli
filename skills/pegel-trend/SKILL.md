@@ -26,7 +26,7 @@ This skill drives the `pegel` command. **Before anything else, validate it is av
 
 This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
-Data is fetched from the open PEGELONLINE REST API — read-only, **no API key**. Always `--compact`. `<station>` may be a shortname (`BONN`), number, longname or uuid; `[timeseries]` defaults to **`W`** (water level, cm). `Q` = flow (m³/s), `WT`/`LT` = temperatures.
+Data is fetched from the open PEGELONLINE REST API — read-only, **no API key**. Always `--compact`. `<station>` may be a shortname (`BONN`), number, longname or uuid; `[timeseries]` defaults to **`W`** (water level). `Q` = flow, `WT`/`LT` = temperatures. **Read the unit from the series** (Step 2) — most `W` series are in cm, but canal and reservoir gauges publish `m+NN`/`m+PNP` (metres).
 
 ## Step 1 — Resolve the station (if needed)
 
@@ -34,7 +34,17 @@ If you're unsure of the exact selector, resolve it first with
 `pegel --compact stations list --fuzzy-id <name>` and take the `shortname`. A wrong
 selector returns **exit code 4**.
 
-## Step 2 — Pull the measurement window
+## Step 2 — Get the unit, then pull the measurement window
+
+The measurements carry no unit. Read it from the series first (one call):
+
+```bash
+pegel --compact timeseries BONN W | jq '{unit}'
+```
+
+Most `W` series answer `cm`, but canal and reservoir gauges answer **`m+NN`** (metres
+above sea level, e.g. MÜNSTER OW ≈ 56.5) or **`m+PNP`** — there a change of `0.02` is
+2 cm, not 0.02 cm. Use the unit as given in every number you report.
 
 `--start` accepts an **ISO-8601 period** (relative, easiest) or an absolute
 instant; `--end` is an absolute instant (defaults to now):
@@ -51,7 +61,7 @@ The response is an **array of points**, oldest→newest, each `{ timestamp, valu
 placeholder `99999` into `null` (PANNERDENSE KOP sent hundreds of them, interleaved
 with real readings, in October 2026). Drop the `null` points before reducing, and say
 how many there were.
-`value` is in the series' unit (W → cm). `timestamp` carries a **local German
+`value` is in the series' `unit` (from the call above). `timestamp` carries a **local German
 offset** (`+02:00` in summer); even when you pass `Z` (UTC) bounds, the returned
 timestamps are local. Default series sampling is ~15 min, so a week is ~670 points
 — never enumerate them; reduce.
@@ -111,7 +121,7 @@ BONN (Rhine), water level — last 7 days
 Rules:
 - Lead with **direction + delta** ("falling 14 cm over 7 days") — that's the
   answer; the extremes and rate are support.
-- Always state the **unit** (W = cm) and the **window** you actually got back
+- Always state the **unit** (as read in Step 2 — never assumed) and the **window** you actually got back
   (`from`/`to`), since the API may clamp to available data.
 - Offer the CSV/plot follow-up; don't paste hundreds of raw points inline.
 - For "rising or falling *right now*" prefer a short window (`P1D`) so noise

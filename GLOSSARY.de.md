@@ -117,7 +117,14 @@ wird als Bedienfehler abgelehnt.
 
 **Einheit (`unit`).** Die physikalische Einheit der Werte einer Zeitreihe, wie von der
 API veröffentlicht – z. B. `cm` für den Wasserstand, `m³/s` für den Abfluss, `°C` für
-Temperaturen. Der Client gibt den String der API unverändert weiter.
+Temperaturen. Der Client gibt den String der API unverändert weiter. Die Einheit gehört
+zur Zeitreihe, nicht zum Code: **Nicht jedes `W` ist in cm.** Am 5. Oktober 2026 waren
+668 von 737 `W`-Zeitreihen in `cm`, aber 67 Kanalpegel (Mittellandkanal, Wesel-Datteln-,
+Rhein-Herne-, Elbe-Seiten-, Dortmund-Ems-, Datteln-Hamm-Kanal, Ruhr) meldeten `m+NN` –
+Meter über Normalnull, MÜNSTER OW also 56,54 – und zwei Talsperren (EDERTALSPERRE,
+DIEMELTALSPERRE) `m+PNP`, Meter über Pegelnullpunkt. Ein aktueller Messwert trägt keine
+Einheit; lesen Sie sie jedes Mal an der Zeitreihe ab (`pegel timeseries <station>
+<series>` oder `.timeseries[].unit` mit `--include-timeseries`).
 
 **Äquidistanz (`equidistance`).** Der nominelle Abstand zwischen aufeinanderfolgenden
 Messwerten einer Zeitreihe in Minuten (z. B. `15` für einen Messwert pro
