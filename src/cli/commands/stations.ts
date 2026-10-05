@@ -1,8 +1,22 @@
 import type { Command } from "commander";
 import { Option } from "commander";
 import type { CliDeps } from "../io.js";
-import { STATION_HELP, action, parseNonEmpty, parsePathArg, renderJson } from "../shared.js";
+import { STATION_HELP, action, once, parseNonEmpty, parsePathArg, renderJson } from "../shared.js";
 import type { IncludeParams, StationListParams } from "../../client/types.js";
+import { stationListNotes, type StationListNote } from "../../client/client.js";
+
+/** A library note about a filter that matched nothing, worded with the CLI's flag names. */
+function noteText(note: StationListNote): string {
+  const value = JSON.stringify(note.value);
+  switch (note.filter) {
+    case "ids":
+      return `Note: --ids ${value} matched no station; the list has only the others. Find the name with --fuzzy-id.`;
+    case "waters":
+      return `Note: --waters ${value} matched no station; it takes a water shortname as \`pegel waters\` lists it (e.g. RHEIN).`;
+    case "fuzzyId":
+      return `Note: --fuzzy-id ${value} matched no station; it is matched literally, umlauts included (köln, not koeln).`;
+  }
+}
 
 /** commander accumulator for a repeatable string option. */
 function collect(value: string, previous: string[] = []): string[] {
@@ -42,8 +56,8 @@ export function registerStationCommands(program: Command, deps: CliDeps): void {
     .command("list")
     .description("List/filter stations")
     .option("--ids <id>", "station id (uuid/number/shortname/longname); repeatable", collect)
-    .option("--waters <shortname>", "filter by water shortname (see `waters`)", parseNonEmpty)
-    .option("--fuzzy-id <id>", "fuzzy id match", parseNonEmpty);
+    .option("--waters <shortname>", "filter by water shortname (see `waters`)", once("--waters", parseNonEmpty))
+    .option("--fuzzy-id <id>", "fuzzy id match", once("--fuzzy-id", parseNonEmpty));
   addIncludeOptions(list).action(
     action(deps, async ({ client, global, opts }) => {
       const params: StationListParams = {
@@ -52,7 +66,11 @@ export function registerStationCommands(program: Command, deps: CliDeps): void {
         fuzzyId: opts["fuzzyId"] as string | undefined,
         ...includesFrom(opts),
       };
-      renderJson(deps, global, await client.stations.list(params));
+      const stations = await client.stations.list(params);
+      renderJson(deps, global, stations);
+      // Filter values the API matched nothing for: still exit 0 (the answer is valid),
+      // but say so on stderr rather than silently printing fewer stations or [].
+      for (const note of stationListNotes(params, stations)) deps.io.err(noteText(note));
     }),
   );
 

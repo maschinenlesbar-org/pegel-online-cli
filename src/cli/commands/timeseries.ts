@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { STATION_HELP, action, parseNonEmpty, parsePathArg, renderJson, timeseriesOr } from "../shared.js";
+import { STATION_HELP, action, once, parseNonEmpty, parsePathArg, renderJson, timeseriesOr } from "../shared.js";
 
 const TIMESERIES_HELP = "timeseries shortname, e.g. W (water level) or Q (flow)";
 
@@ -40,8 +40,8 @@ export function registerTimeseriesCommands(program: Command, deps: CliDeps): voi
     .argument("<station>", STATION_HELP, parsePathArg)
     .argument("[timeseries]", TIMESERIES_HELP, parsePathArg)
     .description("A window of measurements (timeseries defaults to 'W')")
-    .option("--start <iso>", "window start: ISO-8601 instant, or a period like P7D", parseNonEmpty)
-    .option("--end <iso>", "window end: ISO-8601 instant", parseNonEmpty)
+    .option("--start <iso>", "window start: ISO-8601 instant, or a period like P7D", once("--start", parseNonEmpty))
+    .option("--end <iso>", "window end: ISO-8601 instant", once("--end", parseNonEmpty))
     .action(
       action(deps, async ({ client, global, opts }, [station, ts]) => {
         renderJson(

@@ -22,7 +22,7 @@ import {
   redactCredentials,
   redactUrl,
 } from "./errors.js";
-import { assertValid, baseUrlProblem, headerValueProblem } from "./validate.js";
+import { assertValid, baseUrlProblem, headerValueProblem, knownKeysProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://www.pegelonline.wsv.de";
 const DEFAULT_USER_AGENT = "pegel-online-cli";
@@ -110,6 +110,20 @@ function intOption(name: string, value: number | undefined, fallback: number, ma
   }
   return value;
 }
+
+/** Every EngineOptions key; any other is rejected (a JavaScript `timeout` for `timeoutMs`). */
+const OPTION_NAMES = [
+  "baseUrl",
+  "transport",
+  "userAgent",
+  "headers",
+  "timeoutMs",
+  "maxRetries",
+  "retryDelayMs",
+  "maxRedirects",
+  "maxResponseBytes",
+  "sleep",
+] as const satisfies ReadonlyArray<keyof EngineOptions>;
 
 /**
  * Read a function option: `undefined` gives the default; anything else that is not a
@@ -385,6 +399,8 @@ export class RequestEngine {
   constructor(options: EngineOptions = {}) {
     // A JavaScript caller may pass null for "no options"; treat it like undefined.
     options = options ?? {};
+    // A typo (`timeout` for `timeoutMs`) used to be ignored and the default applied.
+    assertValid("options", options, knownKeysProblem(OPTION_NAMES));
     // The raw value, before the slash strip: the engine glues it into every URL, so
     // "https://h/ " must not lose its slash first and slip past the check.
     this.#baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);

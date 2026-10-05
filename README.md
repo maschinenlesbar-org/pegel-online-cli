@@ -101,6 +101,11 @@ The API nests the current measurement and the gauge marks *inside* each
 timeseries and drops them without the timeseries list, so `--include-current` and
 `--include-characteristic` turn on `--include-timeseries` themselves.
 
+The API answers an unknown `--ids` entry by leaving it out, and an unknown `--waters` or
+`--fuzzy-id` with `[]`. The CLI says so on stderr (`Note: --ids "KOELN" matched no
+station; …`) and still exits `0`. Every option but `--ids` takes one value; giving one
+twice is a usage error (exit `2`).
+
 ### `measurements` options
 
 | Flag | Meaning |

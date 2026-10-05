@@ -9,7 +9,13 @@
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
 import { PegelParseError, PegelValidationError } from "./errors.js";
-import { assertValid, idListProblem, nonEmptyProblem } from "./validate.js";
+import {
+  assertValid,
+  idListProblem,
+  knownKeysProblem,
+  nonEmptyProblem,
+  optionalBooleanProblem,
+} from "./validate.js";
 import type {
   Station,
   Water,
@@ -93,6 +99,24 @@ function expectShape<T>(path: string, value: unknown, shape: Shape, what: string
   return value as T;
 }
 
+const INCLUDE_KEYS = ["includeTimeseries", "includeCurrentMeasurement", "includeCharacteristicValues"] as const;
+const LIST_KEYS = ["ids", "waters", "fuzzyId", ...INCLUDE_KEYS] as const;
+const MEASUREMENT_KEYS = ["start", "end"] as const;
+
+/**
+ * A method's parameter object, checked before any request: `undefined` (or `null` from
+ * JavaScript) means none; otherwise only the documented keys (knownKeysProblem), and the
+ * include flags only as booleans. Throws PegelValidationError.
+ */
+function checkParams<T extends object>(name: string, params: T | undefined | null, allowed: readonly string[]): T {
+  if (params === undefined || params === null) return {} as T;
+  assertValid(name, params, knownKeysProblem(allowed));
+  for (const key of INCLUDE_KEYS) {
+    if (allowed.includes(key)) assertValid(key, (params as Record<string, unknown>)[key], optionalBooleanProblem);
+  }
+  return params;
+}
+
 /** Drop undefined values so only the parameters the caller set are sent. */
 function prune(params: Record<string, unknown>): QueryParams {
   const out: QueryParams = {};
@@ -135,6 +159,7 @@ class StationsResource {
    * no filter and would answer with every station.
    */
   async list(params: StationListParams = {}): Promise<Station[]> {
+    params = checkParams("stations.list parameters", params, LIST_KEYS);
     const query = prune({
       ids: params.ids === undefined ? undefined : assertValid("ids", params.ids, idListProblem).map(nfc).join(","),
       waters: optionalFilter("waters", params.waters),
@@ -146,6 +171,7 @@ class StationsResource {
   }
 
   async get(station: string, params: IncludeParams = {}): Promise<Station> {
+    params = checkParams("stations.get parameters", params, INCLUDE_KEYS);
     const path = `${API}/stations/${enc("station", station)}.json`;
     return expectShape(path, await this.e.getJson(path, stationIncludes(params)), isStation, "a station object");
   }
@@ -157,6 +183,7 @@ class TimeseriesResource {
 
   /** Timeseries metadata (e.g. "W" = water level, "Q" = flow). */
   async get(station: string, timeseries = "W", params: IncludeParams = {}): Promise<TimeseriesInfo> {
+    params = checkParams("timeseries.get parameters", params, INCLUDE_KEYS);
     const path = `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}.json`;
     return expectShape(path, await this.e.getJson(path, includeQuery(params)), isTimeseries, "a timeseries object");
   }
@@ -172,10 +199,48 @@ class TimeseriesResource {
     timeseries = "W",
     params: MeasurementsParams = {},
   ): Promise<Measurement[]> {
+    params = checkParams("timeseries.measurements parameters", params, MEASUREMENT_KEYS);
     const path = `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}/measurements.json`;
     const query = prune({ start: optionalValue("start", params.start), end: optionalValue("end", params.end) });
     return expectShape(path, await this.e.getJson(path, query), arrayOf(isMeasurement), "an array of measurements");
   }
+}
+
+/** A `stations.list` filter value that matched no station (see {@link stationListNotes}). */
+export interface StationListNote {
+  kind: "unmatched";
+  filter: "ids" | "waters" | "fuzzyId";
+  value: string;
+}
+
+/** Case-insensitive equality the way the API's id lookup behaves (`roßdorf` finds `ROSSDORF`). */
+function sameId(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase() || a.toUpperCase() === b.toUpperCase();
+}
+
+/**
+ * The filter values of a `stations.list` call that matched nothing in its result. The
+ * API drops an `ids` entry it doesn't know and answers an unknown `waters` or `fuzzyId`
+ * with `[]`, both with HTTP 200, so `ids: ["BONN", "KOELN", "EMMERICH"]` silently gave two
+ * stations and `waters: "Rhine"` an empty river. This reports each `ids` entry that names
+ * none of the returned stations (by uuid, number, shortname or longname, ignoring case),
+ * and a `waters` or `fuzzyId` filter whose result is empty. An empty array means every
+ * filter matched. The CLI prints these as notes on stderr.
+ */
+export function stationListNotes(params: StationListParams, stations: readonly Station[]): StationListNote[] {
+  const notes: StationListNote[] = [];
+  for (const raw of params.ids ?? []) {
+    const id = nfc(raw.trim());
+    const found = stations.some((s) =>
+      [s.uuid, s.number, s.shortname, s.longname].some((f) => typeof f === "string" && sameId(f, id)),
+    );
+    if (!found) notes.push({ kind: "unmatched", filter: "ids", value: raw });
+  }
+  if (stations.length === 0) {
+    if (params.waters !== undefined) notes.push({ kind: "unmatched", filter: "waters", value: params.waters });
+    if (params.fuzzyId !== undefined) notes.push({ kind: "unmatched", filter: "fuzzyId", value: params.fuzzyId });
+  }
+  return notes;
 }
 
 export class PegelOnlineClient {

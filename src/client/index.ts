@@ -1,11 +1,13 @@
 // Public entry point for the API client library.
 
-export { PegelOnlineClient } from "./client.js";
+export { PegelOnlineClient, stationListNotes } from "./client.js";
+export type { StationListNote } from "./client.js";
 export {
   RequestEngine,
   DEFAULT_BASE_URL,
   MAX_RETRIES,
   MAX_RETRY_AFTER_MS,
+  isTransientNetworkError,
   parseRetryAfter,
   validateBaseUrl,
 } from "./engine.js";
@@ -31,7 +33,9 @@ export {
   headerValueProblem,
   idListProblem,
   isBlank,
+  knownKeysProblem,
   nonEmptyProblem,
+  optionalBooleanProblem,
 } from "./validate.js";
 export type { Problem } from "./validate.js";
 

@@ -39,6 +39,22 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
 }
 
 /**
+ * Wrap a commander value-parser so its option may be given only once. Commander keeps
+ * the last of a repeated single-value option silently: `--waters ELBE --waters RHEIN`
+ * listed the Rhine only, `--start P7D --start P1D` fetched one day. A repetition is a
+ * usage error instead. The program is built anew for every run, so the flag starts
+ * fresh each time.
+ */
+export function once<T>(flag: string, parser: (value: string) => T): (value: string) => T {
+  let seen = false;
+  return (value: string) => {
+    if (seen) throw new InvalidArgumentError(`${flag} may be given only once.`);
+    seen = true;
+    return parser(value);
+  };
+}
+
+/**
  * commander value-parser: a value that is not blank. The rule is the library's
  * nonEmptyProblem, which the client enforces on every filter value too (the API
  * reads an empty parameter as no filter); here it only turns a blank value into an

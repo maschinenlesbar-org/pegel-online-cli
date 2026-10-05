@@ -251,8 +251,19 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   would also allow header injection). The CLI's `--user-agent` parser uses the same
   rule.
 
+- **Parameter keys** (`knownKeysProblem`, `optionalBooleanProblem`): every method's
+  parameter object, and the constructor's options, may hold only the documented keys; a
+  misspelled one (`water`, `fuzzyID`, `timeout`), `__proto__` or `constructor` is a
+  `PegelValidationError` naming a close match, instead of being dropped (which listed
+  every station). The include flags must be booleans.
+- **Filters that matched nothing** (`stationListNotes(params, stations)`): the API drops
+  an unknown `ids` entry and answers an unknown `waters`/`fuzzyId` with `[]`, all with
+  HTTP 200. This function returns those filter values (`{ kind: "unmatched", filter,
+  value }`); the CLI prints them as `Note: …` lines on stderr and exits 0.
+
 The CLI's
-commander parsers call the same functions, so a rule exists once; `run.ts` maps a
+commander parsers call the same functions, so a rule exists once; a single-value option
+given twice is a usage error (`once` in `cli/shared.ts`) rather than the last one winning; `run.ts` maps a
 `PegelValidationError` raised during an action to the usage exit code 2, printed as
 `Error: <message>`.
 

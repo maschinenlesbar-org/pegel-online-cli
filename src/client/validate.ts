@@ -114,3 +114,30 @@ export const headerValueProblem: Problem<unknown> = (value) => {
   }
   return undefined;
 };
+
+/**
+ * A parameter object of a client method: a plain object whose own keys are all in
+ * `allowed` (an `undefined` value counts as unset and is ignored). A misspelled key
+ * (`water` for `waters`, `fuzzyID`), `__proto__` or `constructor` was dropped silently
+ * and the API answered with every station; TypeScript catches a typo, JavaScript and a
+ * JSON config do not. The reason names the key, a close match and the allowed keys.
+ */
+export function knownKeysProblem(allowed: readonly string[]): Problem<unknown> {
+  return (value) => {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return "Expected an object.";
+    for (const [key, v] of Object.entries(value)) {
+      if (v === undefined || allowed.includes(key)) continue;
+      const lower = key.toLowerCase();
+      const hint = allowed.find((name) => name.toLowerCase().includes(lower) || lower.includes(name.toLowerCase()));
+      return (
+        `Unknown key ${JSON.stringify(key)}` +
+        (hint === undefined ? `; the keys are ${allowed.join(", ")}.` : ` (did you mean ${hint}?).`)
+      );
+    }
+    return undefined;
+  };
+}
+
+/** An optional flag (`includeTimeseries` …): `true`, `false` or unset — not "yes", 1 or "false". */
+export const optionalBooleanProblem: Problem<unknown> = (value) =>
+  value === undefined || typeof value === "boolean" ? undefined : "Expected true or false.";

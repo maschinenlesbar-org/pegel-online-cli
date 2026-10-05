@@ -177,7 +177,11 @@ pegel stations list --ids BONN --ids KÖLN --ids EMMERICH --include-current
 ```
 
 `--ids` is repeatable; supply it once per station. For an inexact name match use
-`--fuzzy-id` instead.
+`--fuzzy-id` instead. The API drops an id it doesn't know without saying so; the CLI
+prints `Note: --ids "KOELN" matched no station; …` on stderr for each such id (exit 0, the
+others are listed), and the same kind of note when `--waters` or `--fuzzy-id` matched
+nothing. `--waters`, `--fuzzy-id`, `--start`, `--end` and the global options take one
+value: giving one twice is a usage error (exit 2).
 
 ### 10. Filter stations by operating agency
 
