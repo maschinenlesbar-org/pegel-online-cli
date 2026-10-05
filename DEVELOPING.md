@@ -131,7 +131,10 @@ decodes JSON and maps errors. Sits between the client's resource methods and the
 built-in `http`/`https`; tests inject a mock. This is the only HTTP seam.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are retried automatically,
-up to `maxRetries` (default `2`; CLI `--max-retries`, `0`–`10`). Each retry waits the
+up to `maxRetries` (default `2`; CLI `--max-retries`, `0`–`10`). So is a reset connection
+(`isTransientNetworkError`: `ECONNRESET`/`EPIPE`/`ECONNABORTED` or undici's `UND_ERR_SOCKET`
+anywhere in the error's `cause` chain), with the linear backoff, for `GET`/`HEAD` only;
+a refused connection, a DNS failure and a timeout are not retried. Each retry waits the
 response's `Retry-After` (`parseRetryAfter`: delay-seconds or an IMF-fixdate, anything else is
 ignored) when it is at most `MAX_RETRY_AFTER_MS` (30 s); a longer one is not retried and the
 error surfaces at once. Without a usable header the wait is `retryDelayMs * attempt`.
@@ -150,7 +153,24 @@ request. This client is keyless and sets none, but the guard is unconditional so
 library consumer that adds one via `headers` is protected.
 
 **maxResponseBytes.** A hard cap on response body size to defend against memory exhaustion
-(default 100 MiB; `0` = unlimited). CLI: `--max-response-bytes`.
+(default 100 MiB; `0` = unlimited). CLI: `--max-response-bytes`. The default transport aborts
+as soon as the cap is passed; the engine also checks the body any transport returns, so the
+cap holds for custom transports too. The message names both the option and the flag.
+
+**timeoutMs.** A deadline for the whole request, response body included (default 30 s;
+`0` disables). The engine enforces it itself, for every transport: the transport gets an
+`AbortSignal` (`HttpRequest.signal`) that fires at the deadline, and the call rejects then
+with a `PegelNetworkError` whether the transport stops or not, so a `fetch` or `node:http`
+transport can't hang a caller. A timed-out request is not retried.
+
+**Custom transports.** A transport may return the body as a Buffer, any `ArrayBuffer` view
+(fetch's `Uint8Array`, from any realm) or an `ArrayBuffer`, and the headers as a plain record
+in any letter case, a `Headers` object or a `Map` (`Retry-After` and `Location` are found in
+all of them). Whatever it throws, and a response without a usable `status` (100–599),
+`headers` or `body`, becomes a `PegelNetworkError` whose message names the request
+(`GET <url> failed: socket hang up`), with the original as `cause`. A redirect to anything
+but `http:`/`https:` (`file:`, `data:`, `javascript:`) is refused before the transport is
+called.
 
 **RawResponse.** The low-level result of a request: `{ data: Buffer, contentType, status }` —
 raw bytes, never lossily decoded. Exported for completeness; endpoints return decoded JSON.
@@ -165,8 +185,9 @@ whole CLI run in tests with a mocked client and captured output — no subproces
 
 **Error types.** [`src/client/errors.ts`](src/client/errors.ts):
 `PegelApiError` (non-2xx; carries `status`, `detail`, `url`, `method`, `body`),
-`PegelNetworkError` (transport failure/timeout, and the default transport's per-hop
-scheme check), `PegelParseError` (bad JSON),
+`PegelNetworkError` (transport failure/timeout — whatever a custom transport throws —,
+an invalid transport response, a body over `maxResponseBytes`, and the default
+transport's per-hop scheme check), `PegelParseError` (bad JSON),
 `PegelValidationError` (an input rejected before any request), all extending the
 base `PegelError`.
 

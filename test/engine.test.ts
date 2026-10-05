@@ -356,3 +356,39 @@ test("numeric engine options must be integers in range, or the constructor throw
   }
   new RequestEngine({ timeoutMs: 0, maxRetries: 10, retryDelayMs: 0, maxRedirects: 20, maxResponseBytes: 0 });
 });
+
+test("Location is read from a Headers object, a Map and any header case (04#2)", async () => {
+  for (const headers of [new Headers({ Location: "/y" }), new Map([["Location", "/y"]]), { Location: "/y" }, { LOCATION: "/y" }]) {
+    const mt = makeMockTransport((req) =>
+      req.url.endsWith("/x")
+        ? { status: 302, headers: headers as unknown as Record<string, string>, body: Buffer.alloc(0) }
+        : jsonResponse({ ok: 1 }));
+    const e = new RequestEngine({ baseUrl: "https://a.test", transport: mt.transport });
+    assert.deepEqual(await e.getJson("/x"), { ok: 1 }, headers.constructor.name);
+    assert.equal(mt.last().url, "https://a.test/y");
+  }
+});
+
+test("a non-http(s) redirect target is refused before the transport sees it", async () => {
+  for (const target of ["file:///etc/passwd", "data:text/plain,x", "javascript:alert(1)"]) {
+    const mt = makeMockTransport(() => ({ status: 302, headers: { location: target }, body: Buffer.alloc(0) }));
+    const e = new RequestEngine({ baseUrl: "https://a.test", transport: mt.transport });
+    await assert.rejects(() => e.getJson("/x"), (err: unknown) =>
+      err instanceof PegelApiError && err.status === 302 && /not followed$/.test(err.message), target);
+    assert.equal(mt.calls.length, 1, target);
+  }
+});
+
+test("a transport failure names the request and keeps the original as cause (03#4)", async () => {
+  const reset = Object.assign(new Error("socket hang up"), { code: "ECONNRESET" });
+  const e = new RequestEngine({ baseUrl: "https://a.test", maxRetries: 0, transport: async () => { throw reset; } });
+  await assert.rejects(() => e.getJson("/stations/BONN.json"), (err: unknown) =>
+    err instanceof PegelNetworkError && err.cause === reset &&
+    err.message === "GET https://a.test/stations/BONN.json failed: socket hang up");
+});
+
+test("the size-limit message names --max-response-bytes (03#5)", async () => {
+  const e = new RequestEngine({ maxResponseBytes: 95, transport: async () => jsonResponse({ pad: "x".repeat(100) }) });
+  await assert.rejects(() => e.getJson("/x"), (err: unknown) =>
+    err instanceof PegelNetworkError && /size limit of 95 bytes \(maxResponseBytes; --max-response-bytes on the CLI\)/.test(err.message));
+});

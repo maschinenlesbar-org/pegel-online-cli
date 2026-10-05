@@ -206,8 +206,10 @@ both `pegel --compact waters` and `pegel waters --compact` do the same thing.
   `P7D`, not `7d`.
 - **Empty `[]` from `measurements`** — the window lies outside the data the API
   keeps (about the last month), e.g. a date from earlier in the year.
-- **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again, or
-  raise the limit with `--timeout 60000`.
+- **Exit `1` / network error** — connectivity, DNS, or a timeout; the message names
+  the request that failed (`GET https://… failed: socket hang up`). Try again, or
+  raise the limit with `--timeout 60000`. A body larger than `--max-response-bytes`
+  fails the same way and says so.
 
 ## Global options
 
@@ -221,7 +223,7 @@ These apply to every command and may be given before *or* after it:
 | `--base-url <url>` | API base URL (default `https://www.pegelonline.wsv.de`); http(s) only, a path prefix is fine, no query (`?`), fragment (`#`), whitespace or control characters; userinfo is sent as Basic auth but shown as `***` in messages |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; Latin-1, no control characters) |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses, `0`–`10` (default `2`); each waits the server's `Retry-After` (up to 30 s; a longer one is not retried), else 200 ms × attempt |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, `0`–`10` (default `2`); each waits the server's `Retry-After` (up to 30 s; a longer one is not retried), else 200 ms × attempt. A timeout is not retried |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
 ## Learn more
