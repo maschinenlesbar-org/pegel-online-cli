@@ -175,7 +175,9 @@ but `http:`/`https:` (`file:`, `data:`, `javascript:`) is refused before the tra
 called.
 
 **RawResponse.** The low-level result of a request: `{ data: Buffer, contentType, status }` —
-raw bytes, never lossily decoded. Exported for completeness; endpoints return decoded JSON.
+raw bytes, never lossily decoded. Exported for completeness; endpoints return decoded JSON. `getJson` decodes the
+bytes by the charset the `Content-Type` names (UTF-8 when it names none; a byte order mark is
+dropped); an unknown charset label is a `PegelParseError`.
 
 **Query builder (`buildQueryString`).** [`src/client/query.ts`](src/client/query.ts) — a
 dependency-free serialiser: omits `undefined`/`null`, repeats keys for arrays, renders booleans

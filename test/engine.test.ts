@@ -392,3 +392,15 @@ test("the size-limit message names --max-response-bytes (03#5)", async () => {
   await assert.rejects(() => e.getJson("/x"), (err: unknown) =>
     err instanceof PegelNetworkError && /size limit of 95 bytes \(maxResponseBytes; --max-response-bytes on the CLI\)/.test(err.message));
 });
+
+test("a body is decoded by its declared charset; a BOM is dropped; an unknown charset is a parse error (03#3)", async () => {
+  const latin1 = Buffer.from(JSON.stringify({ shortname: "KÖLN" }), "latin1");
+  const e1 = new RequestEngine({ transport: async () => rawResponse(latin1, "application/json; charset=iso-8859-1") });
+  assert.deepEqual(await e1.getJson("/x"), { shortname: "KÖLN" });
+  const bom = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{"a":1}')]);
+  const e2 = new RequestEngine({ transport: async () => rawResponse(bom, "application/json") });
+  assert.deepEqual(await e2.getJson("/x"), { a: 1 });
+  const e3 = new RequestEngine({ transport: async () => rawResponse('{"a":1}', "application/json; charset=x-no-such") });
+  await assert.rejects(() => e3.getJson("/x"), (err: unknown) =>
+    err instanceof PegelParseError && /Unsupported response charset "x-no-such"/.test(err.message));
+});
