@@ -125,7 +125,8 @@ export interface Measurement {
 export interface StationListParams {
   /**
    * Station identifiers (uuid/number/shortname/longname); sent comma-separated.
-   * At least one, none blank.
+   * At least one, none blank. A name may match more than one station (NEUSTADT: LEINE
+   * and OSTSEE) and an unknown one matches none, silently: `stationListNotes` reports both.
    */
   ids?: string[];
   /** Water shortname filter; not blank. */

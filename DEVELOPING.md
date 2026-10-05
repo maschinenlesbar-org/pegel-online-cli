@@ -263,7 +263,13 @@ nothing: it throws (from a constructor) or rejects (from a method) with
 - **Filters that matched nothing** (`stationListNotes(params, stations)`): the API drops
   an unknown `ids` entry and answers an unknown `waters`/`fuzzyId` with `[]`, all with
   HTTP 200. This function returns those filter values (`{ kind: "unmatched", filter,
-  value }`); the CLI prints them as `Note: …` lines on stderr and exits 0.
+  value }`), and — when the call looked stations up by name (`ids`, `fuzzyId`) — every
+  shortname two returned stations share (`{ kind: "ambiguous", name, stations }`;
+  `NEUSTADT` names a LEINE and an OSTSEE gauge, and a lookup by that name returns one of
+  them silently). The CLI prints them as `Note: …` lines on stderr and exits 0. The
+  per-station methods (`stations.get`, `timeseries.*`) send the name as given and make
+  no extra request to check it; resolve a name through `stations.list` first when it may
+  be ambiguous.
 
 The CLI's
 commander parsers call the same functions, so a rule exists once; a single-value option

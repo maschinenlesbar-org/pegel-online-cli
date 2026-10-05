@@ -218,12 +218,19 @@ class TimeseriesResource {
   }
 }
 
-/** A `stations.list` filter value that matched no station (see {@link stationListNotes}). */
-export interface StationListNote {
-  kind: "unmatched";
-  filter: "ids" | "waters" | "fuzzyId";
-  value: string;
-}
+/**
+ * What {@link stationListNotes} reports about a `stations.list` result: a filter value
+ * that matched no station, or a name that more than one returned station carries.
+ */
+export type StationListNote =
+  | { kind: "unmatched"; filter: "ids" | "waters" | "fuzzyId"; value: string }
+  | {
+      kind: "ambiguous";
+      /** The shortname two or more returned stations share (e.g. "NEUSTADT"). */
+      name: string;
+      /** Those stations, to pick one by its unambiguous uuid or number. */
+      stations: Array<Pick<Station, "uuid" | "number" | "shortname" | "longname"> & { water?: string }>;
+    };
 
 /** Case-insensitive equality the way the API's id lookup behaves (`roßdorf` finds `ROSSDORF`). */
 function sameId(a: string, b: string): boolean {
@@ -237,7 +244,13 @@ function sameId(a: string, b: string): boolean {
  * stations and `waters: "Rhine"` an empty river. This reports each `ids` entry that names
  * none of the returned stations (by uuid, number, shortname or longname, ignoring case),
  * and a `waters` or `fuzzyId` filter whose result is empty. An empty array means every
- * filter matched. The CLI prints these as notes on stderr.
+ * filter matched.
+ *
+ * When the call looked stations up by name (`ids` or `fuzzyId`), it also reports every
+ * shortname that two or more returned stations share: NEUSTADT names a gauge on the
+ * LEINE and one on the OSTSEE, and a lookup by that name (`stations.get("NEUSTADT")`,
+ * `timeseries.currentMeasurement("NEUSTADT")`) silently returns one of them — the uuid
+ * or number picks the right one. The CLI prints all notes on stderr.
  */
 export function stationListNotes(params: StationListParams, stations: readonly Station[]): StationListNote[] {
   const notes: StationListNote[] = [];
@@ -251,6 +264,27 @@ export function stationListNotes(params: StationListParams, stations: readonly S
   if (stations.length === 0) {
     if (params.waters !== undefined) notes.push({ kind: "unmatched", filter: "waters", value: params.waters });
     if (params.fuzzyId !== undefined) notes.push({ kind: "unmatched", filter: "fuzzyId", value: params.fuzzyId });
+  }
+  if (params.ids !== undefined || params.fuzzyId !== undefined) {
+    const byName = new Map<string, Station[]>();
+    for (const s of stations) {
+      const key = s.shortname.toUpperCase();
+      byName.set(key, [...(byName.get(key) ?? []), s]);
+    }
+    for (const same of byName.values()) {
+      if (same.length < 2) continue;
+      notes.push({
+        kind: "ambiguous",
+        name: same[0]!.shortname,
+        stations: same.map((s) => ({
+          uuid: s.uuid,
+          number: s.number,
+          shortname: s.shortname,
+          longname: s.longname,
+          ...(s.water?.shortname !== undefined ? { water: s.water.shortname } : {}),
+        })),
+      });
+    }
   }
   return notes;
 }

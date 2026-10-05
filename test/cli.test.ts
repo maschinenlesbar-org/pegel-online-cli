@@ -360,3 +360,24 @@ test("a PegelValidationError raised in an action is a usage error: exit 2, 'Erro
   assert.deepEqual(out, []);
   assert.deepEqual(err, ["Error: Invalid waters: Expected a non-empty value."]);
 });
+
+test("a shortname that names two stations is reported on stations list (02#1)", async () => {
+  const two = [
+    { uuid: "dda39817", number: "48800200", shortname: "NEUSTADT", longname: "NEUSTADT", water: { shortname: "LEINE", longname: "LEINE" } },
+    { uuid: "3f0b6b74", number: "9610080", shortname: "NEUSTADT", longname: "NEUSTADT", water: { shortname: "OSTSEE", longname: "OSTSEE" } },
+  ];
+  for (const argv of [["stations", "list", "--ids", "NEUSTADT"], ["stations", "list", "--fuzzy-id", "neustadt"]]) {
+    const cli = makeCli(() => jsonResponse(two));
+    assert.equal(await run(argv, cli.deps), 0);
+    const err = cli.err.join("\n");
+    assert.match(err, /"NEUSTADT" names 2 stations: NEUSTADT on LEINE \(number 48800200, uuid dda39817\) and NEUSTADT on OSTSEE \(number 9610080, uuid 3f0b6b74\)/);
+    assert.match(err, /use the number or uuid/);
+  }
+  // Unique names, or a listing without a name filter: no note.
+  const one = makeCli(() => jsonResponse([two[0]]));
+  assert.equal(await run(["stations", "list", "--ids", "NEUSTADT"], one.deps), 0);
+  assert.deepEqual(one.err, []);
+  const all = makeCli(() => jsonResponse(two));
+  assert.equal(await run(["stations", "list"], all.deps), 0);
+  assert.deepEqual(all.err, []);
+});

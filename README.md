@@ -74,7 +74,10 @@ waters                                    list all bodies of water (Gewässer)
 ```
 
 A `<station>` may be a **uuid**, **number**, **shortname** or **longname** — e.g.
-`BONN`, `6302010`, or a full UUID. A `[timeseries]` defaults to **`W`** (water
+`BONN`, `6302010`, or a full UUID. Names are not unique (`NEUSTADT` is a gauge on the
+Leine and one on the Baltic coast), and a lookup by such a name returns one of them
+without a warning; `pegel stations list --ids NEUSTADT` lists both and says so on
+stderr — then use the number or uuid. A `[timeseries]` defaults to **`W`** (water
 level); other codes include `Q` (flow/discharge), `WT` (water temperature), and
 `LT` (air temperature) depending on the station.
 

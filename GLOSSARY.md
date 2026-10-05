@@ -89,13 +89,18 @@ Client: `client.stations.get(station, { includeCharacteristicValues: true })`.
 
 **Station selector (`<station>`).** Anywhere a station is addressed, the value
 may be a **uuid**, **number**, **shortname** *or* **longname**. The API resolves
-any of these forms. The CLI rejects an empty selector and the path segments
+any of these forms. **Names are not unique:** `NEUSTADT` is the shortname of a gauge
+on the LEINE (number 48800200) and one on the OSTSEE (9610080), and a lookup by the
+name silently returns one of them. `stations list --ids NEUSTADT` or `--fuzzy-id`
+lists both and prints a note; use the **number** or **uuid** of the one you mean. The
+CLI rejects an empty selector and the path segments
 `.` / `..` for both `<station>` and `[timeseries]` before building the request
 URL (URL parsing would otherwise resolve them and query a different resource); the
-client library refuses them too, with a `PegelError` before any request. Station
-and timeseries names, `--ids`, `--waters` and `--fuzzy-id` are sent in composed
-Unicode form (NFC), so a decomposed umlaut (`KÖLN` typed as `KO` + U+0308 + `LN`,
-common in text pasted from macOS file names or PDFs) finds the same station.
+client library refuses them too, with a `PegelValidationError` before any request.
+Station and timeseries names, `--ids`, `--waters` and `--fuzzy-id` are sent trimmed
+and in composed Unicode form (NFC), so a pasted trailing space or a decomposed umlaut
+(`KÖLN` typed as `KO` + U+0308 + `LN`, common in text pasted from macOS file names or
+PDFs) finds the same station.
 
 **Gewässer (water / body of water).** A waterway in the network, modelled by the
 `Water` type with a `shortname` (e.g. `RHEIN`) and a `longname`. The `waters`

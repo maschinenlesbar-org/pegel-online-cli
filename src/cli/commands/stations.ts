@@ -5,8 +5,17 @@ import { STATION_HELP, action, once, parseNonEmpty, parsePathArg, renderJson } f
 import type { IncludeParams, StationListParams } from "../../client/types.js";
 import { stationListNotes, type StationListNote } from "../../client/client.js";
 
-/** A library note about a filter that matched nothing, worded with the CLI's flag names. */
+/** A library note about the listing, worded with the CLI's flag names. */
 function noteText(note: StationListNote): string {
+  if (note.kind === "ambiguous") {
+    const which = note.stations
+      .map((s) => `${s.shortname}${s.water !== undefined ? ` on ${s.water}` : ""} (number ${s.number}, uuid ${s.uuid})`)
+      .join(" and ");
+    return (
+      `Note: ${JSON.stringify(note.name)} names ${note.stations.length} stations: ${which}. ` +
+      "A lookup by that name (stations get, timeseries, current, measurements) returns only one of them; use the number or uuid."
+    );
+  }
   const value = JSON.stringify(note.value);
   switch (note.filter) {
     case "ids":

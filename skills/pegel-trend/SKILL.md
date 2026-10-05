@@ -31,8 +31,11 @@ Data is fetched from the open PEGELONLINE REST API — read-only, **no API key**
 ## Step 1 — Resolve the station (if needed)
 
 If you're unsure of the exact selector, resolve it first with
-`pegel --compact stations list --fuzzy-id <name>` and take the `shortname`. A wrong
-selector returns **exit code 4**.
+`pegel --compact stations list --fuzzy-id <name>` and take the `shortname` — unless two
+results share it (`NEUSTADT`: LEINE and OSTSEE; the CLI prints a `Note: … names 2
+stations` on stderr): a lookup by that name silently returns one of them, so use the
+`number` (or `uuid`) of the station the user means. A wrong selector returns **exit
+code 4**.
 
 ## Step 2 — Get the unit, then pull the measurement window
 

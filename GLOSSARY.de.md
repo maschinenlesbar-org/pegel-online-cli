@@ -88,13 +88,19 @@ Client: `client.stations.get(station, { includeCharacteristicValues: true })`.
 
 **Pegelangabe (`<station>`).** Überall, wo ein Pegel angegeben wird, kann der Wert
 eine **uuid**, eine **number**, ein **shortname** *oder* ein **longname** sein. Die API
-löst jede dieser Formen auf. Die CLI lehnt eine leere Angabe sowie die Pfadsegmente
+löst jede dieser Formen auf. **Namen sind nicht eindeutig:** `NEUSTADT` ist der
+shortname eines Pegels an der LEINE (number 48800200) und eines an der OSTSEE (9610080),
+und eine Abfrage über den Namen liefert stillschweigend einen der beiden.
+`stations list --ids NEUSTADT` oder `--fuzzy-id` listet beide und gibt einen Hinweis
+aus; nehmen Sie die **number** oder **uuid** des gemeinten Pegels. Die CLI lehnt eine
+leere Angabe sowie die Pfadsegmente
 `.` / `..` für `<station>` und `[timeseries]` ab, bevor sie die Anfrage-URL baut (die
 URL-Auflösung würde sie sonst auflösen und eine andere Ressource abfragen); die
-Client-Bibliothek lehnt sie ebenfalls ab, mit einem `PegelError` vor jeder Anfrage.
-Pegel- und Zeitreihennamen, `--ids`, `--waters` und `--fuzzy-id` werden in
-zusammengesetzter Unicode-Form (NFC) gesendet, sodass ein zerlegter Umlaut (`KÖLN` als
-`KO` + U+0308 + `LN`, häufig in Text aus macOS-Dateinamen oder PDFs) denselben Pegel findet.
+Client-Bibliothek lehnt sie ebenfalls ab, mit einem `PegelValidationError` vor jeder
+Anfrage. Pegel- und Zeitreihennamen, `--ids`, `--waters` und `--fuzzy-id` werden ohne
+umgebende Leerzeichen und in zusammengesetzter Unicode-Form (NFC) gesendet, sodass ein
+mitkopiertes Leerzeichen oder ein zerlegter Umlaut (`KÖLN` als `KO` + U+0308 + `LN`,
+häufig in Text aus macOS-Dateinamen oder PDFs) denselben Pegel findet.
 
 **Gewässer.** Eine Wasserstraße im Netz, modelliert durch den Typ `Water` mit einem
 `shortname` (z. B. `RHEIN`) und einem `longname`. Der Filter `waters` von
