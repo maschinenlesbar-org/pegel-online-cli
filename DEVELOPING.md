@@ -206,7 +206,10 @@ nothing: it throws (from a constructor) or rejects (from a method) with
 - **Base URL** (`baseUrlProblem`, applied by the exported `validateBaseUrl`): the
   constructor rejects, in this order, a `baseUrl` with surrounding whitespace or any
   whitespace/control character inside (`baseUrlWhitespaceProblem`), one that is not
-  an absolute URL, a scheme other than `http:`/`https:`, and a query or fragment.
+  an absolute URL, a scheme other than `http:`/`https:`, a query or fragment, and a
+  `%` in the user name or password that doesn't start a valid escape (Node would fail
+  to decode it for the Authorization header at request time; write a literal `%` as
+  `%25`).
   It checks the raw value, before trailing slashes are stripped: `new URL()` would
   trim or strip whitespace silently, but the engine glues request paths onto the raw
   string (`"https://h/ "` requests `/%20/webservices/...`). A bad base URL is a

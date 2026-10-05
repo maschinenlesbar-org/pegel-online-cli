@@ -66,8 +66,9 @@ export const baseUrlWhitespaceProblem: Problem<unknown> = (value) => {
 
 /**
  * The full base-URL rule set, in order: no whitespace or control characters
- * (baseUrlWhitespaceProblem), an absolute URL, an `http:`/`https:` scheme, and no
- * query or fragment. Request paths are appended to the base URL as a string, so a
+ * (baseUrlWhitespaceProblem), an absolute URL, an `http:`/`https:` scheme, no
+ * query or fragment, and no `%` in the userinfo that doesn't start a valid escape
+ * (`%25` for a literal one). Request paths are appended to the base URL as a string, so a
  * `?` or `#` in it would swallow every path: `http://h/?x=1` requests
  * `/?x=1/webservices/...` and `http://h/#f` requests `/`. A path prefix is fine, and
  * userinfo is allowed (Node sends it as Basic auth). The reasons name no URL, so a
@@ -84,6 +85,15 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return "Only http and https URLs are supported.";
   if (/[?#]/.test(value as string)) return "A base URL cannot have a query (?) or fragment (#).";
+  // Node decodes the userinfo into the Authorization header and throws "URI malformed"
+  // for a "%" that isn't an escape — at request time, as a network error. Reject it here.
+  for (const part of [url.username, url.password]) {
+    try {
+      decodeURIComponent(part);
+    } catch {
+      return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
+    }
+  }
   return undefined;
 };
 
