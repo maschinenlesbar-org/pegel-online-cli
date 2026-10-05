@@ -14,6 +14,7 @@ import {
   idListProblem,
   knownKeysProblem,
   nonEmptyProblem,
+  normalizeInput,
   optionalBooleanProblem,
 } from "./validate.js";
 import type {
@@ -29,15 +30,6 @@ import type {
 
 const API = "/webservices/rest-api/v2";
 
-/**
- * Station names, waters and ids are matched exactly by the API, which stores them
- * composed (NFC): a decomposed umlaut ("KO" + U+0308 + "LN", as pasted from macOS
- * file names or some PDFs) is a 404 / an empty list. Compose every such input.
- * NFC, not NFKC: an id lookup must not rewrite compatibility characters.
- */
-function nfc(value: string): string {
-  return value.normalize("NFC");
-}
 
 /**
  * One URL path segment from a caller-supplied station or timeseries id. A blank
@@ -51,10 +43,11 @@ function enc(name: string, value: string): string {
       `Invalid ${name}: expected a non-empty string, got ${typeof value === "string" ? JSON.stringify(value) : typeof value}.`,
     );
   }
-  if (value === "." || value === "..") {
-    throw new PegelValidationError(`Invalid ${name} "${value}": "." and ".." cannot be used as an id.`);
+  const id = normalizeInput(value);
+  if (id === "." || id === "..") {
+    throw new PegelValidationError(`Invalid ${name} "${id}": "." and ".." cannot be used as an id.`);
   }
-  return encodeURIComponent(nfc(value));
+  return encodeURIComponent(id);
 }
 
 /**
@@ -62,13 +55,7 @@ function enc(name: string, value: string): string {
  * non-blank string (nonEmptyProblem), or PegelValidationError is thrown.
  */
 function optionalValue(name: string, value: string | undefined): string | undefined {
-  return value === undefined ? undefined : assertValid(name, value, nonEmptyProblem);
-}
-
-/** An optional filter value (optionalValue), composed to NFC like every name the API matches. */
-function optionalFilter(name: string, value: string | undefined): string | undefined {
-  const checked = optionalValue(name, value);
-  return checked === undefined ? undefined : nfc(checked);
+  return value === undefined ? undefined : normalizeInput(assertValid(name, value, nonEmptyProblem));
 }
 
 /**
@@ -161,9 +148,10 @@ class StationsResource {
   async list(params: StationListParams = {}): Promise<Station[]> {
     params = checkParams("stations.list parameters", params, LIST_KEYS);
     const query = prune({
-      ids: params.ids === undefined ? undefined : assertValid("ids", params.ids, idListProblem).map(nfc).join(","),
-      waters: optionalFilter("waters", params.waters),
-      fuzzyId: optionalFilter("fuzzyId", params.fuzzyId),
+      ids:
+        params.ids === undefined ? undefined : assertValid("ids", params.ids, idListProblem).map(normalizeInput).join(","),
+      waters: optionalValue("waters", params.waters),
+      fuzzyId: optionalValue("fuzzyId", params.fuzzyId),
       ...stationIncludes(params),
     });
     const path = `${API}/stations.json`;
@@ -230,7 +218,7 @@ function sameId(a: string, b: string): boolean {
 export function stationListNotes(params: StationListParams, stations: readonly Station[]): StationListNote[] {
   const notes: StationListNote[] = [];
   for (const raw of params.ids ?? []) {
-    const id = nfc(raw.trim());
+    const id = normalizeInput(raw);
     const found = stations.some((s) =>
       [s.uuid, s.number, s.shortname, s.longname].some((f) => typeof f === "string" && sameId(f, id)),
     );

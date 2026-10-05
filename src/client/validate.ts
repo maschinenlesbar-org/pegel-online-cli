@@ -22,6 +22,19 @@ export function assertValid<T>(name: string, value: T, problem: Problem<T>): T {
   return value;
 }
 
+/**
+ * The form in which an id, name or filter value is sent: surrounding whitespace removed
+ * and composed (NFC). The API matches station names, waters and ids exactly, so
+ * `"RHEIN "` (a trailing space from a copy) listed no station and `"BONN "` was a 404, and
+ * a decomposed umlaut ("KO" + U+0308 + "LN", as pasted from macOS file names or some
+ * PDFs) found nothing either; no name upstream begins or ends with whitespace. NFC, not
+ * NFKC: an id lookup must not rewrite compatibility characters, and case is left alone
+ * (the API ignores it for station ids, but not everywhere).
+ */
+export function normalizeInput(value: string): string {
+  return value.trim().normalize("NFC");
+}
+
 /** True for an empty or whitespace-only string. */
 export function isBlank(value: string): boolean {
   return value.trim() === "";

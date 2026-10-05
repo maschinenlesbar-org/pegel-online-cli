@@ -251,6 +251,10 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   would also allow header injection). The CLI's `--user-agent` parser uses the same
   rule.
 
+- **Normalised ids and filters** (`normalizeInput`): every station and timeseries id,
+  `ids` entry, `waters`, `fuzzyId`, `start` and `end` is sent trimmed and composed (NFC).
+  The API matches them exactly, so `"RHEIN "` used to list no station and `"BONN "` was a
+  404; no upstream name begins or ends with whitespace.
 - **Parameter keys** (`knownKeysProblem`, `optionalBooleanProblem`): every method's
   parameter object, and the constructor's options, may hold only the documented keys; a
   misspelled one (`water`, `fuzzyID`, `timeout`), `__proto__` or `constructor` is a

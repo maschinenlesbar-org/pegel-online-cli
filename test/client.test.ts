@@ -191,3 +191,21 @@ test("a 2xx body without the documented shape is a PegelParseError in every meth
   const c = clientWith(constantJson({ timestamp: "t", value: "68" }));
   await assert.rejects(() => c.timeseries.currentMeasurement("BONN"), /expected a measurement object/);
 });
+
+test("ids, names and filters are sent trimmed (P11): a pasted trailing space no longer empties the list", async () => {
+  const mt = makeMockTransport(validFor);
+  const c = clientWith(mt);
+  await c.stations.get(" BONN ");
+  assert.equal(new URL(mt.last().url).pathname, `${V2}/stations/BONN.json`);
+  await c.timeseries.currentMeasurement("BONN ", " W");
+  assert.equal(new URL(mt.last().url).pathname, `${V2}/stations/BONN/W/currentmeasurement.json`);
+  await c.stations.list({ ids: ["BONN ", " KÖLN"], waters: "RHEIN ", fuzzyId: " bonn" });
+  const url = new URL(mt.last().url);
+  assert.equal(url.searchParams.get("ids"), "BONN,KÖLN");
+  assert.equal(url.searchParams.get("waters"), "RHEIN");
+  assert.equal(url.searchParams.get("fuzzyId"), "bonn");
+  await c.timeseries.measurements("BONN", "W", { start: " P1D " });
+  assert.equal(new URL(mt.last().url).searchParams.get("start"), "P1D");
+  // A padded "." / ".." is still refused.
+  await assert.rejects(() => c.stations.get(" .. "), PegelValidationError);
+});

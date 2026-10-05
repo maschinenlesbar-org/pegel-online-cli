@@ -35,6 +35,7 @@ export {
   isBlank,
   knownKeysProblem,
   nonEmptyProblem,
+  normalizeInput,
   optionalBooleanProblem,
 } from "./validate.js";
 export type { Problem } from "./validate.js";
