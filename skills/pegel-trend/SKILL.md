@@ -87,8 +87,11 @@ From the array, **without its `null` points** (call it `pts`, oldest→newest; i
 nothing is left, there is no trend to report — say the gauge sent no readings in the
 window):
 
-- **start** = `pts[0].value`, **now** = `pts[last].value`.
-- **delta** = `now − start`; **direction** = rising / falling / steady (treat a
+- **start** = `pts[0].value`, **last** = `pts[last].value` — the latest reading, which
+  is **not necessarily "now"**: some gauges lag by hours (on 2026-10-05 at 17:19 the
+  Elbe gauge NEU DARCHAU's last point was 06:15, 11 h old). Check its age (`age_h`
+  below).
+- **delta** = `last − start`; **direction** = rising / falling / steady (treat a
   tiny delta relative to the window's range as steady).
 - **rate** = `delta` over the window length (e.g. cm/day) — divide by the span
   between `pts[0].timestamp` and `pts[last].timestamp`.
@@ -96,13 +99,17 @@ window):
 
 ```bash
 pegel --compact measurements BONN W --start P7D \
-  | jq '(map(select(.value != null))) as $p
+  | jq 'def epoch: (.[0:19] + "Z" | fromdateiso8601)
+          - (if .[19:20] == "-" then -1 else 1 end)
+            * ((.[20:22] | tonumber) * 3600 + (.[23:25] | tonumber) * 60);
+        (map(select(.value != null))) as $p
         | {n:length, missing:(length - ($p|length))}
           + if ($p|length) == 0 then {} else
-            {start:$p[0].value, now:$p[-1].value,
+            {start:$p[0].value, last:$p[-1].value,
              delta:($p[-1].value - $p[0].value),
              min:($p|map(.value)|min), max:($p|map(.value)|max),
-             from:$p[0].timestamp, to:$p[-1].timestamp} end'
+             from:$p[0].timestamp, to:$p[-1].timestamp,
+             age_h:(((now - ($p[-1].timestamp | epoch)) / 360 | floor) / 10)} end'
 ```
 
 Optionally hand the user a CSV they can chart:
@@ -117,7 +124,7 @@ A short narrative + the numbers that back it:
 
 ```
 BONN (Rhine), water level — last 7 days
-  now 182 cm, was 196 cm  →  falling 14 cm (≈ 2 cm/day)
+  182 cm at 11 Jun 00:00, was 196 cm  →  falling 14 cm (≈ 2 cm/day)
   range over window: 178–197 cm  (min 09 Jun 04:00, max 04 Jun 12:00)
   670 readings, 15-min spacing
 ```
@@ -125,6 +132,9 @@ BONN (Rhine), water level — last 7 days
 Rules:
 - Lead with **direction + delta** ("falling 14 cm over 7 days") — that's the
   answer; the extremes and rate are support.
+- **Check the last reading's age** (`age_h`). Older than about two hours: say "last
+  reading at <time>, <N> h ago — the gauge is lagging", and never call it the level
+  "now" or the trend "current".
 - Always state the **unit** (as read in Step 2 — never assumed) and the **window** you actually got back
   (`from`/`to`), since the API may clamp to available data.
 - Offer the CSV/plot follow-up; don't paste hundreds of raw points inline.
