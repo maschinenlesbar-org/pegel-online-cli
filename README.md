@@ -185,6 +185,10 @@ both `pegel --compact waters` and `pegel waters --compact` do the same thing.
 | `4` | station or resource not found (`404`) |
 | `1` | any other error (network, timeout, unexpected response) |
 
+A reader that stops early (`| head`, `| jq` exiting on a match) is ordinary use: the CLI
+stops quietly with exit `0`. A failed run keeps its exit code even when nothing reads
+stderr any more (`2>&1 | head -1`).
+
 ## Troubleshooting
 
 - **`command not found: pegel`** — the global npm bin directory isn't on your
