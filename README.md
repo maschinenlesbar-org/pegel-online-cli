@@ -171,7 +171,7 @@ pegel waters | jq -r '.[].shortname'
 pegel current BONN | jq '{value, timestamp}'
 
 # CSV-ish series for a spreadsheet
-pegel measurements BONN W --start P3D | jq -r '.[] | [.timestamp, .value] | @csv'
+pegel measurements BONN W --start P3D | jq -r '.[] | select(.value != null) | [.timestamp, .value] | @csv'
 
 # Station names and coordinates on the Rhine (tab-separated)
 pegel stations list --waters RHEIN | jq -r '.[] | [.shortname, .longitude, .latitude] | @tsv'

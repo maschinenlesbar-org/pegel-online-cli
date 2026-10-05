@@ -73,6 +73,13 @@ Pull just the value and timestamp:
 pegel current BONN | jq '{value, timestamp}'
 ```
 
+The measurement carries no unit: it is the series' `unit` — `cm` for most water
+levels, but `m+NN`/`m+PNP` (metres) on canal and reservoir gauges. Get both at once with
+`pegel stations get BONN --include-current | jq '.timeseries[] | {shortname, unit,
+comment, currentMeasurement}'`; `comment` is there while the gauge is disturbed (state
+`commented`). A `value` of `null` means the gauge sent no reading (its placeholder
+`99999`).
+
 ### 4. Last N days of measurements (time window)
 
 Plot or analyse a recent trend. `--start` accepts an ISO-8601 duration like
@@ -91,7 +98,7 @@ pegel measurements BONN W --start 2026-06-01T00:00:00Z --end 2026-06-07T00:00:00
 Extract a CSV-ish series for a spreadsheet:
 
 ```bash
-pegel measurements BONN W --start P3D | jq -r '.[] | [.timestamp, .value] | @csv'
+pegel measurements BONN W --start P3D | jq -r '.[] | select(.value != null) | [.timestamp, .value] | @csv'
 ```
 
 ### 5. Stations inside a geographic bounding box

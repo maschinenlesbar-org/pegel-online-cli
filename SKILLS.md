@@ -93,7 +93,8 @@ encode the non-obvious parts of this API, for example:
   current `pegel` versions imply that flag for `--include-current`, pegel 0.0.8 and older
   do not, so the skills pass both flags together (see **pegel-river-overview**);
 - the reliable flood/low-water signal is **`stateMnwMhw`** on the *current measurement*
-  (`normal` / `high` / `low` / `unknown`), **not** the gauge marks — whose set differs
+  (`normal` / `high` / `low` / `unknown`; `out-dated` = older than 25 h; `commented` =
+  **gauge fault**, with the reason in the series' `comment`), **not** the gauge marks — whose set differs
   per gauge (KAUB has `MNW`/`MHW` plus codes like `GlW` / `M_I` / `M_II`, Basel-Rheinhalle
   has no `MNW`/`MHW`, some gauges have no marks) (see **pegel-water-level-check**);
 - a **current reading can be hours old** while keeping its state flag — check each
@@ -101,8 +102,13 @@ encode the non-obvious parts of this API, for example:
 - **river-km does not always grow downstream** — the Danube counts down to its mouth,
   Mosel/Main/Neckar/Saar count up from theirs, and the Weser has two chainages
   (see **pegel-river-overview**);
-- a measurement `value` carries **no unit** — the unit (`cm` for W, `m³/s` for Q, `°C` for
-  temperatures) belongs to the series; default `W` is centimetres, never assume metres;
+- a measurement `value` carries **no unit** — the unit belongs to the series and is read
+  from it every time: most `W` series are in `cm`, but canal and reservoir gauges publish
+  `W` in `m+NN`/`m+PNP` (metres; MÜNSTER OW 56.54 m+NN), `Q` is usually `m³/s`;
+- a `value` of **`null`** means the gauge sent no reading (its placeholder `99999`, which
+  the CLI maps to `null`) — drop such points before a min/max/trend (see **pegel-trend**);
+- **station names are not unique** — `NEUSTADT` is a Leine and a Baltic gauge; when a
+  name occurs twice the skills use the number or uuid;
 - **timestamps are local German time** (`+02:00` in summer), even when you pass `Z`/UTC
   window bounds to `measurements`;
 - a **bad `--start` returns HTTP 400 and exits 1**, while a valid window without data
