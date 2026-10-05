@@ -154,6 +154,11 @@ pegel stations list --ids BONN --ids KÖLN --ids EMMERICH --include-current
 Every command prints **pretty JSON to stdout**. Errors and diagnostics go to
 stderr, so piping stdout into `jq` stays clean.
 
+A reading's `value` is in the unit of its timeseries (see `pegel timeseries <station>`),
+and it is `null` when the gauge sent no value: some gauges report the placeholder `99999`
+instead, which `pegel` turns into `null` so it never reads as a 1 km water level. Drop
+`null` points before a minimum, maximum or trend (`jq 'map(select(.value != null))'`).
+
 ```bash
 # Water shortnames, one per line
 pegel waters | jq -r '.[].shortname'

@@ -35,7 +35,12 @@ export interface Station {
 /** A measurement value plus the API's state classifications. */
 export interface CurrentMeasurement {
   timestamp: string;
-  value: number;
+  /**
+   * The reading, in the unit of its timeseries (`TimeseriesInfo.unit` — not always `cm`
+   * for `W`). `null` when the gauge reported no value: the client maps the sentinel
+   * `99999` (`NO_VALUE_SENTINEL`) the API relays for that to `null`.
+   */
+  value: number | null;
   /** Classification vs. the mean low/high water marks. */
   stateMnwMhw?: string;
   /** Classification vs. the lowest/highest navigable water marks. */
@@ -70,7 +75,12 @@ export interface TimeseriesInfo {
 /** One point of a measurements series. */
 export interface Measurement {
   timestamp: string;
-  value: number;
+  /**
+   * The reading in the timeseries' unit, or `null` for a point without a value (the
+   * sentinel `99999`, mapped by the client). Skip `null` points before a minimum, maximum
+   * or trend.
+   */
+  value: number | null;
 }
 
 /** Parameters for the stations listing. */

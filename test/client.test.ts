@@ -209,3 +209,27 @@ test("ids, names and filters are sent trimmed (P11): a pasted trailing space no 
   // A padded "." / ".." is still refused.
   await assert.rejects(() => c.stations.get(" .. "), PegelValidationError);
 });
+
+test("the no-value sentinel 99999 is a null reading wherever measurements appear (01#2)", async () => {
+  const t = "2026-10-05T17:00:00+02:00";
+  const c1 = clientWith(constantJson({ timestamp: t, value: 99999, stateMnwMhw: "out-dated" }));
+  assert.deepEqual(await c1.timeseries.currentMeasurement("PANNERDENSE KOP"), { timestamp: t, value: null, stateMnwMhw: "out-dated" });
+  const window = [{ timestamp: t, value: 99999 }, { timestamp: t, value: 576 }, { timestamp: t, value: 99999 }, { timestamp: t, value: 597 }];
+  const c2 = clientWith(constantJson(window));
+  assert.deepEqual((await c2.timeseries.measurements("PANNERDENSE KOP", "W", { start: "P10D" })).map((m) => m.value), [null, 576, null, 597]);
+  const station = {
+    uuid: "u", shortname: "PANNERDENSE KOP", longname: "PANNERDENSE KOP",
+    timeseries: [{ shortname: "W", longname: "W", unit: "cm", currentMeasurement: { timestamp: t, value: 99999 } }, { shortname: "Q", longname: "Q", unit: "m³/s" }],
+  };
+  const c3 = clientWith(constantJson([station]));
+  const [listed] = await c3.stations.list({ waters: "RHEIN", includeCurrentMeasurement: true });
+  assert.equal(listed?.timeseries?.[0]?.currentMeasurement?.value, null);
+  assert.equal(listed?.timeseries?.[1]?.currentMeasurement, undefined);
+  const c4 = clientWith(constantJson(station));
+  assert.equal((await c4.stations.get("PANNERDENSE KOP", { includeCurrentMeasurement: true })).timeseries?.[0]?.currentMeasurement?.value, null);
+  const c5 = clientWith(constantJson(station.timeseries[0]));
+  assert.equal((await c5.timeseries.get("PANNERDENSE KOP", "W", { includeCurrentMeasurement: true })).currentMeasurement?.value, null);
+  // Real readings, 0 and negatives included, are untouched.
+  const c6 = clientWith(constantJson([{ timestamp: t, value: 0 }, { timestamp: t, value: -12.5 }, { timestamp: t, value: 99998 }]));
+  assert.deepEqual((await c6.timeseries.measurements("X")).map((m) => m.value), [0, -12.5, 99998]);
+});

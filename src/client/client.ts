@@ -104,6 +104,30 @@ function checkParams<T extends object>(name: string, params: T | undefined | nul
   return params;
 }
 
+/**
+ * The value PEGELONLINE relays for "no reading" on some gauges (seen on the
+ * Rijkswaterstaat gauge PANNERDENSE KOP: `99999` cm, interleaved with real readings of
+ * 576–597 cm in a measurement window). As a number it read as a 1 km water level and
+ * broke every minimum, maximum, trend and map built on it.
+ */
+export const NO_VALUE_SENTINEL = 99999;
+
+/** `m` with a sentinel `value` replaced by `null` (no reading at that time). */
+function readingOf<T extends { value: number | null }>(m: T): T {
+  return m.value === NO_VALUE_SENTINEL ? { ...m, value: null } : m;
+}
+
+/** A timeseries with the sentinel mapped in its embedded current measurement. */
+function timeseriesOf(t: TimeseriesInfo): TimeseriesInfo {
+  const current = t.currentMeasurement;
+  return current !== undefined && isMeasurement(current) ? { ...t, currentMeasurement: readingOf(current) } : t;
+}
+
+/** A station with the sentinel mapped in every embedded current measurement. */
+function stationOf(s: Station): Station {
+  return Array.isArray(s.timeseries) ? { ...s, timeseries: s.timeseries.map((t) => (isObject(t) ? timeseriesOf(t) : t)) } : s;
+}
+
 /** Drop undefined values so only the parameters the caller set are sent. */
 function prune(params: Record<string, unknown>): QueryParams {
   const out: QueryParams = {};
@@ -155,13 +179,13 @@ class StationsResource {
       ...stationIncludes(params),
     });
     const path = `${API}/stations.json`;
-    return expectShape(path, await this.e.getJson(path, query), arrayOf(isStation), "an array of stations");
+    return expectShape<Station[]>(path, await this.e.getJson(path, query), arrayOf(isStation), "an array of stations").map(stationOf);
   }
 
   async get(station: string, params: IncludeParams = {}): Promise<Station> {
     params = checkParams("stations.get parameters", params, INCLUDE_KEYS);
     const path = `${API}/stations/${enc("station", station)}.json`;
-    return expectShape(path, await this.e.getJson(path, stationIncludes(params)), isStation, "a station object");
+    return stationOf(expectShape(path, await this.e.getJson(path, stationIncludes(params)), isStation, "a station object"));
   }
 }
 
@@ -173,12 +197,12 @@ class TimeseriesResource {
   async get(station: string, timeseries = "W", params: IncludeParams = {}): Promise<TimeseriesInfo> {
     params = checkParams("timeseries.get parameters", params, INCLUDE_KEYS);
     const path = `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}.json`;
-    return expectShape(path, await this.e.getJson(path, includeQuery(params)), isTimeseries, "a timeseries object");
+    return timeseriesOf(expectShape(path, await this.e.getJson(path, includeQuery(params)), isTimeseries, "a timeseries object"));
   }
 
   async currentMeasurement(station: string, timeseries = "W"): Promise<CurrentMeasurement> {
     const path = `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}/currentmeasurement.json`;
-    return expectShape(path, await this.e.getJson(path), isMeasurement, "a measurement object");
+    return readingOf(expectShape(path, await this.e.getJson(path), isMeasurement, "a measurement object"));
   }
 
   /** Rejects (PegelValidationError, no request) a blank `start` or `end`. */
@@ -190,7 +214,7 @@ class TimeseriesResource {
     params = checkParams("timeseries.measurements parameters", params, MEASUREMENT_KEYS);
     const path = `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}/measurements.json`;
     const query = prune({ start: optionalValue("start", params.start), end: optionalValue("end", params.end) });
-    return expectShape(path, await this.e.getJson(path, query), arrayOf(isMeasurement), "an array of measurements");
+    return expectShape<Measurement[]>(path, await this.e.getJson(path, query), arrayOf(isMeasurement), "an array of measurements").map(readingOf);
   }
 }
 

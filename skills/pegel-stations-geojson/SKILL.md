@@ -76,7 +76,7 @@ const feature = {
     agency: station.agency,
     water: station.water?.shortname,
     // when embeds were requested, pull the W series' current reading:
-    level: w?.currentMeasurement?.value,          // cm
+    level: w?.currentMeasurement?.value,          // null = no reading (placeholder 99999)
     unit: w?.unit,                                 // "cm"
     state: w?.currentMeasurement?.stateMnwMhw,     // normal | high | low | unknown | out-dated
     measuredAt: w?.currentMeasurement?.timestamp,  // local German offset
@@ -141,6 +141,8 @@ Notes:
 - Skip any station missing `longitude`/`latitude` (not rare: about 7 % of the
   network, a third of the `DONAU` list, on 2026-09-15) and report how many were
   dropped and which.
+- A `level` of `null` means the gauge sent no reading (its placeholder `99999`, which
+  the CLI turns into `null`); keep the point, but don't color it as a level.
 - `measuredAt` shows how fresh each level is; a few gauges lag by hours while
   keeping their last `state`. Mention stale ones when the map is about current
   levels.

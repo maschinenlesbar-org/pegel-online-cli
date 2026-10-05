@@ -120,7 +120,9 @@ pegel --compact stations list --waters RHEIN --include-timeseries --include-curr
       | ([.timeseries[]? | select(.shortname=="W")][0]) as $w
       | [$s.km, $s.shortname,
          (if $w == null then "no W series"
-          else ($w.currentMeasurement.value // "no current W") end),
+          elif $w.currentMeasurement == null then "no current W"
+          elif $w.currentMeasurement.value == null then "no value"
+          else $w.currentMeasurement.value end),
          ($w.unit // ""), ($w.currentMeasurement.stateMnwMhw // ""),
          ($w.currentMeasurement.timestamp // "")] | @tsv'
 ```
@@ -164,6 +166,7 @@ Rules:
 - A river can have 30–60+ gauges; a table is fine, but call out the high/low ones
   up top so the user doesn't have to scan.
 - Don't fabricate a level for a gauge whose `currentMeasurement` is absent — say
-  "no current W reading".
+  "no current W reading" — or whose `value` is `null` (the gauge sent its "no value"
+  placeholder `99999`, which the CLI turns into `null`) — say "no value".
 - Don't give one "as of" time that hides stale gauges: give the time most
   readings share and name the stale ones with their own timestamp.

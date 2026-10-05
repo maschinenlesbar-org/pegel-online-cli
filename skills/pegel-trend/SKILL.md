@@ -47,6 +47,10 @@ pegel --compact measurements BONN W \
 ```
 
 The response is an **array of points**, oldest→newest, each `{ timestamp, value }`.
+**`value` is `null` for a point without a reading** — the CLI turns the gauge's
+placeholder `99999` into `null` (PANNERDENSE KOP sent hundreds of them, interleaved
+with real readings, in October 2026). Drop the `null` points before reducing, and say
+how many there were.
 `value` is in the series' unit (W → cm). `timestamp` carries a **local German
 offset** (`+02:00` in summer); even when you pass `Z` (UTC) bounds, the returned
 timestamps are local. Default series sampling is ~15 min, so a week is ~670 points
@@ -65,7 +69,9 @@ timestamps are local. Default series sampling is ~15 min, so a week is ~670 poin
 
 ## Step 3 — Reduce to a trend
 
-From the array (call it `pts`, oldest→newest):
+From the array, **without its `null` points** (call it `pts`, oldest→newest; if
+nothing is left, there is no trend to report — say the gauge sent no readings in the
+window):
 
 - **start** = `pts[0].value`, **now** = `pts[last].value`.
 - **delta** = `now − start`; **direction** = rising / falling / steady (treat a
@@ -76,17 +82,19 @@ From the array (call it `pts`, oldest→newest):
 
 ```bash
 pegel --compact measurements BONN W --start P7D \
-  | jq '{n:length,
-         start:.[0].value, now:.[-1].value,
-         delta:(.[-1].value - .[0].value),
-         min:(map(.value)|min), max:(map(.value)|max),
-         from:.[0].timestamp, to:.[-1].timestamp}'
+  | jq '(map(select(.value != null))) as $p
+        | {n:length, missing:(length - ($p|length))}
+          + if ($p|length) == 0 then {} else
+            {start:$p[0].value, now:$p[-1].value,
+             delta:($p[-1].value - $p[0].value),
+             min:($p|map(.value)|min), max:($p|map(.value)|max),
+             from:$p[0].timestamp, to:$p[-1].timestamp} end'
 ```
 
 Optionally hand the user a CSV they can chart:
 
 ```bash
-pegel --compact measurements BONN W --start P3D | jq -r '.[] | [.timestamp, .value] | @csv'
+pegel --compact measurements BONN W --start P3D | jq -r '.[] | select(.value != null) | [.timestamp, .value] | @csv'
 ```
 
 ## Step 4 — Report

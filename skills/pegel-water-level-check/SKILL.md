@@ -58,7 +58,7 @@ The response is a single object:
 
 | Field | Meaning |
 |---|---|
-| `value` | The reading, a number **in the series' unit** (W → cm, Q → m³/s, WT → °C) |
+| `value` | The reading, a number **in the series' unit** — or `null` when the gauge sent no value (the CLI turns its placeholder `99999` into `null`): report "no reading", never a level |
 | `timestamp` | ISO-8601 with a **local German offset** (`+02:00` in summer), not UTC |
 | `stateMnwMhw` | Classification vs. mean low / mean high water — the flood/low-water verdict. Seen values: `normal`, `high`, `low`, `unknown`, `out-dated` |
 | `stateNswHsw` | Classification vs. lowest / highest *navigable* water (shipping bounds). Often `unknown`; also `out-dated` |

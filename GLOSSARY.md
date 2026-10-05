@@ -125,7 +125,16 @@ measurements of a timeseries, in minutes (e.g. `15` for a reading every quarter
 hour).
 
 **Measurement (`Measurement`).** One point of a measurements series: a
-`timestamp` (ISO-8601) and a numeric `value` in the timeseries' unit.
+`timestamp` (ISO-8601) and a numeric `value` in the timeseries' unit — or `null`
+for a point without a reading (see *No value* below).
+
+**No value (`99999` → `null`).** Some gauges report the placeholder `99999` instead
+of a reading — the Rhine gauge PANNERDENSE KOP (Rijkswaterstaat) did, interleaved
+with real readings of 576–597 cm, on 5 October 2026. Read as a number it would be a
+water level of 1 km. The client and the CLI turn it into `null` wherever a reading
+appears (`current`, `measurements`, and the current measurement embedded by
+`--include-current`; constant `NO_VALUE_SENTINEL`), so a `null` `value` means "no
+reading at this time". Skip such points before computing a minimum, maximum or trend.
 
 **Current measurement (`CurrentMeasurement`).** The latest reading of a
 timeseries: a `timestamp`, a `value`, and up to two state classifications

@@ -124,7 +124,17 @@ Messwerten einer Zeitreihe in Minuten (z. B. `15` für einen Messwert pro
 Viertelstunde).
 
 **Messwert (`Measurement`).** Ein Punkt einer Messreihe: ein `timestamp` (ISO-8601)
-und ein numerischer `value` in der Einheit der Zeitreihe.
+und ein numerischer `value` in der Einheit der Zeitreihe – oder `null` für einen Punkt
+ohne Messwert (siehe *Kein Wert* unten).
+
+**Kein Wert (`99999` → `null`).** Manche Pegel melden statt eines Messwerts den
+Platzhalter `99999` – so der Rhein-Pegel PANNERDENSE KOP (Rijkswaterstaat) am
+5. Oktober 2026, abwechselnd mit echten Werten von 576–597 cm. Als Zahl gelesen wäre
+das ein Wasserstand von 1 km. Client und CLI machen daraus überall, wo ein Messwert
+steht, `null` (`current`, `measurements` und der mit `--include-current` eingebettete
+aktuelle Messwert; Konstante `NO_VALUE_SENTINEL`): Ein `value` von `null` heißt „kein
+Messwert zu dieser Zeit“. Lassen Sie solche Punkte weg, bevor Sie Minimum, Maximum oder
+Trend berechnen.
 
 **Aktueller Messwert (`CurrentMeasurement`).** Der neueste Messwert einer Zeitreihe:
 ein `timestamp`, ein `value` und bis zu zwei Zustandseinstufungen
