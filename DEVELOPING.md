@@ -67,7 +67,7 @@ silently disable the timeout.
 new PegelOnlineClient({
   baseUrl: "https://www.pegelonline.wsv.de",
   timeoutMs: 15_000,
-  maxRetries: 3,              // 429 / 503: waits Retry-After (<= 30 s), else linear backoff
+  maxRetries: 3,              // 429 / 503 / resets: linear backoff, longer if Retry-After (<= 30 s) asks
   maxResponseBytes: 50 << 20, // abort responses larger than 50 MiB (0 = unlimited)
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
@@ -134,10 +134,12 @@ built-in `http`/`https`; tests inject a mock. This is the only HTTP seam.
 up to `maxRetries` (default `2`; CLI `--max-retries`, `0`–`10`). So is a reset connection
 (`isTransientNetworkError`: `ECONNRESET`/`EPIPE`/`ECONNABORTED` or undici's `UND_ERR_SOCKET`
 anywhere in the error's `cause` chain), with the linear backoff, for `GET`/`HEAD` only;
-a refused connection, a DNS failure and a timeout are not retried. Each retry waits the
-response's `Retry-After` (`parseRetryAfter`: delay-seconds or an IMF-fixdate, anything else is
-ignored) when it is at most `MAX_RETRY_AFTER_MS` (30 s); a longer one is not retried and the
-error surfaces at once. Without a usable header the wait is `retryDelayMs * attempt`.
+a refused connection, a DNS failure and a timeout are not retried. Each retry waits
+`retryDelayMs * attempt` (200 ms, 400 ms, …). A `Retry-After` (`parseRetryAfter`:
+delay-seconds or an IMF-fixdate, anything else is ignored) can make that wait longer, never
+shorter: `Retry-After: 0` or a date in the past still waits the backoff, so retries never
+burst. A `Retry-After` above `MAX_RETRY_AFTER_MS` (30 s) is not retried: the error surfaces at
+once, its message names the requested wait, and `PegelApiError.retryAfterMs` holds it.
 `PegelApiError` exposes `isRetryable` for exactly these statuses.
 
 **Redirects.** The engine follows up to `maxRedirects` (default `5`) HTTP redirects

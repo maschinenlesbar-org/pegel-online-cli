@@ -93,6 +93,12 @@ export class PegelApiError extends PegelError {
    * redacted. The message names it.
    */
   readonly location: string | undefined;
+  /**
+   * For a 429/503 that was not retried because its `Retry-After` asked for longer than
+   * the client waits (`MAX_RETRY_AFTER_MS`, 30 s): the wait the server asked for, in
+   * milliseconds. Retrying before then won't help.
+   */
+  readonly retryAfterMs: number | undefined;
 
   constructor(args: {
     status: number;
@@ -103,6 +109,8 @@ export class PegelApiError extends PegelError {
     location?: string;
     /** Redirects already followed when the limit stopped this one (> 0 only). */
     redirectsFollowed?: number;
+    /** A Retry-After longer than the client waits (not retried). */
+    retryAfterMs?: number;
   }) {
     const parts: string[] = [];
     if (args.detail) parts.push(args.detail);
@@ -117,6 +125,12 @@ export class PegelApiError extends PegelError {
           : "redirect not followed (no Location header)",
       );
     }
+    if (args.retryAfterMs !== undefined) {
+      parts.push(
+        `the server asked to wait ${Math.ceil(args.retryAfterMs / 1000)} s (Retry-After), longer than the 30 s ` +
+          "the client waits, so it was not retried; try again after that",
+      );
+    }
     const detailPart = parts.length > 0 ? `: ${parts.join("; ")}` : "";
     // The URL is shown without userinfo: a credential in --base-url must not leak.
     const url = redactUrl(args.url);
@@ -127,6 +141,7 @@ export class PegelApiError extends PegelError {
     this.body = args.body;
     this.detail = args.detail;
     this.location = args.location;
+    this.retryAfterMs = args.retryAfterMs;
   }
 
   /** True for statuses the API documents as transient and retry-able. */

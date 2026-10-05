@@ -223,7 +223,7 @@ These apply to every command and may be given before *or* after it:
 | `--base-url <url>` | API base URL (default `https://www.pegelonline.wsv.de`); http(s) only, a path prefix is fine, no query (`?`), fragment (`#`), whitespace or control characters; userinfo is sent as Basic auth but shown as `***` in messages (write a literal `%` in it as `%25`) |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; Latin-1, no control characters) |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, `0`–`10` (default `2`); each waits the server's `Retry-After` (up to 30 s; a longer one is not retried), else 200 ms × attempt. A timeout is not retried |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, `0`–`10` (default `2`); each waits 200 ms × attempt, or longer if the server's `Retry-After` asks (up to 30 s; a longer one is not retried, and the error names the wait). A timeout is not retried |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
 ## Learn more

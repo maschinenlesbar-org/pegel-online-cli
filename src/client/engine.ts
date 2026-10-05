@@ -60,13 +60,13 @@ export interface EngineOptions {
    * Number of automatic retries for transient (429/503) responses and reset
    * connections (ECONNRESET, EPIPE, ECONNABORTED, undici's UND_ERR_SOCKET, anywhere in
    * the error's `cause` chain; GET and HEAD only), 0..`MAX_RETRIES` (10). Each waits
-   * the response's `Retry-After` (up to `MAX_RETRY_AFTER_MS`; a longer one is not
-   * retried), or else `retryDelayMs * attempt`. Timeouts are not retried.
+   * `retryDelayMs * attempt`, or longer when the response's `Retry-After` asks (up to
+   * `MAX_RETRY_AFTER_MS`; a longer one is not retried). Timeouts are not retried.
    */
   maxRetries?: number;
   /**
-   * Base backoff between retries in milliseconds (grows linearly); used without a
-   * Retry-After. At most `MAX_RETRY_AFTER_MS`.
+   * Base backoff between retries in milliseconds (grows linearly); the floor of every
+   * wait, Retry-After or not. At most `MAX_RETRY_AFTER_MS`.
    */
   retryDelayMs?: number;
   /**
@@ -117,8 +117,10 @@ const FOLLOWED_REDIRECTS = new Set([301, 302, 303, 307, 308]);
 /**
  * Longest `Retry-After` the engine waits out before retrying a 429/503. When the
  * server asks for longer, the engine does not retry at all and surfaces the error at
- * once: retrying early would only land inside the window the server asked us to wait
- * out, and a hostile value must not stall the CLI.
+ * once, naming the requested wait (`PegelApiError.retryAfterMs`): retrying early would
+ * only land inside the window the server asked us to wait out, and a hostile value must
+ * not stall the CLI. A shorter `Retry-After` never makes a wait shorter than the normal
+ * backoff.
  */
 export const MAX_RETRY_AFTER_MS = 30_000;
 
@@ -489,15 +491,21 @@ export class RequestEngine {
       }
 
       const retryable = status === 429 || status === 503;
+      // A Retry-After beyond MAX_RETRY_AFTER_MS is not retried: the error below surfaces
+      // at once and names the wait the server asked for.
+      let refusedWaitMs: number | undefined;
       if (retryable && attempt < this.maxRetries) {
-        // Honour Retry-After; without a usable one, back off linearly. A Retry-After
-        // beyond MAX_RETRY_AFTER_MS is not retried: the error below surfaces at once.
+        // Back off linearly (retryDelayMs × attempt). A Retry-After can make the wait
+        // longer, never shorter: `Retry-After: 0` or a date in the past used to turn the
+        // retries into a zero-delay burst against a server that had just asked for less.
         const retryAfter = parseRetryAfter(responseHeaders["retry-after"]);
         if (retryAfter === undefined || retryAfter <= MAX_RETRY_AFTER_MS) {
           attempt += 1;
-          await this.sleep(retryAfter ?? this.retryDelayMs * attempt);
+          const backoff = this.retryDelayMs * attempt;
+          await this.sleep(retryAfter === undefined ? backoff : Math.max(retryAfter, backoff));
           continue;
         }
+        refusedWaitMs = retryAfter;
       }
 
       // Follow redirects, resolving the Location relative to the current URL.
@@ -506,7 +514,7 @@ export class RequestEngine {
       if (next !== undefined && redirects >= this.maxRedirects) {
         // A loop (or a long chain): say how far it got rather than a bare 3xx.
         // (With maxRedirects 0 nothing was followed; the plain text says enough.)
-        throw this.toApiError(method, url, status, response.body, location, redirects || undefined);
+        throw this.toApiError(method, url, status, body, location, redirects || undefined);
       }
       if (next !== undefined) {
         // Security: never carry credential-bearing headers across an origin
@@ -526,7 +534,7 @@ export class RequestEngine {
 
       const contentType = String(headerValue(responseHeaders["content-type"]) ?? "");
       if (status < 200 || status >= 300) {
-        throw this.toApiError(method, url, status, body, location);
+        throw this.toApiError(method, url, status, body, location, undefined, refusedWaitMs);
       }
 
       return { data: body, contentType, status };
@@ -551,6 +559,7 @@ export class RequestEngine {
     body: Buffer,
     locationHeader?: string,
     redirectsFollowed?: number,
+    retryAfterMs?: number,
   ): PegelApiError {
     const text = this.scrub(body.toString("utf8"));
     let detail: string | undefined;
@@ -575,6 +584,7 @@ export class RequestEngine {
       detail,
       ...(location !== undefined ? { location } : {}),
       ...(redirectsFollowed !== undefined ? { redirectsFollowed } : {}),
+      ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
     });
   }
 }
