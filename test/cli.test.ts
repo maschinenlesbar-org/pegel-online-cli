@@ -5,7 +5,7 @@ import { PegelOnlineClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { PegelValidationError } from "../src/client/errors.js";
-import { makeMockTransport, jsonResponse } from "./helpers.js";
+import { makeMockTransport, jsonResponse, validFor } from "./helpers.js";
 
 const V2 = "/webservices/rest-api/v2";
 
@@ -42,11 +42,11 @@ test("stations list with filters builds the query", async () => {
 
 test("--include-current / --include-characteristic imply --include-timeseries on stations get", async () => {
   for (const flag of ["--include-current", "--include-characteristic"]) {
-    const cli = makeCli(() => jsonResponse({ uuid: "x" }));
+    const cli = makeCli(validFor);
     assert.equal(await run(["stations", "get", "BONN", flag], cli.deps), 0);
     assert.equal(new URL(cli.mt.last().url).searchParams.get("includeTimeseries"), "true", flag);
   }
-  const plain = makeCli(() => jsonResponse({ uuid: "x" }));
+  const plain = makeCli(validFor);
   assert.equal(await run(["stations", "get", "BONN"], plain.deps), 0);
   assert.equal(new URL(plain.mt.last().url).search, "");
 });
@@ -65,7 +65,7 @@ test("stations list maps both include flags to API param names", async () => {
 });
 
 test("stations get exercises the per-station path with includes", async () => {
-  const cli = makeCli(() => jsonResponse({ uuid: "x" }));
+  const cli = makeCli(validFor);
   const code = await run(["stations", "get", "BONN", "--include-current"], cli.deps);
   assert.equal(code, 0);
   const url = new URL(cli.mt.last().url);
@@ -74,7 +74,7 @@ test("stations get exercises the per-station path with includes", async () => {
 });
 
 test("timeseries command hits the timeseries metadata path", async () => {
-  const cli = makeCli(() => jsonResponse({ shortname: "W" }));
+  const cli = makeCli(validFor);
   const code = await run(["timeseries", "BONN", "W"], cli.deps);
   assert.equal(code, 0);
   assert.equal(new URL(cli.mt.last().url).pathname, `${V2}/stations/BONN/W.json`);
@@ -91,7 +91,7 @@ test("measurements passes --end", async () => {
 });
 
 test("current defaults the timeseries to W", async () => {
-  const cli = makeCli(() => jsonResponse({ timestamp: "t", value: 1 }));
+  const cli = makeCli(validFor);
   await run(["current", "BONN"], cli.deps);
   assert.equal(new URL(cli.mt.last().url).pathname, `${V2}/stations/BONN/W/currentmeasurement.json`);
 });
@@ -110,7 +110,7 @@ test("waters hits waters.json", async () => {
 
 test("DEL and C1 control characters in server data are escaped in the JSON output", async () => {
   const controls = String.fromCharCode(0x7f, 0x85, 0x9b) + "2J";
-  const served = { uuid: "x", longname: `BONN${controls}`, water: { longname: String.fromCharCode(0x1b) + "[31m" } };
+  const served = { uuid: "x", shortname: "BONN", longname: `BONN${controls}`, water: { longname: String.fromCharCode(0x1b) + "[31m" } };
   for (const format of [[], ["--compact"]]) {
     const cli = makeCli(() => jsonResponse(served));
     assert.equal(await run([...format, "stations", "get", "BONN"], cli.deps), 0);
@@ -129,7 +129,7 @@ test("a 404 from the API maps to exit code 4", async () => {
 });
 
 test("omitted [timeseries] positional defaults to W", async () => {
-  const cli = makeCli(() => jsonResponse({ shortname: "W" }));
+  const cli = makeCli(validFor);
   const code = await run(["timeseries", "BONN"], cli.deps);
   assert.equal(code, 0);
   assert.equal(new URL(cli.mt.last().url).pathname, `${V2}/stations/BONN/W.json`);
@@ -280,7 +280,7 @@ test('"." / ".." [timeseries] is a usage error and makes no request', async () =
     }
   }
   // Names that merely contain dots still pass.
-  const ok = makeCli(() => jsonResponse({}));
+  const ok = makeCli(validFor);
   assert.equal(await run(["current", "BONN", "..."], ok.deps), 0);
   assert.equal(new URL(ok.mt.last().url).pathname, `${V2}/stations/BONN/.../currentmeasurement.json`);
 });
@@ -325,13 +325,14 @@ test("userinfo in --base-url is sent but redacted in error messages", async () =
 });
 
 test("a deeply nested response is a clear error, not a stack overflow", async () => {
-  const deep = "[".repeat(200_000) + "]".repeat(200_000);
+  // Deep inside a field of a well-shaped station, so the shape check (P9) passes.
+  const deep = '{"uuid":"x","shortname":"X","d":' + "[".repeat(200_000) + "]".repeat(200_000) + "}";
   const respond = () => ({ status: 200, headers: { "content-type": "application/json" }, body: Buffer.from(deep) });
   const pretty = makeCli(respond);
-  assert.equal(await run(["current", "BONN"], pretty.deps), 1);
+  assert.equal(await run(["stations", "get", "BONN"], pretty.deps), 1);
   assert.deepEqual(pretty.err, ["Error: The response is nested too deeply to pretty-print; try --compact."]);
   const compact = makeCli(respond);
-  const code = await run(["--compact", "current", "BONN"], compact.deps);
+  const code = await run(["--compact", "stations", "get", "BONN"], compact.deps);
   if (code !== 0) {
     assert.equal(code, 1);
     assert.deepEqual(compact.err, ["Error: The response is nested too deeply to print."]);
@@ -339,7 +340,7 @@ test("a deeply nested response is a clear error, not a stack overflow", async ()
 });
 
 test("an NFD-typed station name is sent composed", async () => {
-  const cli = makeCli(() => jsonResponse({ uuid: "x" }));
+  const cli = makeCli(validFor);
   assert.equal(await run(["stations", "get", "KÖLN"], cli.deps), 0);
   assert.equal(new URL(cli.mt.last().url).pathname, `${V2}/stations/K%C3%96LN.json`);
 });

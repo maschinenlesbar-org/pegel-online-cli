@@ -111,3 +111,17 @@ export async function parity(
   }
   return { cli, lib };
 }
+
+/**
+ * A 2xx answer of the documented shape for whatever endpoint `req` asks for (the client
+ * checks the shape since P9): the waters and station lists, one station, one timeseries,
+ * the current measurement or a measurement window.
+ */
+export function validFor(req: HttpRequest): HttpResponse {
+  const path = new URL(req.url).pathname.replace(/^.*\/rest-api\/v2/, "");
+  if (path === "/waters.json" || path === "/stations.json" || path.endsWith("/measurements.json")) return jsonResponse([]);
+  if (path.endsWith("/currentmeasurement.json")) return jsonResponse({ timestamp: "2026-10-05T17:00:00+02:00", value: 1 });
+  const parts = path.split("/").filter((p) => p !== "");
+  if (parts.length === 3) return jsonResponse({ shortname: decodeURIComponent(parts[2]!.replace(/\.json$/, "")), longname: "X", unit: "cm" });
+  return jsonResponse({ uuid: "x", shortname: "X", longname: "X" });
+}

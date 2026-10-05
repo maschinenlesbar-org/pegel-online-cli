@@ -191,7 +191,11 @@ whole CLI run in tests with a mocked client and captured output — no subproces
 `PegelApiError` (non-2xx; carries `status`, `detail`, `url`, `method`, `body`),
 `PegelNetworkError` (transport failure/timeout — whatever a custom transport throws —,
 an invalid transport response, a body over `maxResponseBytes`, and the default
-transport's per-hop scheme check), `PegelParseError` (bad JSON),
+transport's per-hop scheme check), `PegelParseError` (bad JSON, an unknown charset, or a 2xx
+answer without the documented shape: every method checks it — an array of waters or
+stations with string `shortname`/`longname`/`uuid`, a station or timeseries object, a
+measurement with a string `timestamp` and a numeric or `null` `value` — so `null`, `{}`, an
+error envelope or a proxy page is never returned as data),
 `PegelValidationError` (an input rejected before any request), all extending the
 base `PegelError`.
 

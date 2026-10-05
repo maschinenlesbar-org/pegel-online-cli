@@ -8,7 +8,7 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
-import { PegelError } from "./errors.js";
+import { PegelError, PegelParseError } from "./errors.js";
 import { assertValid, idListProblem, nonEmptyProblem } from "./validate.js";
 import type {
   Station,
@@ -63,6 +63,34 @@ function optionalFilter(name: string, value: string | undefined): string | undef
   return checked === undefined ? undefined : nfc(checked);
 }
 
+/**
+ * The documented shapes of a 2xx answer. A proxy page, an error envelope (`{"error": …}`),
+ * `null` or `{}` used to be printed as data with exit 0 — or, for a list, read as
+ * "nothing found". Each check names what was expected; the payload itself is passed
+ * through untouched apart from the sentinel mapping.
+ */
+type Shape = (value: unknown) => boolean;
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const hasStrings =
+  (...keys: string[]): Shape =>
+  (v) =>
+    isObject(v) && keys.every((k) => typeof v[k] === "string");
+const arrayOf =
+  (item: Shape): Shape =>
+  (v) =>
+    Array.isArray(v) && v.every(item);
+const isWater = hasStrings("shortname", "longname");
+const isStation = hasStrings("uuid", "shortname");
+const isTimeseries = hasStrings("shortname", "unit");
+const isMeasurement: Shape = (v) =>
+  hasStrings("timestamp")(v) && (typeof (v as { value?: unknown }).value === "number" || (v as { value?: unknown }).value === null);
+
+/** `value` when `shape(value)` holds; otherwise a PegelParseError naming the expectation. */
+function expectShape<T>(path: string, value: unknown, shape: Shape, what: string): T {
+  if (!shape(value)) throw new PegelParseError(`Unexpected response from ${path}: expected ${what}.`);
+  return value as T;
+}
+
 /** Drop undefined values so only the parameters the caller set are sent. */
 function prune(params: Record<string, unknown>): QueryParams {
   const out: QueryParams = {};
@@ -111,11 +139,13 @@ class StationsResource {
       fuzzyId: optionalFilter("fuzzyId", params.fuzzyId),
       ...stationIncludes(params),
     });
-    return this.e.getJson(`${API}/stations.json`, query);
+    const path = `${API}/stations.json`;
+    return expectShape(path, await this.e.getJson(path, query), arrayOf(isStation), "an array of stations");
   }
 
   async get(station: string, params: IncludeParams = {}): Promise<Station> {
-    return this.e.getJson(`${API}/stations/${enc("station", station)}.json`, stationIncludes(params));
+    const path = `${API}/stations/${enc("station", station)}.json`;
+    return expectShape(path, await this.e.getJson(path, stationIncludes(params)), isStation, "a station object");
   }
 }
 
@@ -125,16 +155,13 @@ class TimeseriesResource {
 
   /** Timeseries metadata (e.g. "W" = water level, "Q" = flow). */
   async get(station: string, timeseries = "W", params: IncludeParams = {}): Promise<TimeseriesInfo> {
-    return this.e.getJson(
-      `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}.json`,
-      includeQuery(params),
-    );
+    const path = `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}.json`;
+    return expectShape(path, await this.e.getJson(path, includeQuery(params)), isTimeseries, "a timeseries object");
   }
 
   async currentMeasurement(station: string, timeseries = "W"): Promise<CurrentMeasurement> {
-    return this.e.getJson(
-      `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}/currentmeasurement.json`,
-    );
+    const path = `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}/currentmeasurement.json`;
+    return expectShape(path, await this.e.getJson(path), isMeasurement, "a measurement object");
   }
 
   /** Rejects (PegelValidationError, no request) a blank `start` or `end`. */
@@ -143,10 +170,9 @@ class TimeseriesResource {
     timeseries = "W",
     params: MeasurementsParams = {},
   ): Promise<Measurement[]> {
-    return this.e.getJson(
-      `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}/measurements.json`,
-      prune({ start: optionalValue("start", params.start), end: optionalValue("end", params.end) }),
-    );
+    const path = `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}/measurements.json`;
+    const query = prune({ start: optionalValue("start", params.start), end: optionalValue("end", params.end) });
+    return expectShape(path, await this.e.getJson(path, query), arrayOf(isMeasurement), "an array of measurements");
   }
 }
 
@@ -163,7 +189,8 @@ export class PegelOnlineClient {
   }
 
   /** List all bodies of water (Gewässer) covered by the service. */
-  waters(): Promise<Water[]> {
-    return this.engine.getJson(`${API}/waters.json`);
+  async waters(): Promise<Water[]> {
+    const path = `${API}/waters.json`;
+    return expectShape(path, await this.engine.getJson(path), arrayOf(isWater), "an array of waters");
   }
 }

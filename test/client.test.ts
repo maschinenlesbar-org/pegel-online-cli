@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PegelOnlineClient } from "../src/client/client.js";
 import { PegelApiError, PegelError, PegelValidationError } from "../src/client/errors.js";
-import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
+import { makeMockTransport, jsonResponse, constantJson, validFor } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>): PegelOnlineClient {
   return new PegelOnlineClient({ transport: mt.transport });
@@ -25,13 +25,13 @@ test("stations.list hits stations.json with joined ids and includes", async () =
 });
 
 test("stations.get builds the per-station path and url-encodes the id", async () => {
-  const mt = constantJson({ uuid: "x" });
+  const mt = makeMockTransport(validFor);
   await clientWith(mt).stations.get("ST PAULI");
   assert.equal(new URL(mt.last().url).pathname, `${V2}/stations/ST%20PAULI.json`);
 });
 
 test("timeseries.currentMeasurement defaults the timeseries to W", async () => {
-  const mt = constantJson({ timestamp: "t", value: 1 });
+  const mt = makeMockTransport(validFor);
   await clientWith(mt).timeseries.currentMeasurement("BONN");
   assert.equal(new URL(mt.last().url).pathname, `${V2}/stations/BONN/W/currentmeasurement.json`);
 });
@@ -45,7 +45,7 @@ test("timeseries.measurements passes start/end", async () => {
 });
 
 test("stations.get sends includes and prune keeps no key when all undefined", async () => {
-  const mt = constantJson({ uuid: "x" });
+  const mt = makeMockTransport(validFor);
   await clientWith(mt).stations.get("BONN", { includeTimeseries: true });
   const url = new URL(mt.last().url);
   assert.equal(url.searchParams.get("includeTimeseries"), "true");
@@ -53,7 +53,7 @@ test("stations.get sends includes and prune keeps no key when all undefined", as
 });
 
 test("includeCurrentMeasurement / includeCharacteristicValues imply includeTimeseries on stations", async () => {
-  const mt = constantJson([]);
+  const mt = makeMockTransport(validFor);
   const c = clientWith(mt);
   await c.stations.list({ waters: "RHEIN", includeCurrentMeasurement: true });
   assert.equal(new URL(mt.last().url).searchParams.get("includeTimeseries"), "true");
@@ -82,7 +82,7 @@ test("prune keeps falsy-but-defined values (false) and drops undefined", async (
 });
 
 test("timeseries.get builds the metadata path and url-encodes both segments", async () => {
-  const mt = constantJson({ shortname: "W" });
+  const mt = makeMockTransport(validFor);
   await clientWith(mt).timeseries.get("ST PAULI", "W X");
   assert.equal(new URL(mt.last().url).pathname, `${V2}/stations/ST%20PAULI/W%20X.json`);
 });
@@ -156,7 +156,7 @@ test("the Station and TimeseriesInfo types carry voiceServiceNumber and gaugeZer
 });
 
 test("decomposed (NFD) umlauts in station, timeseries, waters, ids and fuzzyId are sent composed (NFC)", async () => {
-  const mt = constantJson([]);
+  const mt = makeMockTransport(validFor);
   const c = clientWith(mt);
   await c.stations.get("KÖLN");
   assert.equal(new URL(mt.last().url).pathname, `${V2}/stations/K%C3%96LN.json`);
@@ -167,4 +167,27 @@ test("decomposed (NFD) umlauts in station, timeseries, waters, ids and fuzzyId a
   assert.equal(url.searchParams.get("ids"), "KÖLN,BONN");
   assert.equal(url.searchParams.get("waters"), "KÜSTENKANAL");
   assert.equal(url.searchParams.get("fuzzyId"), "münster");
+});
+
+test("a 2xx body without the documented shape is a PegelParseError in every method (P9)", async () => {
+  const bad: unknown[] = [null, {}, "text", 42, { error: "boom" }, [null], [{ shortname: 5 }]];
+  for (const body of bad) {
+    const c = clientWith(constantJson(body));
+    const calls: Array<[string, () => Promise<unknown>]> = [
+      ["waters", () => c.waters()],
+      ["stations.list", () => c.stations.list()],
+      ["stations.get", () => c.stations.get("BONN")],
+      ["timeseries.get", () => c.timeseries.get("BONN")],
+      ["currentMeasurement", () => c.timeseries.currentMeasurement("BONN")],
+      ["measurements", () => c.timeseries.measurements("BONN")],
+    ];
+    for (const [name, call] of calls) {
+      await assert.rejects(call, (err: unknown) =>
+        err instanceof PegelError && err.name === "PegelParseError" && /^Unexpected response from \/webservices\/rest-api\/v2\/.*: expected /.test(err.message),
+        `${name} ${JSON.stringify(body)}`);
+    }
+  }
+  // A string value is not a reading.
+  const c = clientWith(constantJson({ timestamp: "t", value: "68" }));
+  await assert.rejects(() => c.timeseries.currentMeasurement("BONN"), /expected a measurement object/);
 });
