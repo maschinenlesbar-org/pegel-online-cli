@@ -27,7 +27,7 @@ you can pipe straight into [`jq`](https://jqlang.github.io/jq/).
 npm i -g @maschinenlesbar.org/pegel-online-cli
 ```
 
-This installs the **`pegel`** command. Requires **Node.js 20+**.
+This installs the **`pegel`** command. Requires **Node.js 22.12+**.
 
 Check it works:
 
@@ -192,7 +192,8 @@ stderr any more (`2>&1 | head -1`).
 ## Troubleshooting
 
 - **`command not found: pegel`** — the global npm bin directory isn't on your
-  `PATH`. Run `npm bin -g` to find it and add it, or run via
+  `PATH`. Run `npm prefix -g` to find it (the commands are in its `bin`
+  subdirectory) and add that to your `PATH`, or run via
   `npx @maschinenlesbar.org/pegel-online-cli …`.
 - **Exit `2` / "invalid argument"** — check the command syntax: a `<station>`
   argument is required, and no argument or option value may be blank (or `.` /
