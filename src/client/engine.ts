@@ -11,7 +11,15 @@ import {
   type Transport,
 } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { PegelApiError, PegelError, PegelNetworkError, PegelParseError, redactUrl } from "./errors.js";
+import {
+  PegelApiError,
+  PegelError,
+  PegelNetworkError,
+  PegelParseError,
+  credentialsIn,
+  redactCredentials,
+  redactUrl,
+} from "./errors.js";
 import { assertValid, baseUrlProblem, headerValueProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://www.pegelonline.wsv.de";
@@ -281,10 +289,16 @@ const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 export class RequestEngine {
-  private readonly baseUrl: string;
+  // Real private fields (not TypeScript's `private`): util.inspect, console.log and
+  // JSON.stringify of a client never show them, so a password in the base URL, or an
+  // Authorization header a caller added, can't be logged by accident. Messages show the
+  // base URL through redactUrl.
+  readonly #baseUrl: string;
+  /** The base URL's userinfo, raw and percent-decoded, for scrubbing server and transport text. */
+  readonly #credentials: string[];
+  readonly #extraHeaders: Record<string, string>;
   private readonly transport: Transport;
   private readonly userAgent: string;
-  private readonly extraHeaders: Record<string, string>;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
   private readonly retryDelayMs: number;
@@ -295,7 +309,14 @@ export class RequestEngine {
   constructor(options: EngineOptions = {}) {
     // The raw value, before the slash strip: the engine glues it into every URL, so
     // "https://h/ " must not lose its slash first and slip past the check.
-    this.baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
+    this.#baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
+    this.#credentials = credentialsIn(this.#baseUrl).flatMap((raw) => {
+      try {
+        return [raw, decodeURIComponent(raw)];
+      } catch {
+        return [raw];
+      }
+    });
     this.transport = options.transport ?? nodeHttpTransport;
     // Only `undefined` selects the default. An explicit value must be one an HTTP
     // header can carry (headerValueProblem): not blank, which would replace the
@@ -306,7 +327,7 @@ export class RequestEngine {
       options.userAgent === undefined
         ? DEFAULT_USER_AGENT
         : assertValid("User-Agent", options.userAgent, headerValueProblem);
-    this.extraHeaders = options.headers ?? {};
+    this.#extraHeaders = { ...(options.headers ?? {}) };
     this.timeoutMs = intOption("timeoutMs", options.timeoutMs, 30_000, MAX_TIMEOUT_MS);
     this.maxRetries = intOption("maxRetries", options.maxRetries, 2, MAX_RETRIES);
     this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, 200, MAX_RETRY_AFTER_MS);
@@ -339,7 +360,35 @@ export class RequestEngine {
       );
     }
     const qs = query ? buildQueryString(query) : "";
-    return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
+    return `${this.#baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
+  }
+
+  /**
+   * `text` without the base URL's credentials: server text (an error body that echoes
+   * the request URL) and transport text (fetch's "Failed to fetch <url>") can carry them.
+   */
+  private scrub(text: string): string {
+    return this.#credentials.length === 0 ? text : redactCredentials(text, this.#credentials);
+  }
+
+  /**
+   * A transport failure as the `cause` of the error the engine raises: the original
+   * when its text carries no credentials, otherwise a copy with them scrubbed (message,
+   * `code` and the cause chain kept), so logging the error with its causes can't reveal
+   * the base URL's password.
+   */
+  private scrubCause(cause: unknown, depth = 0): unknown {
+    if (this.#credentials.length === 0 || depth > 5) return cause;
+    if (typeof cause === "string") return this.scrub(cause);
+    if (!(cause instanceof Error)) return cause;
+    const inner = this.scrubCause(cause.cause, depth + 1);
+    const message = this.scrub(cause.message);
+    if (message === cause.message && inner === cause.cause && !this.scrub(cause.stack ?? "").includes("***@")) return cause;
+    const copy = new Error(message, inner === undefined ? undefined : { cause: inner });
+    copy.name = cause.name;
+    const code = (cause as { code?: unknown }).code;
+    if (code !== undefined) Object.assign(copy, { code });
+    return copy;
   }
 
   /**
@@ -377,7 +426,7 @@ export class RequestEngine {
   ): Promise<RawResponse> {
     let url = this.buildUrl(path, options.query);
     const headers: Record<string, string> = {
-      ...this.extraHeaders,
+      ...this.#extraHeaders,
       Accept: options.accept,
       "User-Agent": this.userAgent,
     };
@@ -416,9 +465,10 @@ export class RequestEngine {
         if (cause instanceof PegelError && !(cause instanceof PegelNetworkError)) throw cause;
         const reason = cause instanceof Error ? cause.message : String(cause);
         const retried = attempt > 0 ? ` (after ${attempt} ${attempt === 1 ? "retry" : "retries"})` : "";
-        throw new PegelNetworkError(`${method} ${redactUrl(url)} failed: ${sanitizeServerText(reason)}${retried}`, {
-          cause,
-        });
+        throw new PegelNetworkError(
+          `${method} ${redactUrl(url)} failed: ${sanitizeServerText(this.scrub(reason))}${retried}`,
+          { cause: this.scrubCause(cause) },
+        );
       }
 
       // An injected transport may resolve with anything; a malformed HttpResponse would
@@ -502,7 +552,7 @@ export class RequestEngine {
     locationHeader?: string,
     redirectsFollowed?: number,
   ): PegelApiError {
-    const text = body.toString("utf8");
+    const text = this.scrub(body.toString("utf8"));
     let detail: string | undefined;
     try {
       const parsed = JSON.parse(text) as { detail?: unknown; message?: unknown };

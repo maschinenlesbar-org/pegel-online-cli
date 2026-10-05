@@ -217,7 +217,11 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   prints — commander's usage errors, which echo rejected values, and its own
   messages — so a password with spaces, quotes, `#`, `?` or `/` is caught as well as
   an ordinary one. `redactUrl` falls back to the same text-based cut
-  (`redactCredentials`, exported) for a value that doesn't parse as a URL.
+  (`redactCredentials`, exported) for a value that doesn't parse as a URL. In the library, the
+  engine keeps the base URL (and any `headers` a caller adds) in real `#private` fields,
+  so `console.log(client)`, `util.inspect` and `JSON.stringify` never show them, and it
+  scrubs the base URL's userinfo (raw and percent-decoded) from error bodies, details,
+  transport error text and the `cause` chain it attaches.
 - **User-Agent** (`headerValueProblem`): only an omitted `userAgent` selects the
   default `pegel-online-cli`. An explicit value must not be blank (it would replace
   the default with an empty header) and must not contain a control character other
