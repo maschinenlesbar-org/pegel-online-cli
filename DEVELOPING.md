@@ -156,7 +156,14 @@ crosses to a different **origin** (scheme + host + port) — including a same-ho
 `https:` -> `http:` downgrade — credential-bearing headers (`Authorization`, `Cookie`,
 `X-API-Key`, `Proxy-Authorization`) are stripped, case-insensitively, before the next
 request. This client is keyless and sets none, but the guard is unconditional so a
-library consumer that adds one via `headers` is protected.
+library consumer that adds one via `headers` is protected. The base URL's userinfo (sent
+as Basic auth) follows the same rule: a redirect on the same origin keeps it — an absolute
+`Location` too, not only a relative one — and one to another origin, an `http:` -> `https:`
+upgrade included, drops it. If the request then fails with 401 or 403, the message says the
+redirect dropped the credentials (for http -> https: "use an https base URL"). Transports
+must not follow redirects themselves: `HttpRequest.redirect` is `"manual"` (pass it to
+`fetch`), and a response whose `url` lies on another origin than the request is rejected as
+a `PegelNetworkError`.
 
 **maxResponseBytes.** A hard cap on response body size to defend against memory exhaustion
 (default 100 MiB; `0` = unlimited). CLI: `--max-response-bytes`. The default transport aborts

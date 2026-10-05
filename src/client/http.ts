@@ -17,6 +17,14 @@ export interface HttpRequest {
   headers?: Record<string, string>;
   /** Optional request body (already serialised). */
   body?: string | Buffer;
+  /**
+   * Always `"manual"`: a transport must not follow redirects itself (fetch does by
+   * default — pass `redirect: request.redirect`). The engine follows them, keeping the
+   * base URL's credentials on the same origin and dropping them, and credential headers,
+   * on another. A response whose `url` (the final URL a fetch transport may report) lies
+   * on another origin than the request is rejected as a PegelNetworkError.
+   */
+  redirect?: "manual";
   /** Timeout for the whole request, response body included, in milliseconds. */
   timeoutMs?: number;
   /** Hard cap on the response body size in bytes; the request aborts if exceeded. */
@@ -41,6 +49,8 @@ export interface HttpResponse {
   status: number;
   headers: http.IncomingHttpHeaders;
   body: Buffer;
+  /** The URL that answered, if the transport knows it (fetch's `Response.url`). */
+  url?: string;
 }
 
 export type Transport = (request: HttpRequest) => Promise<HttpResponse>;

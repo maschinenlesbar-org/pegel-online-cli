@@ -111,6 +111,8 @@ export class PegelApiError extends PegelError {
     redirectsFollowed?: number;
     /** A Retry-After longer than the client waits (not retried). */
     retryAfterMs?: number;
+    /** Advice appended to the message (e.g. that a redirect dropped the credentials). */
+    hint?: string;
   }) {
     const parts: string[] = [];
     if (args.detail) parts.push(args.detail);
@@ -131,6 +133,7 @@ export class PegelApiError extends PegelError {
           "the client waits, so it was not retried; try again after that",
       );
     }
+    if (args.hint) parts.push(args.hint);
     const detailPart = parts.length > 0 ? `: ${parts.join("; ")}` : "";
     // The URL is shown without userinfo: a credential in --base-url must not leak.
     const url = redactUrl(args.url);

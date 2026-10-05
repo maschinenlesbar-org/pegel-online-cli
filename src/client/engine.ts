@@ -297,10 +297,36 @@ const CREDENTIAL_HEADERS: ReadonlySet<string> = new Set([
  * a keyed sibling/consumer could add one via a future headers option — keep the
  * guarantee correct regardless of the casing the caller used.
  */
-function stripSensitiveHeaders(headers: Record<string, string>): void {
+function stripSensitiveHeaders(headers: Record<string, string>): boolean {
+  let stripped = false;
   for (const key of Object.keys(headers)) {
-    if (CREDENTIAL_HEADERS.has(key.toLowerCase())) delete headers[key];
+    if (CREDENTIAL_HEADERS.has(key.toLowerCase())) {
+      delete headers[key];
+      stripped = true;
+    }
   }
+  return stripped;
+}
+
+/** True when `a` and `b` parse and share scheme, host and port; false otherwise. */
+function sameOrigin(a: string, b: string): boolean {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Why a 401/403 after a redirect to another origin may not be the credentials' fault:
+ * the engine did not send them there. An http->https upgrade on the same host gets its
+ * own advice.
+ */
+function credentialsDroppedHint(from: URL, to: URL): string {
+  if (from.protocol === "http:" && to.protocol === "https:" && from.hostname === to.hostname) {
+    return "the server redirected http to https, so the credentials were not sent there; use an https base URL";
+  }
+  return `the server redirected to another origin (${to.origin}), so the credentials were not sent there; use that origin as the base URL if it should get them`;
 }
 
 /**
@@ -489,6 +515,8 @@ export class RequestEngine {
     const idempotent = /^(GET|HEAD)$/i.test(method);
     let attempt = 0;
     let redirects = 0;
+    /** Where a redirect to another origin dropped the credentials, for the 401/403 hint. */
+    let droppedCredentialsAt: { from: URL; to: URL } | undefined;
     // attempts = initial try + maxRetries (redirects are counted separately)
     for (;;) {
       let response: HttpResponse;
@@ -497,6 +525,7 @@ export class RequestEngine {
           method,
           url,
           headers,
+          redirect: "manual",
           timeoutMs: this.timeoutMs,
           ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
         });
@@ -529,6 +558,17 @@ export class RequestEngine {
       if (invalid !== undefined) {
         throw new PegelNetworkError(
           `${method} ${redactUrl(url)} failed: the transport returned an invalid response (${invalid}).`,
+        );
+      }
+      // Transports must not follow redirects (HttpRequest.redirect is "manual"); fetch does
+      // by default. One that reports a final URL on another origin has carried the
+      // request — and maybe a credential header fetch doesn't strip — somewhere the
+      // engine never vetted, so its answer is not trusted.
+      const finalUrl = (response as { url?: unknown }).url;
+      if (typeof finalUrl === "string" && finalUrl !== "" && !sameOrigin(finalUrl, url)) {
+        throw new PegelNetworkError(
+          `${method} ${redactUrl(url)} failed: the transport followed a redirect to another origin ` +
+            `(${cleanDetail(redactUrl(finalUrl))}); a transport must not follow redirects (HttpRequest.redirect is "manual").`,
         );
       }
       const status = response.status;
@@ -567,13 +607,22 @@ export class RequestEngine {
         throw this.toApiError(method, url, status, body, location, redirects || undefined);
       }
       if (next !== undefined) {
-        // Security: never carry credential-bearing headers across an origin
-        // boundary. The CLI sends none today, but this guards a future
-        // Authorization/Cookie/X-Api-Key header from leaking to an
-        // attacker-controlled redirect target. Comparing full origin (scheme +
-        // host + port) also strips on a same-host https->http downgrade.
-        if (next.origin !== new URL(url).origin) {
-          stripSensitiveHeaders(headers);
+        const current = new URL(url);
+        if (next.origin !== current.origin) {
+          // Security: never carry credentials across an origin boundary — neither
+          // credential-bearing headers (a caller's Authorization/Cookie/X-Api-Key) nor
+          // the base URL's userinfo, which an absolute Location to another host doesn't
+          // carry. Comparing full origin (scheme + host + port) also covers a same-host
+          // https->http downgrade and an http->https upgrade.
+          if (stripSensitiveHeaders(headers) || current.username !== "" || current.password !== "") {
+            droppedCredentialsAt = { from: current, to: next };
+          }
+        } else if (next.username === "" && next.password === "") {
+          // Same origin: keep the base URL's userinfo. A relative Location inherits it
+          // when resolved; an absolute one (`Location: https://same-host/…`) used to
+          // drop it and turn a mirror login into a 401.
+          next.username = current.username;
+          next.password = current.password;
         }
         url = next.toString();
         redirects += 1;
@@ -584,7 +633,11 @@ export class RequestEngine {
 
       const contentType = String(headerValue(responseHeaders["content-type"]) ?? "");
       if (status < 200 || status >= 300) {
-        throw this.toApiError(method, url, status, body, location, undefined, refusedWaitMs);
+        const hint =
+          (status === 401 || status === 403) && droppedCredentialsAt !== undefined
+            ? credentialsDroppedHint(droppedCredentialsAt.from, droppedCredentialsAt.to)
+            : undefined;
+        throw this.toApiError(method, url, status, body, location, undefined, refusedWaitMs, hint);
       }
 
       return { data: body, contentType, status };
@@ -610,6 +663,7 @@ export class RequestEngine {
     locationHeader?: string,
     redirectsFollowed?: number,
     retryAfterMs?: number,
+    hint?: string,
   ): PegelApiError {
     const text = this.scrub(body.toString("utf8"));
     let detail: string | undefined;
@@ -635,6 +689,7 @@ export class RequestEngine {
       ...(location !== undefined ? { location } : {}),
       ...(redirectsFollowed !== undefined ? { redirectsFollowed } : {}),
       ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+      ...(hint !== undefined ? { hint } : {}),
     });
   }
 }
