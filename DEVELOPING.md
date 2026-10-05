@@ -190,7 +190,13 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   trim or strip whitespace silently, but the engine glues request paths onto the raw
   string (`"https://h/ "` requests `/%20/webservices/...`). A bad base URL is a
   `PegelValidationError`, not a `PegelNetworkError`; the CLI's `--base-url` parser
-  uses the same rule and messages.
+  uses the same rule and messages. The reasons never repeat the value. The CLI also
+  redacts on output: `run.ts` (`withRedactedOutput`) takes the exact userinfo of every
+  argument (`credentialsIn`, exported) and replaces it with `***` in everything it
+  prints — commander's usage errors, which echo rejected values, and its own
+  messages — so a password with spaces, quotes, `#`, `?` or `/` is caught as well as
+  an ordinary one. `redactUrl` falls back to the same text-based cut
+  (`redactCredentials`, exported) for a value that doesn't parse as a URL.
 - **User-Agent** (`headerValueProblem`): only an omitted `userAgent` selects the
   default `pegel-online-cli`. An explicit value must not be blank (it would replace
   the default with an empty header) and must not contain a control character other

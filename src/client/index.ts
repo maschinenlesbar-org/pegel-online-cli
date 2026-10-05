@@ -21,6 +21,8 @@ export {
   PegelParseError,
   PegelValidationError,
   redactUrl,
+  credentialsIn,
+  redactCredentials,
 } from "./errors.js";
 export {
   assertValid,

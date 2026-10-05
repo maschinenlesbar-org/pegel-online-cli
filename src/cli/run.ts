@@ -5,7 +5,13 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import type { CliDeps } from "./io.js";
-import { PegelApiError, PegelError, PegelValidationError } from "../client/errors.js";
+import {
+  PegelApiError,
+  PegelError,
+  PegelValidationError,
+  credentialsIn,
+  redactCredentials,
+} from "../client/errors.js";
 
 /**
  * Apply exitOverride + output redirection to every command in the tree.
@@ -25,7 +31,37 @@ function configureTree(command: Command, deps: CliDeps): void {
  *  apart from a runtime/network failure (which exit 1). */
 const USAGE_EXIT = 2;
 
+/**
+ * `deps` with an `io` that redacts the credentials of every argument from everything it
+ * prints. Commander echoes rejected values in its errors (`argument '<value>' is
+ * invalid`), names unknown commands and options, and a URL typed where a station id
+ * belongs ends up in an error message: whatever path a credential takes to stdout or
+ * stderr, its exact userinfo (as `credentialsIn` finds it, plus its JSON-quoted form) is
+ * replaced by `***`. A pattern alone can't delimit a password with spaces, quotes, `#`,
+ * `?` or `/`; the exact strings can. Without credentials the output passes through
+ * unchanged. (This CLI reads no environment variable, so the arguments are the only
+ * source.)
+ */
+export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliDeps {
+  // An `--option=value` token is echoed as its value alone.
+  const values = argv.map((token) =>
+    token.startsWith("-") && token.includes("=") ? token.slice(token.indexOf("=") + 1) : token,
+  );
+  const secrets = new Set<string>();
+  for (const source of [...argv, ...values]) {
+    for (const secret of credentialsIn(source)) {
+      secrets.add(secret);
+      secrets.add(JSON.stringify(secret).slice(1, -1));
+    }
+  }
+  if (secrets.size === 0) return deps;
+  const list = [...secrets];
+  const redact = (text: string): string => redactCredentials(text, list);
+  return { ...deps, io: { out: (text) => deps.io.out(redact(text)), err: (text) => deps.io.err(redact(text)) } };
+}
+
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
+  deps = withRedactedOutput(deps, argv);
   const program = buildProgram(deps);
   configureTree(program, deps);
 
