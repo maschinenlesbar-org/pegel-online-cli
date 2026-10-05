@@ -404,3 +404,10 @@ test("a body is decoded by its declared charset; a BOM is dropped; an unknown ch
   await assert.rejects(() => e3.getJson("/x"), (err: unknown) =>
     err instanceof PegelParseError && /Unsupported response charset "x-no-such"/.test(err.message));
 });
+
+test("server text in a message is cut at 500 characters; the body keeps it all (P13)", async () => {
+  const long = "x".repeat(200_000);
+  const e = new RequestEngine({ maxRetries: 0, transport: async () => jsonResponse({ detail: long }, 500) });
+  await assert.rejects(() => e.getJson("/x"), (err: unknown) =>
+    err instanceof PegelApiError && err.detail === `${"x".repeat(500)}…` && err.message.length < 700 && err.body.includes(long));
+});

@@ -17,6 +17,7 @@ import {
   PegelError,
   PegelNetworkError,
   PegelParseError,
+  PegelValidationError,
   credentialsIn,
   redactCredentials,
   redactUrl,
@@ -35,7 +36,9 @@ export interface RawResponse {
 /**
  * Options for {@link RequestEngine} and the client. The numeric options must be
  * integers within their documented range; anything else (negative, fractional,
- * NaN, Infinity, too large) makes the constructor throw a PegelError.
+ * NaN, Infinity, too large) makes the constructor throw a PegelValidationError, as
+ * does a `transport` or `sleep` that is not a function and a `headers` value an HTTP
+ * header can't carry.
  */
 export interface EngineOptions {
   /** Base URL of the API. Defaults to https://www.pegelonline.wsv.de */
@@ -101,11 +104,55 @@ const MAX_REDIRECTS = 20;
 function intOption(name: string, value: number | undefined, fallback: number, max: number): number {
   if (value === undefined) return fallback;
   if (!Number.isSafeInteger(value) || value < 0 || value > max) {
-    throw new PegelError(
-      `Invalid option ${name}: expected an integer from 0 to ${max}, got ${String(value)}.`,
+    throw new PegelValidationError(
+      `Invalid option ${name}: expected an integer from 0 to ${max}, got ${typeof value === "number" ? String(value) : typeof value}.`,
     );
   }
   return value;
+}
+
+/**
+ * Read a function option: `undefined` gives the default; anything else that is not a
+ * function throws. A string `transport` used to fail at the first request as a raw
+ * TypeError, and a bad `sleep` on the first retry.
+ */
+function functionOption<F extends (...args: never[]) => unknown>(name: string, value: F | undefined, fallback: F): F {
+  if (value === undefined) return fallback;
+  if (typeof value !== "function") {
+    throw new PegelValidationError(`Invalid option ${name}: expected a function, got ${typeof value}.`);
+  }
+  return value;
+}
+
+/**
+ * Read the `headers` option: a plain object of header values, each one an HTTP header
+ * can carry (headerValueProblem). An array or a non-string value used to reach Node as
+ * an opaque TypeError at request time.
+ */
+function headersOption(value: Record<string, string> | undefined): Record<string, string> {
+  if (value === undefined) return {};
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new PegelValidationError(`Invalid option headers: expected an object of header values, got ${Array.isArray(value) ? "an array" : typeof value}.`);
+  }
+  for (const [name, header] of Object.entries(value)) {
+    const reason = headerValueProblem(header);
+    if (reason !== undefined) throw new PegelValidationError(`Invalid option headers: ${JSON.stringify(name)}: ${reason}`);
+  }
+  return { ...value };
+}
+
+/**
+ * Longest server text (in characters) kept for an error message: an error `detail`, a
+ * transport's error text or a redirect target. A longer one is cut and ends in "…", so a
+ * hostile or buggy body cannot flood stderr or a CI log with one huge line.
+ * `PegelApiError.body` keeps the full text.
+ */
+const MAX_DETAIL_LENGTH = 500;
+
+/** sanitizeServerText, then cut at MAX_DETAIL_LENGTH characters. */
+function cleanDetail(text: string): string {
+  const clean = sanitizeServerText(text);
+  return clean.length > MAX_DETAIL_LENGTH ? `${clean.slice(0, MAX_DETAIL_LENGTH)}…` : clean;
 }
 
 /**
@@ -310,6 +357,8 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
+    // A JavaScript caller may pass null for "no options"; treat it like undefined.
+    options = options ?? {};
     // The raw value, before the slash strip: the engine glues it into every URL, so
     // "https://h/ " must not lose its slash first and slip past the check.
     this.#baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
@@ -320,7 +369,7 @@ export class RequestEngine {
         return [raw];
       }
     });
-    this.transport = options.transport ?? nodeHttpTransport;
+    this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only `undefined` selects the default. An explicit value must be one an HTTP
     // header can carry (headerValueProblem): not blank, which would replace the
     // default with an empty header, and no control character (CR/LF in particular,
@@ -330,7 +379,7 @@ export class RequestEngine {
       options.userAgent === undefined
         ? DEFAULT_USER_AGENT
         : assertValid("User-Agent", options.userAgent, headerValueProblem);
-    this.#extraHeaders = { ...(options.headers ?? {}) };
+    this.#extraHeaders = headersOption(options.headers);
     this.timeoutMs = intOption("timeoutMs", options.timeoutMs, 30_000, MAX_TIMEOUT_MS);
     this.maxRetries = intOption("maxRetries", options.maxRetries, 2, MAX_RETRIES);
     this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, 200, MAX_RETRY_AFTER_MS);
@@ -341,13 +390,13 @@ export class RequestEngine {
       DEFAULT_MAX_RESPONSE_BYTES,
       Number.MAX_SAFE_INTEGER,
     );
-    this.sleep = options.sleep ?? realSleep;
+    this.sleep = functionOption("sleep", options.sleep, realSleep);
   }
 
   /**
    * Build a fully-qualified URL from a path and optional query parameters.
    *
-   * Throws a PegelError for a path with a "." or ".." segment. The resource methods
+   * Throws a PegelValidationError for a path with a "." or ".." segment. The resource methods
    * put ids into the path with `encodeURIComponent`, which leaves those two
    * unchanged, and URL parsing then resolves them: `currentMeasurement("BONN", "..")`
    * would request `/stations/currentmeasurement.json` (a station of that name).
@@ -358,7 +407,7 @@ export class RequestEngine {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const dotSegment = normalizedPath.split("/").find((s) => s === "." || s === "..");
     if (dotSegment !== undefined) {
-      throw new PegelError(
+      throw new PegelValidationError(
         `Invalid path segment "${dotSegment}" in ${normalizedPath}: "." and ".." cannot be used as an id.`,
       );
     }
@@ -469,7 +518,7 @@ export class RequestEngine {
         const reason = cause instanceof Error ? cause.message : String(cause);
         const retried = attempt > 0 ? ` (after ${attempt} ${attempt === 1 ? "retry" : "retries"})` : "";
         throw new PegelNetworkError(
-          `${method} ${redactUrl(url)} failed: ${sanitizeServerText(this.scrub(reason))}${retried}`,
+          `${method} ${redactUrl(url)} failed: ${cleanDetail(this.scrub(reason))}${retried}`,
           { cause: this.scrubCause(cause) },
         );
       }
@@ -573,7 +622,7 @@ export class RequestEngine {
     }
     // `detail` came from the response body; strip control characters so a hostile
     // endpoint cannot inject terminal escape sequences via the stderr error message.
-    if (detail !== undefined) detail = sanitizeServerText(detail);
+    if (detail !== undefined) detail = cleanDetail(detail);
     // Name the target of a redirect that was not followed.
     const location =
       status >= 300 && status < 400 && locationHeader ? redirectTarget(url, locationHeader) : undefined;
@@ -631,6 +680,6 @@ function resolveLocation(location: string | undefined, base: string): URL | unde
  */
 function redirectTarget(requestUrl: string, location: string): string | undefined {
   const resolved = resolveLocation(location, requestUrl);
-  const clean = sanitizeServerText(resolved ? redactUrl(resolved.href) : location).trim();
+  const clean = cleanDetail(resolved ? redactUrl(resolved.href) : location).trim();
   return clean === "" ? undefined : clean;
 }

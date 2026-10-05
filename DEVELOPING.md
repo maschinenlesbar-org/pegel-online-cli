@@ -59,9 +59,13 @@ defaults (defaults are `maxRetries: 2`, `maxResponseBytes: 100 MiB`, `timeoutMs:
 30_000`, `maxRedirects: 5`). Numeric options must be integers in range —
 `timeoutMs` 0..`MAX_TIMEOUT_MS`, `maxRetries` 0..`MAX_RETRIES` (10), `retryDelayMs`
 0..`MAX_RETRY_AFTER_MS`, `maxRedirects` 0..20, `maxResponseBytes` 0..2^53-1 — or the
-constructor throws `PegelError` (`Invalid option timeoutMs: expected an integer from 0
-to 2147483647, got NaN.`), so `Number(process.env.X)` of an unset variable can't
-silently disable the timeout.
+constructor throws `PegelValidationError` (`Invalid option timeoutMs: expected an integer
+from 0 to 2147483647, got NaN.`), so `Number(process.env.X)` of an unset variable can't
+silently disable the timeout. A `transport` or `sleep` that is not a function, and a
+`headers` option that is not an object of sendable header values, are rejected the same
+way; so is a station or timeseries id that is not a non-blank string, or is "." / "..".
+Server text in a message (an error `detail`, a transport's error text, a redirect target)
+is cut at 500 characters; `PegelApiError.body` keeps it all.
 
 ```ts
 new PegelOnlineClient({

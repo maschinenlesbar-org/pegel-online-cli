@@ -8,7 +8,7 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
-import { PegelError, PegelParseError } from "./errors.js";
+import { PegelParseError, PegelValidationError } from "./errors.js";
 import { assertValid, idListProblem, nonEmptyProblem } from "./validate.js";
 import type {
   Station,
@@ -41,10 +41,12 @@ function nfc(value: string): string {
  */
 function enc(name: string, value: string): string {
   if (typeof value !== "string" || value.trim() === "") {
-    throw new PegelError(`Invalid ${name}: expected a non-empty string, got ${JSON.stringify(value)}.`);
+    throw new PegelValidationError(
+      `Invalid ${name}: expected a non-empty string, got ${typeof value === "string" ? JSON.stringify(value) : typeof value}.`,
+    );
   }
   if (value === "." || value === "..") {
-    throw new PegelError(`Invalid ${name} "${value}": "." and ".." cannot be used as an id.`);
+    throw new PegelValidationError(`Invalid ${name} "${value}": "." and ".." cannot be used as an id.`);
   }
   return encodeURIComponent(nfc(value));
 }
@@ -183,7 +185,8 @@ export class PegelOnlineClient {
   readonly timeseries: TimeseriesResource;
 
   constructor(options: EngineOptions = {}) {
-    this.engine = new RequestEngine(options);
+    // A JavaScript caller may pass null for "no options"; treat it like undefined.
+    this.engine = new RequestEngine(options ?? {});
     this.stations = new StationsResource(this.engine);
     this.timeseries = new TimeseriesResource(this.engine);
   }
