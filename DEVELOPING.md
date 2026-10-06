@@ -307,10 +307,12 @@ npm test          # builds, then runs `node --test` over dist/test
   in CLI output), P2 (in logged clients and errors), P3 (credentials across redirects), P4
   (base-URL rules; the P19 case is skipped — pegel reads no environment variable), P5 (the
   transport contract), P6 (retry policy), P7 (pipes and exit codes, runs the built bin), P8/P9/P13
-  (charset, response shapes, validation errors), P10 (strict filters) and, from the
+  (charset, response shapes, validation errors), P10 (strict filters), and, from the
   2026-10-06 follow-up round, P20 (the stderr warning for a plain-`http:` base URL; the
   environment and other-secret cases are skipped — pegel reads no environment variable
-  and sends no key). `validFor()` in
+  and sends no key) and P21 (every relative link in `README.md`, which npmjs.com shows, points
+  to a file `package.json` `files` ships; a document the tarball leaves out is linked by its
+  `https://github.com/maschinenlesbar-org/pegel-online-cli/blob/main/…` URL). `validFor()` in
   `test/helpers.ts` answers any endpoint with a body of its documented shape.
 
 ## Continuous integration

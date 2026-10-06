@@ -19,7 +19,7 @@ you can pipe straight into [`jq`](https://jqlang.github.io/jq/).
 - **Live data** — readings update continuously from hundreds of federal gauges across Germany's rivers and canals.
 
 > Want to use this as a TypeScript library or understand how it's built?
-> See **[DEVELOPING.md](DEVELOPING.md)**.
+> See **[DEVELOPING.md](https://github.com/maschinenlesbar-org/pegel-online-cli/blob/main/DEVELOPING.md)**.
 
 ## Install
 
@@ -116,11 +116,11 @@ twice is a usage error (exit `2`).
 | `--start <iso>` | window start — ISO-8601 instant *or* a period like `P7D` |
 | `--end <iso>` | window end — ISO-8601 instant |
 
-The **[Glossary](GLOSSARY.md)** explains every domain term and timeseries code.
+The **[Glossary](https://github.com/maschinenlesbar-org/pegel-online-cli/blob/main/GLOSSARY.md)** explains every domain term and timeseries code.
 
 ## Common tasks
 
-A few recipes to get going — see **[Usage.md](Usage.md)** for the full,
+A few recipes to get going — see **[Usage.md](https://github.com/maschinenlesbar-org/pegel-online-cli/blob/main/Usage.md)** for the full,
 use-case-driven set.
 
 ```bash
@@ -247,10 +247,10 @@ These apply to every command and may be given before *or* after it:
 
 ## Learn more
 
-- **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills that drive this CLI for live water-level questions.
-- **[Usage.md](Usage.md)** — full use-case-driven cookbook.
-- **[GLOSSARY.md](GLOSSARY.md)** — every domain term, timeseries code, and state classification explained.
-- **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
+- **[SKILLS.md](https://github.com/maschinenlesbar-org/pegel-online-cli/blob/main/SKILLS.md)** — Claude Code Agent Skills that drive this CLI for live water-level questions.
+- **[Usage.md](https://github.com/maschinenlesbar-org/pegel-online-cli/blob/main/Usage.md)** — full use-case-driven cookbook.
+- **[GLOSSARY.md](https://github.com/maschinenlesbar-org/pegel-online-cli/blob/main/GLOSSARY.md)** — every domain term, timeseries code, and state classification explained.
+- **[DEVELOPING.md](https://github.com/maschinenlesbar-org/pegel-online-cli/blob/main/DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
 ## Data license
 
