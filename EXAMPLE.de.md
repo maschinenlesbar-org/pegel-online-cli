@@ -3,7 +3,8 @@
 Echte Beispiele für die Claude-Code-Skills des Plugins `pegel`, eines pro Skill: eine
 Anfrage, die `pegel`-Befehle, die der Skill ausgeführt hat, und Claudes Antwort.
 
-Jedes Beispiel lief am 6. Oktober 2026 mit `pegel` 0.3.0 gegen die Live-API.
+Jedes Beispiel lief am 6. Oktober 2026 gegen die Live-API: pegel-river-overview und
+pegel-stations-geojson mit `pegel` 0.3.0, pegel-trend und pegel-water-level-check mit 0.4.0.
 Die Daten ändern sich, Ihre Ergebnisse werden also abweichen; mit den gezeigten IDs und
 Schlüsseln können Sie die Anfragen selbst ausprobieren. Lange Listen sind gekürzt.
 
@@ -98,23 +99,23 @@ pegel --compact timeseries "PANNERDENSE KOP" W | jq '{unit, comment}'   # cm, ke
 pegel --compact measurements "PANNERDENSE KOP" W --start P7D | jq 'def epoch: …; (map(select(.value != null))) as $p | …'
 ```
 
-Das Fenster enthielt 95 Punkte statt rund tausend beim 10-Minuten-Takt dieses Pegels: Zwischen
-29.09. 08:50 und 05.10. 17:00 kam nichts, und 16 Punkte vom 29.09. hatten keinen Wert (den
-Platzhalter `99999` des Pegels, den die CLI als `null` liefert). Der Skill hat die `null`-Punkte
-weggelassen, das Alter des letzten Messwerts geprüft und die beiden Teile des Fensters getrennt
-beschrieben, statt einen Trend über die Lücke hinweg zu lesen.
+PANNERDENSE KOP bezeichnet genau einen Pegel, also ließ die Namensprüfung der CLI (eine zusätzliche
+Abfrage vor jeder pegelbezogenen Anfrage) beide Aufrufe durch. Das 7-Tage-Fenster enthielt 125
+Punkte, alle mit Wert, aber erst ab 05.10. 17:00: Für den Rest der Woche kam vom Pegel nichts. Der
+Skill hat das Alter des letzten Messwerts geprüft und das Fenster beschrieben, das tatsächlich
+zurückkam, statt eines Wochentrends.
 
 ```
-PANNERDENSE KOP (RHEIN km 867,3, Rijkswaterstaat), Wasserstand W in cm: letzte 7 Tage
-  584 cm am 06.10. um 00:50 (13 min alt); 579 cm zu Beginn des Fensters, 29.09. 01:10
-  →  +5 cm, aber über eine Lücke hinweg: keine Messwerte vom 29.09. 08:50 bis 05.10. 17:00
-  29.09. 01:10–08:40:   576–579 cm, 31 Messwerte (16 weitere ohne Wert)
-  seit 05.10. 17:00:    583–587 cm, 48 Messwerte im 10-Minuten-Takt, 584 → 584 cm: gleichbleibend
-  Der Pegel steigt und fällt derzeit nicht; ein Wochentrend lässt sich aus diesen Daten nicht ablesen.
+PANNERDENSE KOP (RHEIN km 867,3, Rijkswaterstaat), Wasserstand W in cm
+  582 cm am 06.10. um 13:40 (8 min alt); 584 cm am 05.10. um 17:00
+  →  −2 cm in 20 h 40 min: gleichbleibend
+  Spanne 582–587 cm (Maximum 05.10. 17:20, Minimum 06.10. 12:20); 125 Messwerte im 10-Minuten-Takt
+  Von der angefragten Woche kamen nur die letzten 21 Stunden: keine Messwerte vor 05.10. 17:00,
+  ein Wochentrend lässt sich aus diesen Daten nicht ablesen.
 ```
 
-Als Nächstes angeboten: eine CSV der Messwerte (ohne `null`-Punkte) für ein Diagramm oder die
-Einstufung des Wasserstands mit **pegel-water-level-check**.
+Als Nächstes angeboten: eine CSV der Messwerte für ein Diagramm oder die Einstufung des
+Wasserstands mit **pegel-water-level-check**.
 
 ## pegel-water-level-check
 
@@ -131,19 +132,19 @@ pegel --compact stations get 9610080 --include-current | jq '…'        # NEUST
 ```
 
 Die Suche nach „neustadt“ fand zwei Stationen namens NEUSTADT, an der LEINE (48800200) und an der
-OSTSEE (9610080), und die CLI meldete auf stderr, dass eine Abfrage über diesen Namen nur eine
-davon liefert. Neustadt in Holstein liegt an der Ostsee, also nahm der Skill die Nummer des
-OSTSEE-Pegels. Ein Aufruf je Pegel lieferte den Messwert zusammen mit Einheit und Kommentar seiner
-Zeitreihe: Der Stand von MÜNSTER OW ist in m+NN, nicht in cm, und RINTELN war als `commented`
-markiert, also gestört, mit dem Grund im Kommentar.
+OSTSEE (9610080), neben NEUSTADT GLEWE OP; der Hinweis der CLI auf stderr besagte, dass eine
+Abfrage über diesen Namen abgelehnt wird. Neustadt in Holstein liegt an der Ostsee, also nahm der
+Skill die Nummer des OSTSEE-Pegels. Ein Aufruf je Pegel lieferte den Messwert zusammen mit Einheit
+und Kommentar seiner Zeitreihe: Der Stand von MÜNSTER OW ist in m+NN, nicht in cm, und RINTELN war
+als `commented` markiert, also gestört, mit dem Grund im Kommentar.
 
 ```
-Wasserstände am 06.10.2026 gegen 01:00 Ortszeit:
+Wasserstände am 06.10.2026 gegen 13:45 Ortszeit:
   RINTELN     (WESER, km 163,2)               Störung ⚠  „Funktionsstörung, fehlerhafte Messwerte“:
-                                              gemeldet 92 cm, unzuverlässig, keine Einstufung   01:00
-  NEUSTADT    (OSTSEE, Neustadt in Holstein)  499 cm      normal                          00:59
-  MÜNSTER OW  (Dortmund-Ems-Kanal, km 70,3)   56,5 m+NN   kein Hochwasserbezug (unknown)  00:45
-              die Kanaloberfläche 56,5 m über Normalnull: eine Höhe, keine Tiefe in cm
+                                              gemeldet 89 cm, unzuverlässig, keine Einstufung   13:45
+  NEUSTADT    (OSTSEE, Neustadt in Holstein)  511 cm      normal                          13:45
+  MÜNSTER OW  (Dortmund-Ems-Kanal, km 70,3)   56,52 m+NN  kein Hochwasserbezug (unknown)  13:30
+              die Kanaloberfläche 56,52 m über Normalnull: eine Höhe, keine Tiefe in cm
 
 „Neustadt“ bezeichnet zwei Pegel: NEUSTADT an der LEINE (48800200) und NEUSTADT an der OSTSEE
 (9610080, hier verwendet).

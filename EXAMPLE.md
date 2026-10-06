@@ -3,7 +3,8 @@
 Real examples for the Claude Code skills of the `pegel` plugin, one per skill: a request,
 the `pegel` commands the skill ran, and the answer Claude gave.
 
-Every example ran against the live API on 6 October 2026 with `pegel` 0.3.0.
+Every example ran against the live API on 6 October 2026: pegel-river-overview and
+pegel-stations-geojson with `pegel` 0.3.0, pegel-trend and pegel-water-level-check with 0.4.0.
 The data changes, so your results will differ; the ids and keys shown work for trying the
 requests yourself. Long lists are shortened.
 
@@ -96,23 +97,23 @@ pegel --compact timeseries "PANNERDENSE KOP" W | jq '{unit, comment}'   # cm, no
 pegel --compact measurements "PANNERDENSE KOP" W --start P7D | jq 'def epoch: …; (map(select(.value != null))) as $p | …'
 ```
 
-The window held 95 points instead of about a thousand at this gauge's 10-minute spacing: it sent
-nothing between 29 Sep 08:50 and 5 Oct 17:00, and 16 points of 29 Sep had no value (the gauge's
-placeholder `99999`, which the CLI returns as `null`). The skill dropped the `null` points, checked
-the age of the last reading, and described the two pieces of the window separately instead of
-reading a trend across the gap.
+PANNERDENSE KOP names a single station, so the CLI's check of the name (one extra lookup
+before each per-station request) let both calls through. The 7-day window held 125 points, all
+with a value, but only from 5 Oct 17:00: the gauge sent nothing for the rest of the week. The
+skill checked the age of the last reading and reported the window it actually got instead of a
+week-long trend.
 
 ```
-PANNERDENSE KOP (RHEIN km 867.3, Rijkswaterstaat), water level W in cm: last 7 days
-  584 cm at 6 Oct 00:50 (13 min old); 579 cm at the start of the window, 29 Sep 01:10
-  →  +5 cm, but across a gap: no readings from 29 Sep 08:50 to 5 Oct 17:00
-  29 Sep 01:10–08:40:   576–579 cm, 31 readings (16 more had no value)
-  since 5 Oct 17:00:    583–587 cm, 48 readings at 10-min spacing, 584 → 584 cm: steady
-  It is neither rising nor falling right now; a week-long trend can't be read from these data.
+PANNERDENSE KOP (RHEIN km 867.3, Rijkswaterstaat), water level W in cm
+  582 cm at 6 Oct 13:40 (8 min old); 584 cm at 5 Oct 17:00
+  →  −2 cm over 20 h 40 min: steady
+  range 582–587 cm (max 5 Oct 17:20, min 6 Oct 12:20); 125 readings at 10-min spacing
+  The requested week came back as its last 21 hours: no readings before 5 Oct 17:00,
+  so a week-long trend can't be read from these data.
 ```
 
-Next steps offered: a CSV of the readings (null points left out) for charting, or the
-water-level verdict via **pegel-water-level-check**.
+Next steps offered: a CSV of the readings for charting, or the water-level verdict via
+**pegel-water-level-check**.
 
 ## pegel-water-level-check
 
@@ -129,19 +130,20 @@ pegel --compact stations get 9610080 --include-current | jq '…'        # NEUST
 ```
 
 The search for "neustadt" found two stations named NEUSTADT, on the LEINE (48800200) and on the
-OSTSEE (9610080), and the CLI said on stderr that a lookup by that name returns only one of them.
-Neustadt in Holstein is on the Baltic coast, so the skill used the OSTSEE gauge's number. One call
-per gauge gave the reading together with its series' unit and comment: MÜNSTER OW's level is in
-m+NN, not cm, and RINTELN was flagged `commented`, a gauge fault, with the reason in its comment.
+OSTSEE (9610080), next to NEUSTADT GLEWE OP; the CLI's note on stderr said a lookup by that name is
+refused. Neustadt in Holstein is on the Baltic coast, so the skill used the OSTSEE gauge's number.
+One call per gauge gave the reading together with its series' unit and comment: MÜNSTER OW's level
+is in m+NN, not cm, and RINTELN was flagged `commented`, a gauge fault, with the reason in its
+comment.
 
 ```
-Water levels, 6 Oct 2026 around 01:00 local time:
+Water levels, 6 Oct 2026 around 13:45 local time:
   RINTELN     (WESER, km 163.2)               gauge fault ⚠  "Funktionsstörung, fehlerhafte Messwerte"
-                                              (malfunction, faulty readings): reported 92 cm,
-                                              unreliable, no verdict                     01:00
-  NEUSTADT    (OSTSEE, Neustadt in Holstein)  499 cm      normal                         00:59
-  MÜNSTER OW  (Dortmund-Ems-Kanal, km 70.3)   56.5 m+NN   no flood reference (unknown)   00:45
-              the canal surface 56.5 m above sea level: a height, not a depth in cm
+                                              (malfunction, faulty readings): reported 89 cm,
+                                              unreliable, no verdict                     13:45
+  NEUSTADT    (OSTSEE, Neustadt in Holstein)  511 cm      normal                         13:45
+  MÜNSTER OW  (Dortmund-Ems-Kanal, km 70.3)   56.52 m+NN  no flood reference (unknown)   13:30
+              the canal surface 56.52 m above sea level: a height, not a depth in cm
 
 "Neustadt" names two gauges: NEUSTADT on the LEINE (48800200) and NEUSTADT on the OSTSEE
 (9610080, used here).
