@@ -257,6 +257,13 @@ are an error (exit 1) that names the target: `redirect to <url> not followed`
 (with `(stopped after 5 redirects)` at the limit) or `redirect not followed (no
 Location header)`.
 
+**Unencrypted base URL (`cleartextProblem`).** A base URL on plain `http:` sends every
+request — and the base URL's userinfo, if any — unencrypted. The engine accepts it (a
+local mirror may need it), but the CLI warns once per run on stderr: `warning: requests
+to <host> are sent unencrypted (http:, not https:)`, or `the base URL's credentials are
+sent unencrypted to <host> …` with userinfo (never the password itself). Loopback hosts
+(`localhost`, `127.x.x.x`, `::1`) are exempt; stdout and the exit code are unchanged.
+
 **Timeout (`timeoutMs`).** Time limit per request in milliseconds, covering the
 whole response body, not only idle gaps (default `30000`; `0` disables). CLI:
 `--timeout`. The client enforces it for every transport, a custom one included.

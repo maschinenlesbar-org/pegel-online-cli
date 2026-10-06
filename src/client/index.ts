@@ -4,6 +4,7 @@ export { NO_VALUE_SENTINEL, PegelOnlineClient, stationListNotes } from "./client
 export type { StationListNote } from "./client.js";
 export {
   RequestEngine,
+  cleartextProblem,
   DEFAULT_BASE_URL,
   MAX_RETRIES,
   MAX_RETRY_AFTER_MS,

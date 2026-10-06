@@ -244,6 +244,16 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   so `console.log(client)`, `util.inspect` and `JSON.stringify` never show them, and it
   scrubs the base URL's userinfo (raw and percent-decoded) from error bodies, details,
   transport error text and the `cause` chain it attaches.
+- **Cleartext base URL** (`cleartextProblem(baseUrl, secrets = [])`, exported): returns
+  one sentence when requests to `baseUrl` would travel unencrypted — `requests to <host>
+  are sent unencrypted (http:, not https:)`, or `the base URL's credentials are sent
+  unencrypted to <host> (http:, not https:)` when it carries userinfo (other secrets'
+  noun phrases in `secrets` are joined with "and") — and `undefined` for `https:`, an
+  unparseable URL and a loopback host (`localhost`, 127.0.0.0/8, `::1`). `<host>` is
+  `url.host`; the sentence never holds a password. It is advice, not a rule: the engine
+  still accepts `http:`. The CLI's `action()` (`cli/shared.ts`) prints it once per run
+  as `warning: <sentence>` on stderr before the client is built; help, version and
+  usage errors never reach an action, and stdout and the exit code are unchanged.
 - **User-Agent** (`headerValueProblem`): only an omitted `userAgent` selects the
   default `pegel-online-cli`. An explicit value must not be blank (it would replace
   the default with an empty header) and must not contain a control character other
@@ -297,7 +307,10 @@ npm test          # builds, then runs `node --test` over dist/test
   in CLI output), P2 (in logged clients and errors), P3 (credentials across redirects), P4
   (base-URL rules; the P19 case is skipped — pegel reads no environment variable), P5 (the
   transport contract), P6 (retry policy), P7 (pipes and exit codes, runs the built bin), P8/P9/P13
-  (charset, response shapes, validation errors) and P10 (strict filters). `validFor()` in
+  (charset, response shapes, validation errors), P10 (strict filters) and, from the
+  2026-10-06 follow-up round, P20 (the stderr warning for a plain-`http:` base URL; the
+  environment and other-secret cases are skipped — pegel reads no environment variable
+  and sends no key). `validFor()` in
   `test/helpers.ts` answers any endpoint with a body of its documented shape.
 
 ## Continuous integration

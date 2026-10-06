@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RequestEngine, parseRetryAfter, MAX_RETRY_AFTER_MS, validateBaseUrl } from "../src/client/engine.js";
+import { RequestEngine, parseRetryAfter, MAX_RETRY_AFTER_MS, validateBaseUrl, cleartextProblem } from "../src/client/engine.js";
 import {
   PegelApiError,
   PegelError,
@@ -410,4 +410,28 @@ test("server text in a message is cut at 500 characters; the body keeps it all (
   const e = new RequestEngine({ maxRetries: 0, transport: async () => jsonResponse({ detail: long }, 500) });
   await assert.rejects(() => e.getJson("/x"), (err: unknown) =>
     err instanceof PegelApiError && err.detail === `${"x".repeat(500)}…` && err.message.length < 700 && err.body.includes(long));
+});
+
+test("cleartextProblem: the wording, loopback exemptions, never the secret", () => {
+  assert.equal(cleartextProblem("not a url"), undefined);
+  assert.equal(cleartextProblem("https://alice:pw@mirror.example"), undefined);
+  for (const loop of ["http://localhost:8080", "http://127.4.5.6", "http://[::1]:9", "http://alice:pw@localhost"]) {
+    assert.equal(cleartextProblem(loop), undefined, loop);
+  }
+  assert.equal(
+    cleartextProblem("http://mirror.example:8080/api"),
+    "requests to mirror.example:8080 are sent unencrypted (http:, not https:)",
+  );
+  assert.equal(
+    cleartextProblem("http://alice:s3cret@mirror.example"),
+    "the base URL's credentials are sent unencrypted to mirror.example (http:, not https:)",
+  );
+  assert.equal(
+    cleartextProblem("http://alice:s3cret@mirror.example", ["the API key"]),
+    "the API key and the base URL's credentials are sent unencrypted to mirror.example (http:, not https:)",
+  );
+  assert.equal(
+    cleartextProblem("http://mirror.example", ["the API key"]),
+    "the API key is sent unencrypted to mirror.example (http:, not https:)",
+  );
 });

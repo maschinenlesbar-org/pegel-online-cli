@@ -259,6 +259,14 @@ Sprung über das Limit hinaus sind ein Fehler (Exit 1), der das Ziel nennt:
 `redirect to <url> not followed` (am Limit mit `(stopped after 5 redirects)`) oder
 `redirect not followed (no Location header)`.
 
+**Unverschlüsselte Basis-URL (`cleartextProblem`).** Eine Basis-URL mit einfachem
+`http:` schickt jede Anfrage – und die Userinfo der Basis-URL, falls vorhanden –
+unverschlüsselt. Die Engine nimmt sie an (ein lokaler Spiegel kann sie brauchen), aber die
+CLI warnt einmal pro Aufruf auf stderr: `warning: requests to <host> are sent unencrypted
+(http:, not https:)`, mit Userinfo `the base URL's credentials are sent unencrypted to
+<host> …` (nie das Passwort selbst). Loopback-Hosts (`localhost`, `127.x.x.x`, `::1`) sind
+ausgenommen; stdout und der Exit-Code bleiben unverändert.
+
 **Timeout (`timeoutMs`).** Zeitlimit pro Anfrage in Millisekunden; es gilt für den
 gesamten Antwortkörper, nicht nur für Leerlaufpausen (Standard `30000`; `0` schaltet es
 ab). CLI: `--timeout`. Der Client setzt es für jeden Transport durch, auch für einen
