@@ -33,6 +33,13 @@ test("EPIPE on stderr is ignored, so the run's own exit code stands", () => {
   assert.deepEqual(s.exits, []);
 });
 
+test("ENOTCONN (stdout is a socket whose reader has gone) is treated like EPIPE", () => {
+  const s = setup();
+  s.stdout.emit("error", writeError("ENOTCONN"));
+  s.stderr.emit("error", writeError("ENOTCONN"));
+  assert.deepEqual(s.exits, [0]);
+});
+
 test("another stderr write error exits 1", () => {
   const s = setup();
   s.stderr.emit("error", writeError("EIO"));
