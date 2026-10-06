@@ -33,6 +33,12 @@ export interface Station {
 }
 
 /**
+ * A station as a name refers to it: enough to tell same-named stations apart and to
+ * pick one by its unambiguous `uuid` or `number`. `water` is the water's shortname.
+ */
+export type StationChoice = Pick<Station, "uuid" | "number" | "shortname" | "longname"> & { water?: string };
+
+/**
  * The API's classification of a current water level (`stateMnwMhw`, `stateNswHsw`), as
  * documented upstream:
  * - `low` — at or below MNW (stateMnwMhw only);

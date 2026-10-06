@@ -75,9 +75,10 @@ waters                                    list all bodies of water (Gewässer)
 
 A `<station>` may be a **uuid**, **number**, **shortname** or **longname** — e.g.
 `BONN`, `6302010`, or a full UUID. Names are not unique (`NEUSTADT` is a gauge on the
-Leine and one on the Baltic coast), and a lookup by such a name returns one of them
-without a warning; `pegel stations list --ids NEUSTADT` lists both and says so on
-stderr — then use the number or uuid. A `[timeseries]` defaults to **`W`** (water
+Leine and one on the Baltic coast), so `stations get`, `timeseries`, `current` and
+`measurements` look a name up first (one extra request; none for a number or uuid) and
+refuse one that names several stations: exit `2`, with an `Error:` line listing each of
+them with its number and uuid — use one of those. A `[timeseries]` defaults to **`W`** (water
 level); other codes include `Q` (flow/discharge), `WT` (water temperature), and
 `LT` (air temperature) depending on the station.
 
@@ -212,6 +213,9 @@ stderr any more (`2>&1 | head -1`).
 - **Exit `2` / "invalid argument"** — check the command syntax: a `<station>`
   argument is required, and no argument or option value may be blank (or `.` /
   `..` for an id). Run `pegel <command> --help` for the exact signature.
+- **Exit `2` / `Invalid station "NEUSTADT": it names 2 stations, …`** — the name
+  belongs to more than one gauge; the message lists each with its water, number and
+  uuid. Run the command again with the number or uuid of the one you mean.
 - **Exit `4` / "not found"** — the station shortname or id doesn't exist, or the
   station doesn't publish the requested series (`Timeseries does not exist.` /
   `Current measurement does not exist.`). Run `pegel stations list --fuzzy-id <name>`

@@ -16,7 +16,12 @@ This installs the **`pegel`** binary. Without a global install you can run the
 same commands via `node dist/src/cli/index.js …` from a built checkout.
 
 A `<station>` argument may be a **uuid**, **number**, **shortname** or
-**longname**. A `[timeseries]` argument defaults to **`W`** (water level); other
+**longname**. Names are not unique (`NEUSTADT` is a LEINE and an OSTSEE gauge): given a
+name, `stations get`, `timeseries`, `current` and `measurements` first look it up (one
+extra request; none for a number or uuid) and refuse a name that names several stations
+with exit `2` and an `Error: Invalid station "NEUSTADT": it names 2 stations, NEUSTADT
+on LEINE (number 48800200, uuid …) and NEUSTADT on OSTSEE (number 9610080, uuid …); use
+the number or uuid.` line. A `[timeseries]` argument defaults to **`W`** (water level); other
 common series are `Q` (flow/discharge), `WT` (water temperature) and `LT` (air
 temperature), depending on the station.
 
@@ -229,5 +234,5 @@ pegel --compact current BONN | jq '.value'
 ```
 
 Exit codes: `0` success, `2` usage/parse errors (unknown command/option, missing
-argument, invalid flag value), `4` on a `404` from the API, `1` for any other
+argument, invalid flag value, a station name that names several stations), `4` on a `404` from the API, `1` for any other
 runtime/network error.

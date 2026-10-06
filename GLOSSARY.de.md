@@ -90,7 +90,11 @@ Client: `client.stations.get(station, { includeCharacteristicValues: true })`.
 eine **uuid**, eine **number**, ein **shortname** *oder* ein **longname** sein. Die API
 löst jede dieser Formen auf. **Namen sind nicht eindeutig:** `NEUSTADT` ist der
 shortname eines Pegels an der LEINE (number 48800200) und eines an der OSTSEE (9610080),
-und eine Abfrage über den Namen liefert stillschweigend einen der beiden.
+und die API beantwortet eine Abfrage über den Namen mit einem der beiden. Deshalb schlagen
+`stations get`, `timeseries`, `current` und `measurements` einen Namen zuerst nach (eine
+zusätzliche Anfrage, keine bei number oder uuid; Bibliothek: `stations.assertUnique`) und
+lehnen einen Namen ab, der mehrere Pegel bezeichnet – Exit `2`,
+`PegelAmbiguousStationError`, mit number und uuid jedes dieser Pegel.
 `stations list --ids NEUSTADT` oder `--fuzzy-id` listet beide und gibt einen Hinweis
 aus; nehmen Sie die **number** oder **uuid** des gemeinten Pegels. Die CLI lehnt eine
 leere Angabe sowie die Pfadsegmente
@@ -291,7 +295,8 @@ mit `--compact` in einer einzigen Zeile.
 
 **Exit-Codes.** `0` bei Erfolg; `2` bei Aufruf- bzw. Parse-Fehlern (unbekannter Befehl
 oder unbekannte Option, fehlendes Argument, ungültiger Flag-Wert, eine Option mit einem
-Wert zweimal angegeben); `4` bei einem `404` der API; `1` bei jedem anderen Fehler
+Wert zweimal angegeben, ein Pegelname, der mehrere Pegel bezeichnet); `4` bei einem
+`404` der API; `1` bei jedem anderen Fehler
 (Laufzeit/Netzwerk), auch bei einer Antwort ohne die dokumentierte Form. Ein
 fehlgeschlagener Lauf behält seinen Code, auch wenn niemand mehr stderr liest.
 

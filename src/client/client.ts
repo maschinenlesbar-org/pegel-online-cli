@@ -8,7 +8,7 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
-import { PegelParseError, PegelValidationError } from "./errors.js";
+import { PegelAmbiguousStationError, PegelParseError, PegelValidationError } from "./errors.js";
 import {
   assertValid,
   idListProblem,
@@ -23,6 +23,7 @@ import type {
   TimeseriesInfo,
   CurrentMeasurement,
   Measurement,
+  StationChoice,
   StationListParams,
   IncludeParams,
   MeasurementsParams,
@@ -182,11 +183,56 @@ class StationsResource {
     return expectShape<Station[]>(path, await this.e.getJson(path, query), arrayOf(isStation), "an array of stations").map(stationOf);
   }
 
+  /**
+   * Refuse a station name that more than one station carries. The per-station methods
+   * (`get`, `timeseries.*`) send a name as given, and for `NEUSTADT` — a LEINE and an
+   * OSTSEE gauge — the API silently answers with one of them. This looks the name up
+   * first (one `stations.list({ ids: [station] })` request) and rejects with
+   * {@link PegelAmbiguousStationError}, listing the stations by number and uuid, when it
+   * names two or more. A uuid or number (see {@link isUnambiguousStationId}) is accepted
+   * without a request; a name that names one station, or none (the per-station call then
+   * answers 404), resolves. The CLI calls this before every per-station command.
+   */
+  async assertUnique(station: string): Promise<void> {
+    enc("station", station);
+    if (isUnambiguousStationId(station)) return;
+    const id = normalizeInput(station);
+    const named = (await this.list({ ids: [id] })).filter((s) =>
+      [s.uuid, s.number, s.shortname, s.longname].some((f) => typeof f === "string" && sameId(f, id)),
+    );
+    if (named.length > 1) throw new PegelAmbiguousStationError(id, named.map(choiceOf));
+  }
+
   async get(station: string, params: IncludeParams = {}): Promise<Station> {
     params = checkParams("stations.get parameters", params, INCLUDE_KEYS);
     const path = `${API}/stations/${enc("station", station)}.json`;
     return stationOf(expectShape(path, await this.e.getJson(path, stationIncludes(params)), isStation, "a station object"));
   }
+}
+
+/** A station uuid (any case). */
+const UUID_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** A station number: digits only, leading zeros kept (`061000`). */
+const NUMBER_ID = /^[0-9]+$/;
+
+/**
+ * True when `station` is a uuid or a station number — selectors that name exactly one
+ * station — and false for a shortname or longname, which may name several (`NEUSTADT`).
+ */
+export function isUnambiguousStationId(station: string): boolean {
+  const id = normalizeInput(station);
+  return UUID_ID.test(id) || NUMBER_ID.test(id);
+}
+
+/** A station reduced to what tells it apart from same-named ones. */
+function choiceOf(s: Station): StationChoice {
+  return {
+    uuid: s.uuid,
+    number: s.number,
+    shortname: s.shortname,
+    longname: s.longname,
+    ...(s.water?.shortname !== undefined ? { water: s.water.shortname } : {}),
+  };
 }
 
 /** Timeseries: metadata, the current measurement, a window of measurements, gauge marks. */
@@ -229,7 +275,7 @@ export type StationListNote =
       /** The shortname two or more returned stations share (e.g. "NEUSTADT"). */
       name: string;
       /** Those stations, to pick one by its unambiguous uuid or number. */
-      stations: Array<Pick<Station, "uuid" | "number" | "shortname" | "longname"> & { water?: string }>;
+      stations: StationChoice[];
     };
 
 /** Case-insensitive equality the way the API's id lookup behaves (`roßdorf` finds `ROSSDORF`). */
@@ -250,7 +296,8 @@ function sameId(a: string, b: string): boolean {
  * shortname that two or more returned stations share: NEUSTADT names a gauge on the
  * LEINE and one on the OSTSEE, and a lookup by that name (`stations.get("NEUSTADT")`,
  * `timeseries.currentMeasurement("NEUSTADT")`) silently returns one of them — the uuid
- * or number picks the right one. The CLI prints all notes on stderr.
+ * or number picks the right one, and `stations.assertUnique` refuses such a name before
+ * the lookup. The CLI prints all notes on stderr.
  */
 export function stationListNotes(params: StationListParams, stations: readonly Station[]): StationListNote[] {
   const notes: StationListNote[] = [];
@@ -276,13 +323,7 @@ export function stationListNotes(params: StationListParams, stations: readonly S
       notes.push({
         kind: "ambiguous",
         name: same[0]!.shortname,
-        stations: same.map((s) => ({
-          uuid: s.uuid,
-          number: s.number,
-          shortname: s.shortname,
-          longname: s.longname,
-          ...(s.water?.shortname !== undefined ? { water: s.water.shortname } : {}),
-        })),
+        stations: same.map(choiceOf),
       });
     }
   }

@@ -1,6 +1,6 @@
 // Public entry point for the API client library.
 
-export { NO_VALUE_SENTINEL, PegelOnlineClient, stationListNotes } from "./client.js";
+export { NO_VALUE_SENTINEL, PegelOnlineClient, isUnambiguousStationId, stationListNotes } from "./client.js";
 export type { StationListNote } from "./client.js";
 export {
   RequestEngine,
@@ -23,6 +23,8 @@ export {
   PegelNetworkError,
   PegelParseError,
   PegelValidationError,
+  PegelAmbiguousStationError,
+  describeStationChoice,
   redactUrl,
   credentialsIn,
   redactCredentials,

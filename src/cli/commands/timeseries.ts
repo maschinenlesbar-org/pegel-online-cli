@@ -12,6 +12,7 @@ export function registerTimeseriesCommands(program: Command, deps: CliDeps): voi
     .description("Timeseries metadata (timeseries defaults to 'W' = water level)")
     .action(
       action(deps, async ({ client, global }, [station, ts]) => {
+        await client.stations.assertUnique(station!);
         renderJson(
           deps,
           global,
@@ -27,6 +28,7 @@ export function registerTimeseriesCommands(program: Command, deps: CliDeps): voi
     .description("The current measurement (timeseries defaults to 'W')")
     .action(
       action(deps, async ({ client, global }, [station, ts]) => {
+        await client.stations.assertUnique(station!);
         renderJson(
           deps,
           global,
@@ -44,6 +46,7 @@ export function registerTimeseriesCommands(program: Command, deps: CliDeps): voi
     .option("--end <iso>", "window end: ISO-8601 instant", once("--end", parseNonEmpty))
     .action(
       action(deps, async ({ client, global, opts }, [station, ts]) => {
+        await client.stations.assertUnique(station!);
         renderJson(
           deps,
           global,

@@ -90,9 +90,13 @@ Client: `client.stations.get(station, { includeCharacteristicValues: true })`.
 **Station selector (`<station>`).** Anywhere a station is addressed, the value
 may be a **uuid**, **number**, **shortname** *or* **longname**. The API resolves
 any of these forms. **Names are not unique:** `NEUSTADT` is the shortname of a gauge
-on the LEINE (number 48800200) and one on the OSTSEE (9610080), and a lookup by the
-name silently returns one of them. `stations list --ids NEUSTADT` or `--fuzzy-id`
-lists both and prints a note; use the **number** or **uuid** of the one you mean. The
+on the LEINE (number 48800200) and one on the OSTSEE (9610080), and the API answers a
+lookup by the name with one of them. So `stations get`, `timeseries`, `current` and
+`measurements` look a name up first (one extra request, none for a number or uuid;
+library: `stations.assertUnique`) and refuse one that names several stations — exit
+`2`, `PegelAmbiguousStationError`, listing each with its number and uuid.
+`stations list --ids NEUSTADT` or `--fuzzy-id` lists both and prints a note; use the
+**number** or **uuid** of the one you mean. The
 CLI rejects an empty selector and the path segments
 `.` / `..` for both `<station>` and `[timeseries]` before building the request
 URL (URL parsing would otherwise resolve them and query a different resource); the
@@ -286,7 +290,8 @@ carry, are rejected up front, which also closes header injection: the client thr
 or on a single line with `--compact`.
 
 **Exit codes.** `0` success; `2` for usage/parse errors (unknown command/option,
-missing argument, invalid flag value, a single-value option given twice); `4` on a
+missing argument, invalid flag value, a single-value option given twice, a station
+name that names several stations); `4` on a
 `404` from the API; `1` for any other (runtime/network) error, an answer without the
 documented shape included. A failed run keeps its code even when nothing reads stderr.
 

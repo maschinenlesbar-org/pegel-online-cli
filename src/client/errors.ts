@@ -1,6 +1,8 @@
 // Error types raised by the client. Kept free of any I/O so they are trivial to
 // construct in tests and to `instanceof`-check by consumers.
 
+import type { StationChoice } from "./types.js";
+
 /** Base class for every error originating from this client. */
 export class PegelError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
@@ -159,6 +161,31 @@ export class PegelApiError extends PegelError {
  * `Invalid <name>: <reason>`. The CLI reports it as a usage error (exit 2).
  */
 export class PegelValidationError extends PegelError {}
+
+/**
+ * A station name that more than one station carries (`NEUSTADT` names a gauge on the
+ * LEINE and one on the OSTSEE), raised by `stations.assertUnique` before the request
+ * that would have silently picked one of them. `stations` lists them, to choose one by
+ * its uuid or number. A PegelValidationError, so the CLI exits 2 (usage error).
+ */
+export class PegelAmbiguousStationError extends PegelValidationError {
+  readonly station: string;
+  readonly stations: StationChoice[];
+  constructor(station: string, stations: StationChoice[]) {
+    const which = stations.map(describeStationChoice).join(" and ");
+    super(
+      `Invalid station ${JSON.stringify(station)}: it names ${stations.length} stations, ${which}; ` +
+        "use the number or uuid.",
+    );
+    this.station = station;
+    this.stations = stations;
+  }
+}
+
+/** `NEUSTADT on LEINE (number 48800200, uuid dda39817-…)`: one station, told apart. */
+export function describeStationChoice(s: StationChoice): string {
+  return `${s.shortname}${s.water !== undefined ? ` on ${s.water}` : ""} (number ${s.number}, uuid ${s.uuid})`;
+}
 
 /** A transport-level failure (DNS, connection reset, timeout, ...). */
 export class PegelNetworkError extends PegelError {}

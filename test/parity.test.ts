@@ -47,17 +47,24 @@ for (const [argv, call, message] of blankFilterCases) {
 }
 
 test("parity: real filter values send the same request from CLI and library", async () => {
-  for (const [argv, call] of [
+  for (const [argv, call, requests] of [
     [["--compact", "stations", "list", "--waters", "RHEIN", "--ids", "BONN", "--fuzzy-id", "KÖ"],
-      (t: Transport) => client(t).stations.list({ waters: "RHEIN", ids: ["BONN"], fuzzyId: "KÖ" })],
-    [["--compact", "measurements", "BONN", "W", "--start", "P7D", "--end", "2026-10-01T00:00:00Z"],
-      (t: Transport) => client(t).timeseries.measurements("BONN", "W", { start: "P7D", end: "2026-10-01T00:00:00Z" })],
+      (t: Transport) => client(t).stations.list({ waters: "RHEIN", ids: ["BONN"], fuzzyId: "KÖ" }), 1],
+    [["--compact", "measurements", "2710080", "W", "--start", "P7D", "--end", "2026-10-01T00:00:00Z"],
+      (t: Transport) => client(t).timeseries.measurements("2710080", "W", { start: "P7D", end: "2026-10-01T00:00:00Z" }), 1],
+    // By name, the CLI first checks that the name names one station (assertUnique).
+    [["--compact", "measurements", "BONN", "W", "--start", "P7D"],
+      async (t: Transport) => {
+        const c = client(t);
+        await c.stations.assertUnique("BONN");
+        return c.timeseries.measurements("BONN", "W", { start: "P7D" });
+      }, 2],
   ] as const) {
     const { cli, lib } = await parity([...argv], call);
     assert.equal(cli.code, 0, cli.err);
     assert.equal(lib.ok, true);
     assert.deepEqual(cli.requests.map((r) => r.url), lib.requests.map((r) => r.url));
-    assert.equal(cli.requests.length, 1);
+    assert.equal(cli.requests.length, requests);
   }
 });
 

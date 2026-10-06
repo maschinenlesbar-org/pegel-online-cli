@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PegelOnlineClient } from "../src/client/client.js";
-import { PegelApiError, PegelError, PegelValidationError } from "../src/client/errors.js";
+import { PegelOnlineClient, isUnambiguousStationId } from "../src/client/client.js";
+import { PegelAmbiguousStationError, PegelApiError, PegelError, PegelValidationError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson, validFor } from "./helpers.js";
 import type { MeasurementState, TimeseriesComment } from "../src/client/types.js";
 
@@ -246,4 +246,42 @@ test("TimeseriesInfo types the operator's comment and the documented states (01#
   const comment: TimeseriesComment | undefined = ts.comment;
   assert.equal(state, "commented");
   assert.equal(comment?.shortDescription, "Funktionsstörung, fehlerhafte Messwerte");
+});
+
+test("stations.assertUnique rejects a name two stations carry, listing them; accepts the rest", async () => {
+  const a = { uuid: "u-1", number: "48800200", shortname: "NEUSTADT", longname: "NEUSTADT", water: { shortname: "LEINE", longname: "LEINE" } };
+  const b = { uuid: "u-2", number: "9610080", shortname: "NEUSTADT", longname: "NEUSTADT" };
+  // The comma-joined ids filter could return a station the name doesn't name: not counted.
+  const other = { uuid: "u-3", number: "1", shortname: "ELSEWHERE", longname: "ELSEWHERE" };
+  const mt = makeMockTransport((req) => {
+    const id = new URL(req.url).searchParams.get("ids");
+    return jsonResponse(id === "Neustadt " || id === "Neustadt" ? [a, b] : [a, other]);
+  });
+  const client = new PegelOnlineClient({ transport: mt.transport });
+  await assert.rejects(client.stations.assertUnique("Neustadt "), (err: unknown) => {
+    assert.ok(err instanceof PegelAmbiguousStationError);
+    assert.ok(err instanceof PegelValidationError);
+    assert.equal(err.station, "Neustadt");
+    assert.deepEqual(err.stations, [
+      { uuid: "u-1", number: "48800200", shortname: "NEUSTADT", longname: "NEUSTADT", water: "LEINE" },
+      { uuid: "u-2", number: "9610080", shortname: "NEUSTADT", longname: "NEUSTADT" },
+    ]);
+    assert.equal(
+      err.message,
+      'Invalid station "Neustadt": it names 2 stations, NEUSTADT on LEINE (number 48800200, uuid u-1) and ' +
+        "NEUSTADT (number 9610080, uuid u-2); use the number or uuid.",
+    );
+    return true;
+  });
+  assert.equal(new URL(mt.last().url).searchParams.get("ids"), "Neustadt");
+  // A name the lookup returns once (plus an unrelated station) resolves.
+  await client.stations.assertUnique("ELSEWHERE");
+  const before = mt.calls.length;
+  await client.stations.assertUnique("061000");
+  await client.stations.assertUnique("DDA39817-21B8-4F68-9B21-0F7A1A1C9B42");
+  assert.equal(mt.calls.length, before);
+  await assert.rejects(client.stations.assertUnique(" "), PegelValidationError);
+  assert.equal(mt.calls.length, before);
+  assert.equal(isUnambiguousStationId("NEUSTADT"), false);
+  assert.equal(isUnambiguousStationId(" 9610080 "), true);
 });

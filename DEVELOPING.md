@@ -275,11 +275,18 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   HTTP 200. This function returns those filter values (`{ kind: "unmatched", filter,
   value }`), and — when the call looked stations up by name (`ids`, `fuzzyId`) — every
   shortname two returned stations share (`{ kind: "ambiguous", name, stations }`;
-  `NEUSTADT` names a LEINE and an OSTSEE gauge, and a lookup by that name returns one of
-  them silently). The CLI prints them as `Note: …` lines on stderr and exits 0. The
-  per-station methods (`stations.get`, `timeseries.*`) send the name as given and make
-  no extra request to check it; resolve a name through `stations.list` first when it may
-  be ambiguous.
+  `NEUSTADT` names a LEINE and an OSTSEE gauge, and the API answers a lookup by that name
+  with one of them). The CLI prints them as `Note: …` lines on stderr and exits 0.
+- **Ambiguous station names** (`stations.assertUnique(station)`, `isUnambiguousStationId`,
+  `PegelAmbiguousStationError`): the per-station methods (`stations.get`, `timeseries.*`)
+  send a name as given and make no extra request. `assertUnique` checks it first: a uuid
+  or number (digits only) passes without a request; a name is looked up with
+  `stations.list({ ids: [name] })`, and when two or more returned stations carry it (by
+  uuid, number, shortname or longname, ignoring case) it rejects with
+  `PegelAmbiguousStationError` (a `PegelValidationError`; `.station`, and `.stations` as
+  `StationChoice` objects with water, number and uuid). The CLI calls it before
+  `stations get`, `timeseries`, `current` and `measurements`, so a name costs one extra
+  request and an ambiguous one exits 2 without the per-station request.
 
 The CLI's
 commander parsers call the same functions, so a rule exists once; a single-value option

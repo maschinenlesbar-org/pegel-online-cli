@@ -113,7 +113,7 @@ test("DEL and C1 control characters in server data are escaped in the JSON outpu
   const served = { uuid: "x", shortname: "BONN", longname: `BONN${controls}`, water: { longname: String.fromCharCode(0x1b) + "[31m" } };
   for (const format of [[], ["--compact"]]) {
     const cli = makeCli(() => jsonResponse(served));
-    assert.equal(await run([...format, "stations", "get", "BONN"], cli.deps), 0);
+    assert.equal(await run([...format, "stations", "get", "2710080"], cli.deps), 0);
     const text = cli.out.join("\n");
     const raw = [...text].filter((c) => c.charCodeAt(0) < 0x20 ? c !== "\n" : c.charCodeAt(0) >= 0x7f && c.charCodeAt(0) <= 0x9f);
     assert.deepEqual(raw, [], format.join(" "));
@@ -329,10 +329,10 @@ test("a deeply nested response is a clear error, not a stack overflow", async ()
   const deep = '{"uuid":"x","shortname":"X","d":' + "[".repeat(200_000) + "]".repeat(200_000) + "}";
   const respond = () => ({ status: 200, headers: { "content-type": "application/json" }, body: Buffer.from(deep) });
   const pretty = makeCli(respond);
-  assert.equal(await run(["stations", "get", "BONN"], pretty.deps), 1);
+  assert.equal(await run(["stations", "get", "2710080"], pretty.deps), 1);
   assert.deepEqual(pretty.err, ["Error: The response is nested too deeply to pretty-print; try --compact."]);
   const compact = makeCli(respond);
-  const code = await run(["--compact", "stations", "get", "BONN"], compact.deps);
+  const code = await run(["--compact", "stations", "get", "2710080"], compact.deps);
   if (code !== 0) {
     assert.equal(code, 1);
     assert.deepEqual(compact.err, ["Error: The response is nested too deeply to print."]);
@@ -380,4 +380,46 @@ test("a shortname that names two stations is reported on stations list (02#1)", 
   const all = makeCli(() => jsonResponse(two));
   assert.equal(await run(["stations", "list"], all.deps), 0);
   assert.deepEqual(all.err, []);
+});
+
+// ---- An ambiguous station name is refused (follow-up round 2026-10-06, item 1) ----
+
+const NEUSTADT_LEINE = { uuid: "dda39817-0000-4000-8000-000000000001", number: "48800200", shortname: "NEUSTADT", longname: "NEUSTADT", water: { shortname: "LEINE", longname: "LEINE" } };
+const NEUSTADT_OSTSEE = { uuid: "3f0b6b74-0000-4000-8000-000000000002", number: "9610080", shortname: "NEUSTADT", longname: "NEUSTADT", water: { shortname: "OSTSEE", longname: "OSTSEE" } };
+
+/** The API as far as these tests need it: `ids=NEUSTADT` lists both gauges. */
+function neustadtApi(req: HttpRequest): HttpResponse {
+  const url = new URL(req.url);
+  if (url.pathname === `${V2}/stations.json`) {
+    const id = (url.searchParams.get("ids") ?? "").toUpperCase();
+    return jsonResponse(id === "NEUSTADT" ? [NEUSTADT_LEINE, NEUSTADT_OSTSEE] : id === "BONN" ? [{ uuid: "b", number: "2710080", shortname: "BONN", longname: "BONN" }] : []);
+  }
+  return validFor(req);
+}
+
+for (const argv of [["stations", "get", "NEUSTADT"], ["timeseries", "NEUSTADT"], ["current", "neustadt"], ["measurements", "NEUSTADT", "W", "--start", "P1D"]]) {
+  test(`an ambiguous station name is refused: ${argv.join(" ")}`, async () => {
+    const cli = makeCli(neustadtApi);
+    assert.equal(await run(argv, cli.deps), 2);
+    assert.deepEqual(cli.out, []);
+    assert.equal(cli.err.length, 1, cli.err.join("\n"));
+    const msg = cli.err[0]!;
+    assert.match(msg, /^Error: Invalid station "(NEUSTADT|neustadt)": it names 2 stations, /);
+    for (const s of [NEUSTADT_LEINE, NEUSTADT_OSTSEE]) {
+      assert.ok(msg.includes(`on ${s.water.shortname} (number ${s.number}, uuid ${s.uuid})`), msg);
+    }
+    assert.match(msg, /use the number or uuid\.$/);
+    // Only the lookup was sent; the per-station request never was.
+    assert.equal(cli.mt.calls.length, 1);
+    assert.equal(new URL(cli.mt.last().url).pathname, `${V2}/stations.json`);
+  });
+}
+
+test("a number or uuid needs no lookup; a unique name costs one extra request", async () => {
+  for (const [station, requests] of [["9610080", 1], ["3F0B6B74-0000-4000-8000-000000000002", 1], ["BONN", 2], ["NOWHERE", 2]] as const) {
+    const cli = makeCli(neustadtApi);
+    assert.equal(await run(["current", station], cli.deps), 0, cli.err.join("\n"));
+    assert.equal(cli.mt.calls.length, requests, station);
+    assert.match(new URL(cli.mt.last().url).pathname, /currentmeasurement\.json$/);
+  }
 });
