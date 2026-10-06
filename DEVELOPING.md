@@ -80,12 +80,17 @@ new PegelOnlineClient({
 
 ### Resource groups
 
-`client.stations` (`.list` / `.get`), `client.timeseries` (`.get` /
+`client.stations` (`.list` / `.get` / `.assertUnique`), `client.timeseries` (`.get` /
 `.currentMeasurement` / `.measurements`), and `client.waters()`. Characteristic
 (gauge-mark) values are available via the `includeCharacteristicValues` embed on
-`.get` / `.list`. On those two station methods, `includeCurrentMeasurement` and
-`includeCharacteristicValues` imply `includeTimeseries: true` unless it is set
-explicitly: the API nests both inside the timeseries list and drops them without it.
+`.get` / `.list`; forecast series (`WV`) via `includeForecastTimeseries`
+(`StationIncludeParams`, station methods only — `timeseries.get` rejects it). On those
+two station methods, `includeCurrentMeasurement`, `includeCharacteristicValues` and
+`includeForecastTimeseries` imply `includeTimeseries: true` unless it is set
+explicitly: the API nests all three inside the timeseries list and drops them without
+it. A forecast series' metadata carries `start`/`end` (the forecast window), and its
+`timeseries.measurements(station, "WV")` points carry `initialized` and `type`
+(`ForecastType`: `forecast` | `estimate`); `currentMeasurement(station, "WV")` is a 404.
 
 ## Architecture
 

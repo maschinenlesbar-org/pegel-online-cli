@@ -110,6 +110,16 @@ export interface TimeseriesInfo {
   comment?: TimeseriesComment;
   currentMeasurement?: CurrentMeasurement;
   /**
+   * Start of the series' window — on a forecast series (`WV`, *Wasserstandsvorhersage*)
+   * the instant the forecast was issued, e.g. "2026-10-06T07:00:00+02:00". Absent on
+   * measured series. Forecast series are listed in a station's timeseries only with
+   * `includeForecastTimeseries`; their values come from `timeseries.measurements(station,
+   * "WV")` and have no current measurement (404).
+   */
+  start?: string;
+  /** End of a forecast series' window: the last forecast instant (about four days ahead). */
+  end?: string;
+  /**
    * Characteristic values (gauge marks), present only when requested; an empty
    * array for a series without marks.
    */
@@ -125,7 +135,21 @@ export interface Measurement {
    * or trend.
    */
   value: number | null;
+  /**
+   * Forecast series (`WV`) only: when the forecast run was issued — the same for every
+   * point of one run.
+   */
+  initialized?: string;
+  /**
+   * Forecast series (`WV`) only: `forecast` (*Vorhersage*) for the nearer points, then
+   * `estimate` (*Abschätzung*, a rougher outlook) for the later ones. Not a measured
+   * value either way. Typed open so a value the API adds later still type-checks.
+   */
+  type?: ForecastType;
 }
+
+/** The kind of a forecast point (`Measurement.type`). */
+export type ForecastType = "forecast" | "estimate" | (string & {});
 
 /** Parameters for the stations listing. */
 export interface StationListParams {
@@ -149,6 +173,12 @@ export interface StationListParams {
   includeCurrentMeasurement?: boolean;
   /** Embed the gauge marks inside each timeseries. Implies `includeTimeseries` like the above. */
   includeCharacteristicValues?: boolean;
+  /**
+   * Also list the forecast series (`WV`, see {@link TimeseriesInfo.start}) in each
+   * station's timeseries list; the API leaves them out otherwise. Implies
+   * `includeTimeseries` like the above.
+   */
+  includeForecastTimeseries?: boolean;
 }
 
 /**
@@ -161,6 +191,15 @@ export interface IncludeParams {
   includeTimeseries?: boolean;
   includeCurrentMeasurement?: boolean;
   includeCharacteristicValues?: boolean;
+}
+
+/** {@link IncludeParams} for a single-station request (`stations.get`). */
+export interface StationIncludeParams extends IncludeParams {
+  /**
+   * Also list the forecast series (`WV`) in the station's timeseries list; the API leaves
+   * them out otherwise. Implies `includeTimeseries` unless that is set explicitly.
+   */
+  includeForecastTimeseries?: boolean;
 }
 
 /** Time window for a measurements request (ISO-8601 instants or periods, e.g. "P7D"); neither bound may be blank. */

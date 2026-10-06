@@ -121,7 +121,8 @@ häufig in Text aus macOS-Dateinamen oder PDFs) denselben Pegel findet.
 **Kurzname der Zeitreihe.** Ein kurzer Code, der die Messgröße bezeichnet. Standard
 in der CLI ist **`W`** (Wasserstand). Weitere Codes, die ein Pegel anbieten kann, sind
 **`Q`** (Durchfluss/Abfluss), **`WT`** (Wassertemperatur) und **`LT`**
-(Lufttemperatur) – was verfügbar ist, hängt vom Pegel ab. Der Code wird als optionales
+(Lufttemperatur) – was verfügbar ist, hängt vom Pegel ab – sowie die Vorhersage-Zeitreihe
+**`WV`** (siehe *Vorhersage-Zeitreihe* unten). Der Code wird als optionales
 Positionsargument `[timeseries]` übergeben und ist `W`, wenn er fehlt; ein leerer Wert
 wird als Bedienfehler abgelehnt.
 
@@ -142,7 +143,23 @@ Viertelstunde).
 
 **Messwert (`Measurement`).** Ein Punkt einer Messreihe: ein `timestamp` (ISO-8601)
 und ein numerischer `value` in der Einheit der Zeitreihe – oder `null` für einen Punkt
-ohne Messwert (siehe *Kein Wert* unten).
+ohne Messwert (siehe *Kein Wert* unten). Punkte einer Vorhersage-Zeitreihe tragen
+zusätzlich `initialized` und `type`.
+
+**Vorhersage-Zeitreihe (`WV`, Wasserstandsvorhersage).** Eine **Vorhersage** des
+Wasserstands, kein Messwert: Die Bundesanstalt für Gewässerkunde (BfG) sagt den Stand
+einiger Pegel voraus – am 6. Oktober 2026 sieben am Rhein (OESTRICH, KAUB, KOBLENZ,
+KÖLN, DÜSSELDORF, DUISBURG-RUHRORT, EMMERICH) – etwa vier Tage im Voraus in
+Zwei-Stunden-Schritten (`equidistance` `120`). Die Werte stehen in der `unit` der
+Zeitreihe (dort `cm`, wie beim `W` des Pegels). Die API führt `WV` in der Zeitreihenliste
+eines Pegels nur mit `includeForecastTimeseries` (`--include-forecast`, schaltet
+`--include-timeseries` mit ein); `start`/`end` der Zeitreihe nennen das
+Vorhersagefenster, ihr `comment` Lauf und Quelle („Vorhersagen und Abschätzungen vom:
+06.10.2026 um 07:00 Uhr, Quelle: Bundesanstalt für Gewässerkunde“). Die Werte liefert
+`pegel measurements <station> WV`; jeder Punkt trägt `initialized` (wann der Lauf
+erstellt wurde) und `type`: **`forecast`** (Vorhersage) für die näheren Punkte, danach
+**`estimate`** (Abschätzung, ein gröberer Ausblick) für die späteren. `pegel current
+<station> WV` ist ein 404 – eine Vorhersage hat keinen aktuellen Messwert.
 
 **Kein Wert (`99999` → `null`).** Manche Pegel melden statt eines Messwerts den
 Platzhalter `99999` – so der Rhein-Pegel PANNERDENSE KOP (Rijkswaterstaat) am
@@ -228,10 +245,12 @@ Zeitreihen-Antwort einbetten; standardmäßig aus:
   Messwert in jede Zeitreihe ein.
 - **`includeCharacteristicValues`** (`--include-characteristic`) – bettet die
   Kennwerte (Pegelmarken) in jede Zeitreihe ein.
+- **`includeForecastTimeseries`** (`--include-forecast`, nur bei Pegel-Anfragen) – führt
+  zusätzlich die Vorhersage-Zeitreihe (`WV`) in der Zeitreihenliste auf.
 
-Die API verschachtelt beides in der Zeitreihenliste und verwirft es ohne
+Die API verschachtelt alle drei in der Zeitreihenliste und verwirft sie ohne
 `includeTimeseries` stillschweigend; bei einer Pegel-Anfrage schaltet daher jedes der
-beiden `includeTimeseries` mit ein (CLI und Client), sofern es nicht ausdrücklich
+drei `includeTimeseries` mit ein (CLI und Client), sofern es nicht ausdrücklich
 gesetzt ist.
 
 **Zeitfenster (`start` / `end`).** Die Grenzen einer `measurements`-Anfrage als

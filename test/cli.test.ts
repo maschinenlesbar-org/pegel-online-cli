@@ -41,7 +41,7 @@ test("stations list with filters builds the query", async () => {
 });
 
 test("--include-current / --include-characteristic imply --include-timeseries on stations get", async () => {
-  for (const flag of ["--include-current", "--include-characteristic"]) {
+  for (const flag of ["--include-current", "--include-characteristic", "--include-forecast"]) {
     const cli = makeCli(validFor);
     assert.equal(await run(["stations", "get", "BONN", flag], cli.deps), 0);
     assert.equal(new URL(cli.mt.last().url).searchParams.get("includeTimeseries"), "true", flag);
@@ -422,4 +422,28 @@ test("a number or uuid needs no lookup; a unique name costs one extra request", 
     assert.equal(cli.mt.calls.length, requests, station);
     assert.match(new URL(cli.mt.last().url).pathname, /currentmeasurement\.json$/);
   }
+});
+
+// ---- Forecast series (follow-up round 2026-10-06, item 2) ----
+
+test("--include-forecast asks for the forecast series on stations list and get", async () => {
+  for (const argv of [["stations", "list", "--waters", "RHEIN", "--include-forecast"], ["stations", "get", "2730010", "--include-forecast"]]) {
+    const cli = makeCli(validFor);
+    assert.equal(await run(argv, cli.deps), 0, cli.err.join("\n"));
+    const params = new URL(cli.mt.last().url).searchParams;
+    assert.equal(params.get("includeForecastTimeseries"), "true", argv.join(" "));
+    assert.equal(params.get("includeTimeseries"), "true", argv.join(" "));
+  }
+});
+
+test("measurements of WV print the forecast points with initialized and type", async () => {
+  // Trimmed from the live KÖLN (2730010) WV measurements of 2026-10-06.
+  const served = [
+    { initialized: "2026-10-06T07:00:00+02:00", timestamp: "2026-10-06T07:00:00+02:00", value: 50.0, type: "forecast" },
+    { initialized: "2026-10-06T07:00:00+02:00", timestamp: "2026-10-10T07:00:00+02:00", value: 73, type: "estimate" },
+  ];
+  const cli = makeCli(() => jsonResponse(served));
+  assert.equal(await run(["--compact", "measurements", "2730010", "WV"], cli.deps), 0);
+  assert.equal(new URL(cli.mt.last().url).pathname, `${V2}/stations/2730010/WV/measurements.json`);
+  assert.deepEqual(JSON.parse(cli.out.join("")), served);
 });

@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import { Option } from "commander";
 import type { CliDeps } from "../io.js";
 import { STATION_HELP, action, once, parseNonEmpty, parsePathArg, renderJson } from "../shared.js";
-import type { IncludeParams, StationListParams } from "../../client/types.js";
+import type { StationIncludeParams, StationListParams } from "../../client/types.js";
 import { stationListNotes, type StationListNote } from "../../client/client.js";
 import { describeStationChoice } from "../../client/errors.js";
 
@@ -31,12 +31,13 @@ function collect(value: string, previous: string[] = []): string[] {
   return previous.concat([parseNonEmpty(value)]);
 }
 
-/** Read the three include flags off a parsed-options object. */
-function includesFrom(opts: Record<string, unknown>): IncludeParams {
+/** Read the four include flags off a parsed-options object. */
+function includesFrom(opts: Record<string, unknown>): StationIncludeParams {
   return {
     includeTimeseries: opts["includeTimeseries"] as boolean | undefined,
     includeCurrentMeasurement: opts["includeCurrent"] as boolean | undefined,
     includeCharacteristicValues: opts["includeCharacteristic"] as boolean | undefined,
+    includeForecastTimeseries: opts["includeForecast"] as boolean | undefined,
   };
 }
 
@@ -53,6 +54,12 @@ function addIncludeOptions(cmd: Command): Command {
       new Option(
         "--include-characteristic",
         "embed characteristic (gauge-mark) values in each timeseries (implies --include-timeseries)",
+      ),
+    )
+    .addOption(
+      new Option(
+        "--include-forecast",
+        "also list forecast series (WV, water-level forecast) in the timeseries list (implies --include-timeseries)",
       ),
     );
 }

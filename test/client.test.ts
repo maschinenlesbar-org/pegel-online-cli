@@ -285,3 +285,37 @@ test("stations.assertUnique rejects a name two stations carry, listing them; acc
   assert.equal(isUnambiguousStationId("NEUSTADT"), false);
   assert.equal(isUnambiguousStationId(" 9610080 "), true);
 });
+
+test("includeForecastTimeseries lists the WV series on stations and implies includeTimeseries", async () => {
+  // Trimmed from the live KÖLN (2730010) station with forecasts, 2026-10-06.
+  const wv = {
+    shortname: "WV",
+    longname: "WASSERSTANDVORHERSAGE",
+    unit: "cm",
+    equidistance: 120,
+    start: "2026-10-06T07:00:00+02:00",
+    end: "2026-10-10T07:00:00+02:00",
+    comment: { shortDescription: "nwv-bfg", longDescription: "Vorhersagen und Abschätzungen vom: 06.10.2026 um 07:00 Uhr, Quelle: Bundesanstalt für Gewässerkunde." },
+  };
+  const served = { uuid: "u", number: "2730010", shortname: "KÖLN", longname: "KÖLN", timeseries: [wv] };
+  const mt = makeMockTransport((req) => jsonResponse(new URL(req.url).pathname.endsWith("stations.json") ? [served] : served));
+  const c = clientWith(mt);
+  const station = await c.stations.get("2730010", { includeForecastTimeseries: true });
+  let params = new URL(mt.last().url).searchParams;
+  assert.equal(params.get("includeForecastTimeseries"), "true");
+  assert.equal(params.get("includeTimeseries"), "true");
+  assert.deepEqual(station.timeseries?.[0], wv);
+  assert.equal(station.timeseries?.[0]?.start, "2026-10-06T07:00:00+02:00");
+  await c.stations.list({ waters: "RHEIN", includeForecastTimeseries: true });
+  params = new URL(mt.last().url).searchParams;
+  assert.equal(params.get("includeForecastTimeseries"), "true");
+  assert.equal(params.get("includeTimeseries"), "true");
+  const sent = mt.calls.length;
+  // Not a boolean, or on the per-series request (where it means nothing): rejected, no request.
+  await assert.rejects(c.stations.get("2730010", { includeForecastTimeseries: "yes" as unknown as boolean }), PegelValidationError);
+  await assert.rejects(
+    c.timeseries.get("2730010", "WV", { includeForecastTimeseries: true } as unknown as Record<string, never>),
+    PegelValidationError,
+  );
+  assert.equal(mt.calls.length, sent);
+});

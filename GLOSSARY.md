@@ -121,7 +121,8 @@ optional embedded `currentMeasurement`, and optional `characteristicValues`.
 **Timeseries shortname.** A short code identifying the quantity. The CLI default
 is **`W`** (water level / *Wasserstand*). Other codes a station may expose
 include **`Q`** (flow / discharge, *Durchfluss*), **`WT`** (water temperature),
-and **`LT`** (air temperature) — availability varies per station. The code is
+and **`LT`** (air temperature) — availability varies per station — and the
+forecast series **`WV`** (see *Forecast series* below). The code is
 passed as the optional `[timeseries]` positional and defaults to `W` when
 omitted; a blank value is rejected as a usage error.
 
@@ -142,7 +143,23 @@ hour).
 
 **Measurement (`Measurement`).** One point of a measurements series: a
 `timestamp` (ISO-8601) and a numeric `value` in the timeseries' unit — or `null`
-for a point without a reading (see *No value* below).
+for a point without a reading (see *No value* below). Points of a forecast series
+also carry `initialized` and `type`.
+
+**Forecast series (`WV`, *Wasserstandsvorhersage*).** A water-level **forecast**, not
+a measurement: the Bundesanstalt für Gewässerkunde (BfG) predicts the level of some
+gauges — on 6 October 2026 seven on the Rhine (OESTRICH, KAUB, KOBLENZ, KÖLN,
+DÜSSELDORF, DUISBURG-RUHRORT, EMMERICH) — about four days ahead in two-hour steps
+(`equidistance` `120`). Values are in the series' `unit` (`cm` there, like the gauge's
+`W`). The API lists `WV` in a station's timeseries only with
+`includeForecastTimeseries` (`--include-forecast`, which implies
+`--include-timeseries`); the series' `start`/`end` give the forecast window and its
+`comment` the issuing run and source ("Vorhersagen und Abschätzungen vom: 06.10.2026
+um 07:00 Uhr, Quelle: Bundesanstalt für Gewässerkunde"). The values come from
+`pegel measurements <station> WV`; each point carries `initialized` (when the run was
+issued) and `type`: **`forecast`** (*Vorhersage*) for the nearer points, then
+**`estimate`** (*Abschätzung*, a rougher outlook) for the later ones. `pegel current
+<station> WV` is a 404 — a forecast has no current measurement.
 
 **No value (`99999` → `null`).** Some gauges report the placeholder `99999` instead
 of a reading — the Rhine gauge PANNERDENSE KOP (Rijkswaterstaat) did, interleaved
@@ -227,9 +244,11 @@ timeseries response, off by default:
   measurement inside each timeseries.
 - **`includeCharacteristicValues`** (`--include-characteristic`) — embed the
   characteristic (gauge-mark) values inside each timeseries.
+- **`includeForecastTimeseries`** (`--include-forecast`, station requests only) — also
+  list the forecast series (`WV`) in the timeseries list.
 
-The API nests both inside the timeseries list and silently drops them without
-`includeTimeseries`, so on a station request either one implies
+The API nests all three inside the timeseries list and silently drops them without
+`includeTimeseries`, so on a station request each one implies
 `includeTimeseries` (CLI and client) unless that is set explicitly.
 
 **Time window (`start` / `end`).** The bounds of a `measurements` request, as

@@ -80,7 +80,8 @@ Leine and one on the Baltic coast), so `stations get`, `timeseries`, `current` a
 refuse one that names several stations: exit `2`, with an `Error:` line listing each of
 them with its number and uuid — use one of those. A `[timeseries]` defaults to **`W`** (water
 level); other codes include `Q` (flow/discharge), `WT` (water temperature), and
-`LT` (air temperature) depending on the station.
+`LT` (air temperature) depending on the station, and `WV`, the water-level forecast
+some gauges carry (see *Forecasts* below).
 
 ### `stations list` filters
 
@@ -92,6 +93,7 @@ level); other codes include `Q` (flow/discharge), `WT` (water temperature), and
 | `--include-timeseries` | embed each station's timeseries list |
 | `--include-current` | embed the current measurement in each timeseries (implies `--include-timeseries`) |
 | `--include-characteristic` | embed characteristic (gauge-mark) values in each timeseries (implies `--include-timeseries`) |
+| `--include-forecast` | also list forecast series (`WV`) in each timeseries list (implies `--include-timeseries`) |
 
 ### `stations get` options
 
@@ -100,10 +102,20 @@ level); other codes include `Q` (flow/discharge), `WT` (water temperature), and
 | `--include-timeseries` | embed the station's timeseries list |
 | `--include-current` | embed the current measurement in each timeseries (implies `--include-timeseries`) |
 | `--include-characteristic` | embed characteristic (gauge-mark) values in each timeseries (implies `--include-timeseries`) |
+| `--include-forecast` | also list forecast series (`WV`) in the timeseries list (implies `--include-timeseries`) |
 
 The API nests the current measurement and the gauge marks *inside* each
-timeseries and drops them without the timeseries list, so `--include-current` and
-`--include-characteristic` turn on `--include-timeseries` themselves.
+timeseries, and lists forecast series only within the timeseries list, so
+`--include-current`, `--include-characteristic` and `--include-forecast` turn on
+`--include-timeseries` themselves.
+
+**Forecasts (`WV`).** Some gauges — on the Rhine, e.g. KAUB, KÖLN, EMMERICH — carry a
+water-level **forecast** series `WV` (*Wasserstandsvorhersage*, by the Bundesanstalt
+für Gewässerkunde): predicted values, not measurements, about four days ahead in
+two-hour steps, in the series' `unit` (`cm`). `--include-forecast` shows which gauges have
+one; `pegel measurements <station> WV` prints the points, each with `initialized` (when
+the forecast was issued) and `type` (`forecast`, then the rougher `estimate`). `pegel
+current <station> WV` is a 404: a forecast has no current measurement.
 
 The API answers an unknown `--ids` entry by leaving it out, and an unknown `--waters` or
 `--fuzzy-id` with `[]`. The CLI says so on stderr (`Note: --ids "KOELN" matched no
@@ -145,6 +157,9 @@ pegel measurements BONN W --start 2026-06-01T00:00:00Z --end 2026-06-07T00:00:00
 
 # Gauge marks (MNW/MHW/NSW/HSW) for Cologne
 pegel stations get KÖLN --include-timeseries --include-characteristic
+
+# Water-level forecast for Cologne (WV, about four days ahead; not measured values)
+pegel measurements 2730010 WV
 
 # Timeseries metadata — discover which series a station exposes
 pegel timeseries BONN

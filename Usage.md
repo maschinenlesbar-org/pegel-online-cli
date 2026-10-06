@@ -211,6 +211,30 @@ matches the short/long name:
 pegel stations list --fuzzy-id bonn
 ```
 
+### 11. Water-level forecast (`WV`)
+
+Some gauges carry a **forecast** series `WV` (*Wasserstandsvorhersage*) from the
+Bundesanstalt für Gewässerkunde: predicted levels, not measurements, about four days
+ahead in two-hour steps, in the series' `unit` (`cm` on the Rhine gauges). The API lists
+it only on request — `--include-forecast` (implies `--include-timeseries`) shows which
+gauges of a water have one:
+
+```bash
+pegel stations list --waters RHEIN --include-forecast \
+  | jq -r '.[] | select(any(.timeseries[]; .shortname == "WV")) | "\(.shortname)\t\(.number)"'
+```
+
+The series' `start`/`end` are the forecast window and its `comment` names the run and
+the source. The values come from `measurements`; each point carries `initialized` (when
+the forecast was issued) and `type` — `forecast` for the nearer points, then
+`estimate` (a rougher outlook) for the later ones:
+
+```bash
+pegel measurements 2730010 WV | jq -r '.[] | [.timestamp, .value, .type] | @tsv'   # KÖLN
+```
+
+A forecast has no current measurement: `pegel current <station> WV` exits `4`.
+
 ## Global options
 
 These apply to every command and may be placed before or after it (before is

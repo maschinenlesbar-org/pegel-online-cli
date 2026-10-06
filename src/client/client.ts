@@ -26,6 +26,7 @@ import type {
   StationChoice,
   StationListParams,
   IncludeParams,
+  StationIncludeParams,
   MeasurementsParams,
 } from "./types.js";
 
@@ -88,7 +89,8 @@ function expectShape<T>(path: string, value: unknown, shape: Shape, what: string
 }
 
 const INCLUDE_KEYS = ["includeTimeseries", "includeCurrentMeasurement", "includeCharacteristicValues"] as const;
-const LIST_KEYS = ["ids", "waters", "fuzzyId", ...INCLUDE_KEYS] as const;
+const STATION_INCLUDE_KEYS = [...INCLUDE_KEYS, "includeForecastTimeseries"] as const;
+const LIST_KEYS = ["ids", "waters", "fuzzyId", ...STATION_INCLUDE_KEYS] as const;
 const MEASUREMENT_KEYS = ["start", "end"] as const;
 
 /**
@@ -99,7 +101,7 @@ const MEASUREMENT_KEYS = ["start", "end"] as const;
 function checkParams<T extends object>(name: string, params: T | undefined | null, allowed: readonly string[]): T {
   if (params === undefined || params === null) return {} as T;
   assertValid(name, params, knownKeysProblem(allowed));
-  for (const key of INCLUDE_KEYS) {
+  for (const key of STATION_INCLUDE_KEYS) {
     if (allowed.includes(key)) assertValid(key, (params as Record<string, unknown>)[key], optionalBooleanProblem);
   }
   return params;
@@ -140,16 +142,19 @@ function prune(params: Record<string, unknown>): QueryParams {
 
 /**
  * The station include parameters. The API nests the current measurement and the
- * gauge marks *inside* each timeseries, so without `includeTimeseries=true` it
- * silently drops both. Asking for either therefore implies `includeTimeseries`
- * unless the caller set it explicitly.
+ * gauge marks *inside* each timeseries, and the forecast series are entries of the
+ * timeseries list, so without `includeTimeseries=true` it silently drops all three.
+ * Asking for any of them therefore implies `includeTimeseries` unless the caller set
+ * it explicitly.
  */
-function stationIncludes(p: IncludeParams): QueryParams {
-  const nested = p.includeCurrentMeasurement === true || p.includeCharacteristicValues === true;
+function stationIncludes(p: StationIncludeParams): QueryParams {
+  const nested =
+    p.includeCurrentMeasurement === true || p.includeCharacteristicValues === true || p.includeForecastTimeseries === true;
   return prune({
     includeTimeseries: p.includeTimeseries ?? (nested ? true : undefined),
     includeCurrentMeasurement: p.includeCurrentMeasurement,
     includeCharacteristicValues: p.includeCharacteristicValues,
+    includeForecastTimeseries: p.includeForecastTimeseries,
   });
 }
 
@@ -203,8 +208,8 @@ class StationsResource {
     if (named.length > 1) throw new PegelAmbiguousStationError(id, named.map(choiceOf));
   }
 
-  async get(station: string, params: IncludeParams = {}): Promise<Station> {
-    params = checkParams("stations.get parameters", params, INCLUDE_KEYS);
+  async get(station: string, params: StationIncludeParams = {}): Promise<Station> {
+    params = checkParams("stations.get parameters", params, STATION_INCLUDE_KEYS);
     const path = `${API}/stations/${enc("station", station)}.json`;
     return stationOf(expectShape(path, await this.e.getJson(path, stationIncludes(params)), isStation, "a station object"));
   }
