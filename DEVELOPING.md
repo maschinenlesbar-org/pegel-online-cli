@@ -339,7 +339,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`io.test.ts`** — `handleOutputErrors` on fake streams: the pipe cases, and a stdout
   write error as an ERROR record of `pegel.output`.
 - **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
-  (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
+  (`escapeForRecord`, `formatLogRecord`, `installWarningLog`); the CLI-level checks are P23's.
 - **Parity tests** use `parity()` from `test/helpers.ts`: one input through `run()` and through
   the library call on recording mock transports; both must reject without a request, or both
   send the same request.
@@ -417,7 +417,10 @@ filter that matched nothing or a name two stations share), `http` (the
 connection, the cleartext warning) and `output` (a failed write to stdout). A failed
 write to stdout other than a closed pipe (`handleOutputErrors`, in the bin shim, outside
 `run()`) is an ERROR record of `pegel.output` (`Could not write to stdout: …`), in the
-format argv asks for and redacted like the run's log (`processLogger`). Code logs through `logOf(deps)` and never writes
+format argv asks for and redacted like the run's log (`processLogger`). So are Node's own
+process warnings (`installWarningLog`, also installed by the shim): a WARN record of
+`pegel.cli`, `(node) <name>: <message>`, instead of Node's plain `(node:PID) Warning: …`
+line (e.g. with `NODE_TLS_REJECT_UNAUTHORIZED=0`). Code logs through `logOf(deps)` and never writes
 diagnostics with `io.err` directly. `run()` builds the logger from argv before commander
 parses it (`logFormatFromArgv`, used only for the records of a parse error: it takes the
 first `--log-format`, as commander does with `once()`, and skips the value of the
