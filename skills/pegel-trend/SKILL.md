@@ -32,8 +32,8 @@ Data is fetched from the open PEGELONLINE REST API — read-only, **no API key**
 
 If you're unsure of the exact selector, resolve it first with
 `pegel --compact stations list --fuzzy-id <name>` and take the `shortname` — unless two
-results share it (`NEUSTADT`: LEINE and OSTSEE; the CLI prints a `Note: … names 2
-stations` on stderr): a lookup by that name is refused (**exit code 2**, an `Invalid
+results share it (`NEUSTADT`: LEINE and OSTSEE; the CLI logs an `INFO  [pegel.api] … names 2
+stations` record on stderr): a lookup by that name is refused (**exit code 2**, an `Invalid
 station "NEUSTADT": it names 2 stations …` error listing each one's number and uuid), so
 use the `number` (or `uuid`) of the station the user means. A wrong selector returns
 **exit code 4**.
@@ -76,7 +76,7 @@ timestamps are local. Default series sampling is ~15 min, so a week is ~670 poin
 
 > **Trap: a bad `--start` is an error, an empty window is not.** An unparseable
 > period/date (e.g. `7d`) makes the API return **HTTP 400**; the CLI prints
-> `Error: HTTP 400 … Given start parameter is neither a valid ISO date time, nor an
+> `ERROR [pegel.api] HTTP 400 … Given start parameter is neither a valid ISO date time, nor an
 > ISO period.` to stderr, leaves stdout empty and **exits 1**. Fix the period
 > (`P7D`, not `7d`) and retry. A window that starts in the future is also an
 > **HTTP 400 / exit 1** (`Start datetime … not before end datetime …`). A valid

@@ -77,7 +77,7 @@ A `<station>` may be a **uuid**, **number**, **shortname** or **longname** — e
 `BONN`, `6302010`, or a full UUID. Names are not unique (`NEUSTADT` is a gauge on the
 Leine and one on the Baltic coast), so `stations get`, `timeseries`, `current` and
 `measurements` look a name up first (one extra request; none for a number or uuid) and
-refuse one that names several stations: exit `2`, with an `Error:` line listing each of
+refuse one that names several stations: exit `2`, with an `ERROR` record on stderr listing each of
 them with its number and uuid — use one of those. A `[timeseries]` defaults to **`W`** (water
 level); other codes include `Q` (flow/discharge), `WT` (water temperature), and
 `LT` (air temperature) depending on the station, and `WV`, the water-level forecast
@@ -118,7 +118,7 @@ the forecast was issued) and `type` (`forecast`, then the rougher `estimate`). `
 current <station> WV` is a 404: a forecast has no current measurement.
 
 The API answers an unknown `--ids` entry by leaving it out, and an unknown `--waters` or
-`--fuzzy-id` with `[]`. The CLI says so on stderr (`Note: --ids "KOELN" matched no
+`--fuzzy-id` with `[]`. The CLI says so on stderr (`INFO  [pegel.api] --ids "KOELN" matched no
 station; …`) and still exits `0`. Every option but `--ids` takes one value; giving one
 twice is a usage error (exit `2`).
 
@@ -172,6 +172,21 @@ pegel stations list --ids BONN --ids KÖLN --ids EMMERICH --include-current
 
 Every command prints **pretty JSON to stdout**. Errors and diagnostics go to
 stderr, so piping stdout into `jq` stays clean.
+
+Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
+`INFO`) and a topic, the program and the area it comes from (`pegel.cli` for usage
+errors, `pegel.api` for the API's answers and the notes on a filter that matched nothing,
+`pegel.http` for the connection). By default it is written log4j style; `--log-format
+jsonl` writes one JSON object per line instead:
+
+```text
+2026-10-09T14:03:12.481Z WARN  [pegel.http] requests to mirror.test are sent unencrypted (http:, not https:)
+2026-10-09T14:03:12.902Z ERROR [pegel.api] HTTP 404 for GET https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations/NOWHERE.json: Station not found
+```
+
+```bash
+pegel --log-format jsonl stations get NOWHERE 2>log.jsonl   # {"ts":"…","level":"ERROR","topic":"pegel.api","msg":"HTTP 404 …"}
+```
 
 A reading's `value` is in the unit of its timeseries (see `pegel timeseries <station>`) —
 `cm` for most water levels, but `m+NN` or `m+PNP` (metres) on canal and reservoir gauges —
@@ -258,7 +273,8 @@ These apply to every command and may be given before *or* after it:
 | `-V, --version` | Print the version number |
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `--base-url <url>` | API base URL (default `https://www.pegelonline.wsv.de`); http(s) only, a path prefix is fine, no query (`?`), fragment (`#`), whitespace or control characters; userinfo is sent as Basic auth but shown as `***` in messages (write a literal `%` in it as `%25`). A plain `http:` URL to a host other than `localhost`, `127.x.x.x` or `::1` prints one `warning: requests to <host> are sent unencrypted (http:, not https:)` line on stderr (naming the base URL's credentials when it has userinfo, never printing them); stdout and the exit code are unchanged |
+| `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [pegel.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
+| `--base-url <url>` | API base URL (default `https://www.pegelonline.wsv.de`); http(s) only, a path prefix is fine, no query (`?`), fragment (`#`), whitespace or control characters; userinfo is sent as Basic auth but shown as `***` in messages (write a literal `%` in it as `%25`). A plain `http:` URL to a host other than `localhost`, `127.x.x.x` or `::1` logs one warning on stderr, `WARN  [pegel.http] requests to <host> are sent unencrypted (http:, not https:)` (naming the base URL's credentials when it has userinfo, never printing them); stdout and the exit code are unchanged |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; Latin-1, no control characters) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, `0`–`10` (default `2`); each waits 200 ms × attempt, or longer if the server's `Retry-After` asks (up to 30 s; a longer one is not retried, and the error names the wait). A timeout is not retried |

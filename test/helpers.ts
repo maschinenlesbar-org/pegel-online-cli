@@ -79,6 +79,18 @@ export interface LibOutcome {
   requests: HttpRequest[];
 }
 
+// ---- the log on stderr -------------------------------------------------------
+
+/**
+ * stderr with each text record's timestamp taken off: `ERROR [pegel.api] HTTP 404 …`.
+ * The format itself — timestamp, level, topic — is the conformance test's
+ * (conformance-p23-log-format); the other tests check what was said, at which level
+ * and under which topic.
+ */
+export function untimed(text: string): string {
+  return text.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z /gm, "");
+}
+
 /**
  * Send one input through the CLI (`run(argv)`, its client built on a recording mock
  * transport) and through the library (`call(transport)`, typically
@@ -99,7 +111,7 @@ export async function parity(
     io: { out: (s) => out.push(s), err: (s) => err.push(s) },
     createClient: (options) => new PegelOnlineClient({ ...options, transport: cliTransport.transport }),
   });
-  const cli: CliOutcome = { code, out: out.join("\n"), err: err.join("\n"), requests: cliTransport.calls };
+  const cli: CliOutcome = { code, out: out.join("\n"), err: untimed(err.join("\n")), requests: cliTransport.calls };
 
   const libTransport = makeMockTransport(responder);
   let lib: LibOutcome;

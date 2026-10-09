@@ -5,7 +5,7 @@ import { PegelOnlineClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { PegelValidationError } from "../src/client/errors.js";
-import { makeMockTransport, jsonResponse, validFor } from "./helpers.js";
+import { makeMockTransport, jsonResponse, untimed, validFor } from "./helpers.js";
 
 const V2 = "/webservices/rest-api/v2";
 
@@ -330,12 +330,12 @@ test("a deeply nested response is a clear error, not a stack overflow", async ()
   const respond = () => ({ status: 200, headers: { "content-type": "application/json" }, body: Buffer.from(deep) });
   const pretty = makeCli(respond);
   assert.equal(await run(["stations", "get", "2710080"], pretty.deps), 1);
-  assert.deepEqual(pretty.err, ["Error: The response is nested too deeply to pretty-print; try --compact."]);
+  assert.deepEqual(pretty.err.map(untimed), ["ERROR [pegel.cli] The response is nested too deeply to pretty-print; try --compact."]);
   const compact = makeCli(respond);
   const code = await run(["--compact", "stations", "get", "2710080"], compact.deps);
   if (code !== 0) {
     assert.equal(code, 1);
-    assert.deepEqual(compact.err, ["Error: The response is nested too deeply to print."]);
+    assert.deepEqual(compact.err.map(untimed), ["ERROR [pegel.cli] The response is nested too deeply to print."]);
   }
 });
 
@@ -345,7 +345,7 @@ test("an NFD-typed station name is sent composed", async () => {
   assert.equal(new URL(cli.mt.last().url).pathname, `${V2}/stations/K%C3%96LN.json`);
 });
 
-test("a PegelValidationError raised in an action is a usage error: exit 2, 'Error: <message>'", async () => {
+test("a PegelValidationError raised in an action is a usage error: exit 2 and an ERROR record", async () => {
   const out: string[] = [];
   const err: string[] = [];
   const client = new PegelOnlineClient({ transport: makeMockTransport(() => jsonResponse([])).transport });
@@ -358,7 +358,7 @@ test("a PegelValidationError raised in an action is a usage error: exit 2, 'Erro
   });
   assert.equal(code, 2);
   assert.deepEqual(out, []);
-  assert.deepEqual(err, ["Error: Invalid waters: Expected a non-empty value."]);
+  assert.deepEqual(err.map(untimed), ["ERROR [pegel.cli] Invalid waters: Expected a non-empty value."]);
 });
 
 test("a shortname that names two stations is reported on stations list (02#1)", async () => {
@@ -369,8 +369,8 @@ test("a shortname that names two stations is reported on stations list (02#1)", 
   for (const argv of [["stations", "list", "--ids", "NEUSTADT"], ["stations", "list", "--fuzzy-id", "neustadt"]]) {
     const cli = makeCli(() => jsonResponse(two));
     assert.equal(await run(argv, cli.deps), 0);
-    const err = cli.err.join("\n");
-    assert.match(err, /"NEUSTADT" names 2 stations: NEUSTADT on LEINE \(number 48800200, uuid dda39817\) and NEUSTADT on OSTSEE \(number 9610080, uuid 3f0b6b74\)/);
+    const err = untimed(cli.err.join("\n"));
+    assert.match(err, /^INFO  \[pegel\.api\] "NEUSTADT" names 2 stations: NEUSTADT on LEINE \(number 48800200, uuid dda39817\) and NEUSTADT on OSTSEE \(number 9610080, uuid 3f0b6b74\)/);
     assert.match(err, /use the number or uuid/);
   }
   // Unique names, or a listing without a name filter: no note.
@@ -403,8 +403,8 @@ for (const argv of [["stations", "get", "NEUSTADT"], ["timeseries", "NEUSTADT"],
     assert.equal(await run(argv, cli.deps), 2);
     assert.deepEqual(cli.out, []);
     assert.equal(cli.err.length, 1, cli.err.join("\n"));
-    const msg = cli.err[0]!;
-    assert.match(msg, /^Error: Invalid station "(NEUSTADT|neustadt)": it names 2 stations, /);
+    const msg = untimed(cli.err[0]!);
+    assert.match(msg, /^ERROR \[pegel\.cli\] Invalid station "(NEUSTADT|neustadt)": it names 2 stations, /);
     for (const s of [NEUSTADT_LEINE, NEUSTADT_OSTSEE]) {
       assert.ok(msg.includes(`on ${s.water.shortname} (number ${s.number}, uuid ${s.uuid})`), msg);
     }

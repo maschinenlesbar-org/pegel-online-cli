@@ -42,7 +42,7 @@ pegel --compact stations list --fuzzy-id bonn
 their `shortname`, `number`, `uuid`, `km`, `water` and coordinates. Use the
 `shortname` from there — **unless two results share it**: names are not unique
 (`NEUSTADT` is a gauge on the LEINE and one on the OSTSEE), the CLI then prints
-`Note: "NEUSTADT" names 2 stations …` on stderr, and a lookup by that name is refused
+`INFO  [pegel.api] "NEUSTADT" names 2 stations …` on stderr, and a lookup by that name is refused
 (**exit code 2**, an `Invalid station "NEUSTADT": it names 2 stations …` error listing
 each one's water, number and uuid). Pick the station by its `water`/place and use its
 **`number`** (or `uuid`) instead. Note: a station selector that doesn't exist returns **exit

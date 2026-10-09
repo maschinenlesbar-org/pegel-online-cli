@@ -19,9 +19,9 @@ A `<station>` argument may be a **uuid**, **number**, **shortname** or
 **longname**. Names are not unique (`NEUSTADT` is a LEINE and an OSTSEE gauge): given a
 name, `stations get`, `timeseries`, `current` and `measurements` first look it up (one
 extra request; none for a number or uuid) and refuse a name that names several stations
-with exit `2` and an `Error: Invalid station "NEUSTADT": it names 2 stations, NEUSTADT
+with exit `2` and an `ERROR [pegel.cli] Invalid station "NEUSTADT": it names 2 stations, NEUSTADT
 on LEINE (number 48800200, uuid …) and NEUSTADT on OSTSEE (number 9610080, uuid …); use
-the number or uuid.` line. A `[timeseries]` argument defaults to **`W`** (water level); other
+the number or uuid.` record on stderr. A `[timeseries]` argument defaults to **`W`** (water level); other
 common series are `Q` (flow/discharge), `WT` (water temperature) and `LT` (air
 temperature), depending on the station.
 
@@ -190,7 +190,7 @@ pegel stations list --ids BONN --ids KÖLN --ids EMMERICH --include-current
 
 `--ids` is repeatable; supply it once per station. For an inexact name match use
 `--fuzzy-id` instead. The API drops an id it doesn't know without saying so; the CLI
-prints `Note: --ids "KOELN" matched no station; …` on stderr for each such id (exit 0, the
+logs `INFO  [pegel.api] --ids "KOELN" matched no station; …` on stderr for each such id (exit 0, the
 others are listed), and the same kind of note when `--waters` or `--fuzzy-id` matched
 nothing. `--waters`, `--fuzzy-id`, `--start`, `--end` and the global options take one
 value: giving one twice is a usage error (exit 2).
@@ -243,12 +243,13 @@ clearer):
 | Option | Description |
 | --- | --- |
 | `-V, --version` | Print the version and exit |
-| `--base-url <url>` | API base URL (default `https://www.pegelonline.wsv.de`); http(s) only, a path prefix is fine, no query (`?`), fragment (`#`), whitespace or control characters; userinfo is sent as Basic auth but shown as `***` in messages (write a literal `%` in it as `%25`). A plain `http:` URL to a host other than `localhost`, `127.x.x.x` or `::1` prints one `warning: requests to <host> are sent unencrypted (http:, not https:)` line on stderr (naming the base URL's credentials when it has userinfo, never printing them); stdout and the exit code are unchanged |
+| `--base-url <url>` | API base URL (default `https://www.pegelonline.wsv.de`); http(s) only, a path prefix is fine, no query (`?`), fragment (`#`), whitespace or control characters; userinfo is sent as Basic auth but shown as `***` in messages (write a literal `%` in it as `%25`). A plain `http:` URL to a host other than `localhost`, `127.x.x.x` or `::1` logs one warning on stderr, `WARN  [pegel.http] requests to <host> are sent unencrypted (http:, not https:)` (naming the base URL's credentials when it has userinfo, never printing them); stdout and the exit code are unchanged |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; Latin-1, no control characters) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, `0`–`10` (default `2`); each waits 200 ms × attempt, or longer if the server's `Retry-After` asks (up to 30 s; a longer one is not retried, and the error names the wait). A timeout is not retried |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
+| `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [pegel.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
 | `-h, --help` | Show help for the program or a command |
 
 Example combining a global option with a command:

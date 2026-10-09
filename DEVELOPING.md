@@ -105,7 +105,8 @@ src/
     validate.ts  # input rules (Problem functions) + assertValid, shared by library and CLI
     client.ts    # PegelOnlineClient — stations + timeseries resources over the engine
   cli/
-    io.ts        # injectable I/O seam (stdout/stderr)
+    io.ts        # injectable I/O seam (stdout/stderr), the logger and the clock
+    log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers, global-option resolver, JSON renderer
     commands/    # stations + timeseries/measurements/waters
     program.ts   # assembles the commander program from injectable deps
@@ -257,7 +258,7 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   unparseable URL and a loopback host (`localhost`, 127.0.0.0/8, `::1`). `<host>` is
   `url.host`; the sentence never holds a password. It is advice, not a rule: the engine
   still accepts `http:`. The CLI's `action()` (`cli/shared.ts`) prints it once per run
-  as `warning: <sentence>` on stderr before the client is built; help, version and
+  as a `WARN` record of `pegel.http` on stderr before the client is built; help, version and
   usage errors never reach an action, and stdout and the exit code are unchanged.
 - **User-Agent** (`headerValueProblem`): only an omitted `userAgent` selects the
   default `pegel-online-cli`. An explicit value must not be blank (it would replace
@@ -281,7 +282,7 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   value }`), and — when the call looked stations up by name (`ids`, `fuzzyId`) — every
   shortname two returned stations share (`{ kind: "ambiguous", name, stations }`;
   `NEUSTADT` names a LEINE and an OSTSEE gauge, and the API answers a lookup by that name
-  with one of them). The CLI prints them as `Note: …` lines on stderr and exits 0.
+  with one of them). The CLI logs them as `INFO` records of `pegel.api` on stderr and exits 0.
 - **Ambiguous station names** (`stations.assertUnique(station)`, `isUnambiguousStationId`,
   `PegelAmbiguousStationError`): the per-station methods (`stations.get`, `timeseries.*`)
   send a name as given and make no extra request. `assertUnique` checks it first: a uuid
@@ -296,8 +297,8 @@ nothing: it throws (from a constructor) or rejects (from a method) with
 The CLI's
 commander parsers call the same functions, so a rule exists once; a single-value option
 given twice is a usage error (`once` in `cli/shared.ts`) rather than the last one winning; `run.ts` maps a
-`PegelValidationError` raised during an action to the usage exit code 2, printed as
-`Error: <message>`.
+`PegelValidationError` raised during an action to the usage exit code 2, logged as an
+`ERROR` record of `pegel.cli`.
 
 ## Testing
 
@@ -324,7 +325,8 @@ npm test          # builds, then runs `node --test` over dist/test
   environment and other-secret cases are skipped — pegel reads no environment variable
   and sends no key) and P21 (every relative link in `README.md`, which npmjs.com shows, points
   to a file `package.json` `files` ships; a document the tarball leaves out is linked by its
-  `https://github.com/maschinenlesbar-org/pegel-online-cli/blob/main/…` URL). `validFor()` in
+  `https://github.com/maschinenlesbar-org/pegel-online-cli/blob/main/…` URL), and P23 (the
+  stderr log: records with timestamp, level and topic, `--log-format text|jsonl`). `validFor()` in
   `test/helpers.ts` answers any endpoint with a body of its documented shape.
 
 ## Continuous integration
@@ -365,3 +367,20 @@ npm run serve                        # http://127.0.0.1:4000/pegel-online-cli/
 Dual-licensed under **[AGPL-3.0-or-later](LICENSE)** or a commercial license — see
 **[LICENSING.md](LICENSING.md)**. This project does **not** accept external code
 contributions; see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
+## The log on stderr
+
+Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+(`ERROR`, `WARN`, `INFO`) and a topic, `pegel.<area>`. `--log-format text` (the default)
+writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
+`--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
+and `msg`. The areas are `cli` (usage errors, commander's messages, validation errors such
+as an ambiguous station name, unexpected errors), `api` (the API's answers, and the notes
+on a filter that matched nothing or a name two stations share) and `http` (the
+connection, the cleartext warning). Code logs through `logOf(deps)` and never writes
+diagnostics with `io.err` directly. `run()` builds the logger from argv before commander
+parses it, so commander's own usage errors are records too, and on top of the redacted
+`io.err`, so a secret is kept out of the log in either format. `CliDeps.now` makes the
+timestamps testable. stdout carries data only; `Output error: …` from
+`handleOutputErrors`, written outside `run()`, stays a raw line. Conformance test P23
+checks all of this, and its body is shared across the *-cli repos.

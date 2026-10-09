@@ -39,8 +39,8 @@ pegel --compact stations list --ids BONN --ids KÖLN --ids EMMERICH # a fixed se
 ```
 
 For a fixed set, read stderr: an id that matched no station is left out of the answer
-and named in a `Note: --ids "…" matched no station` line, and a name that two stations
-share (`NEUSTADT`) gets a `Note: … names 2 stations` line — report both, and use the
+and named in an `INFO  [pegel.api] --ids "…" matched no station` record, and a name that two stations
+share (`NEUSTADT`) gets an `INFO  [pegel.api] … names 2 stations` record — report both, and use the
 `number` to pick one. An empty `--waters` result likewise comes with a note.
 
 To bake **live levels** into the map, add **both** embed flags (see trap):

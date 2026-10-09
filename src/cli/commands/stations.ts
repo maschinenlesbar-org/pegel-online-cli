@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { Option } from "commander";
-import type { CliDeps } from "../io.js";
+import { logOf, type CliDeps } from "../io.js";
 import { STATION_HELP, action, once, parseNonEmpty, parsePathArg, renderJson } from "../shared.js";
 import type { StationIncludeParams, StationListParams } from "../../client/types.js";
 import { stationListNotes, type StationListNote } from "../../client/client.js";
@@ -11,18 +11,18 @@ function noteText(note: StationListNote): string {
   if (note.kind === "ambiguous") {
     const which = note.stations.map(describeStationChoice).join(" and ");
     return (
-      `Note: ${JSON.stringify(note.name)} names ${note.stations.length} stations: ${which}. ` +
+      `${JSON.stringify(note.name)} names ${note.stations.length} stations: ${which}. ` +
       "A lookup by that name (stations get, timeseries, current, measurements) is refused; use the number or uuid."
     );
   }
   const value = JSON.stringify(note.value);
   switch (note.filter) {
     case "ids":
-      return `Note: --ids ${value} matched no station; the list has only the others. Find the name with --fuzzy-id.`;
+      return `--ids ${value} matched no station; the list has only the others. Find the name with --fuzzy-id.`;
     case "waters":
-      return `Note: --waters ${value} matched no station; it takes a water shortname as \`pegel waters\` lists it (e.g. RHEIN).`;
+      return `--waters ${value} matched no station; it takes a water shortname as \`pegel waters\` lists it (e.g. RHEIN).`;
     case "fuzzyId":
-      return `Note: --fuzzy-id ${value} matched no station; it is matched literally, umlauts included (köln, not koeln).`;
+      return `--fuzzy-id ${value} matched no station; it is matched literally, umlauts included (köln, not koeln).`;
   }
 }
 
@@ -85,7 +85,7 @@ export function registerStationCommands(program: Command, deps: CliDeps): void {
       renderJson(deps, global, stations);
       // Filter values the API matched nothing for: still exit 0 (the answer is valid),
       // but say so on stderr rather than silently printing fewer stations or [].
-      for (const note of stationListNotes(params, stations)) deps.io.err(noteText(note));
+      for (const note of stationListNotes(params, stations)) logOf(deps).info("api", noteText(note));
     }),
   );
 
