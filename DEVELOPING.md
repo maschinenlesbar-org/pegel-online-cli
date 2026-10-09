@@ -412,7 +412,11 @@ as an ambiguous station name, unexpected errors), `api` (the API's answers, and 
 on a filter that matched nothing or a name two stations share) and `http` (the
 connection, the cleartext warning). Code logs through `logOf(deps)` and never writes
 diagnostics with `io.err` directly. `run()` builds the logger from argv before commander
-parses it, so commander's own usage errors are records too: its `error: …` an ERROR of
+parses it (`logFormatFromArgv`, used only for the records of a parse error: it takes the
+first `--log-format`, as commander does with `once()`, and skips the value of the
+program's own value options, as commander does; a `preAction` hook then sets the format
+commander parsed, so `--user-agent --log-format=jsonl` logs text), so commander's own
+usage errors are records too: its `error: …` an ERROR of
 `cli` (a `(Did you mean …?)` line joined to it), and the help it shows after one an INFO
 record per line (`writeCommanderErr`). A command group without its subcommand
 (`pegel stations`), global options without a command and `help` for an unknown command

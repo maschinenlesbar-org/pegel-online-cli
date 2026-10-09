@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { logOf, type CliDeps } from "./io.js";
-import { createLogger, logFormatFromArgv } from "./log.js";
+import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat } from "./log.js";
 import {
   PegelApiError,
   PegelError,
@@ -54,6 +54,22 @@ function writeCommanderErr(deps: CliDeps, str: string): void {
 /** Distinct exit code for usage/parse errors, so scripts can tell a user mistake
  *  apart from a runtime/network failure (which exit 1). */
 const USAGE_EXIT = 2;
+
+/**
+ * The names (long and short) of the program's own options that require a value
+ * (`--user-agent`). Only the program's: commander takes them out of argv wherever they
+ * stand, before a subcommand sees the rest, so a subcommand's `--ids` never swallows a
+ * `--log-format` after it.
+ */
+function valueOptionsOf(program: Command): Set<string> {
+  const names = new Set<string>();
+  for (const option of program.options) {
+    if (!option.required) continue;
+    if (option.long !== undefined) names.add(option.long);
+    if (option.short !== undefined) names.add(option.short);
+  }
+  return names;
+}
 
 /**
  * The options whose value is a base URL: a `user:password@host` given there without its
@@ -153,6 +169,18 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
   deps = withRedactedOutput(deps, argv);
   const program = buildProgram(deps);
   configureTree(program, deps);
+  // For the records of a parse error: the scan of argv, now knowing which of the
+  // program's options take a value, as commander reads them.
+  if (deps.log !== undefined) deps.log.format = logFormatFromArgv(argv, valueOptionsOf(program));
+  // One source for the format once commander has parsed argv: its value, not the scan
+  // of argv (an option's value can look like --log-format; `--` ends the scan, not
+  // commander's parse of a value). Ancestors' hooks run first, so this precedes every
+  // other preAction check.
+  const log = deps.log;
+  program.hook("preAction", (_program, actionCommand) => {
+    const format = (actionCommand.optsWithGlobals() as { logFormat?: LogFormat }).logFormat;
+    if (log !== undefined) log.format = format ?? DEFAULT_LOG_FORMAT;
+  });
 
   // A bare invocation with no command should show help on stdout and exit 0,
   // matching `--help`, rather than erroring out with help on stderr.
