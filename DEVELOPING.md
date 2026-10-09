@@ -302,8 +302,10 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   note): white space folded to one space, control and bidi characters dropped, cut at 200
   characters, so a hostile mirror can't split the message into a forged log record or
   steer the terminal. It lists at most `MAX_LISTED_STATIONS` (10) stations and counts
-  the rest (`… (490 more)`, `describeStationChoices`, exported). `.stations` keeps them
-  all, with the fields as the server sent them.
+  the rest (`… (490 more)`, `describeStationChoices`, exported), and leaves out a field
+  that is not a string (a station without a `number`) instead of printing `undefined`.
+  `.stations` keeps them all, with the fields as the server sent them (a `water` that is
+  not a string is left out).
 
 The CLI's
 commander parsers call the same functions, so a rule exists once; a single-value option

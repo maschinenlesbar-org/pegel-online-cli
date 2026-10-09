@@ -247,11 +247,15 @@ export class PegelAmbiguousStationError extends PegelValidationError {
 /**
  * `NEUSTADT on LEINE (number 48800200, uuid dda39817-…)`: one station, told apart. Every
  * field is the server's text, so each goes through `serverTextForMessage`: one line, no
- * control or bidi characters, at most 200 characters.
+ * control or bidi characters, at most 200 characters. A field that is not a string (a
+ * station without a `number`, a `null` one) is left out rather than shown as
+ * `undefined`; the shape check guarantees only `uuid` and `shortname`.
  */
 export function describeStationChoice(s: StationChoice): string {
-  const text = serverTextForMessage;
-  return `${text(s.shortname)}${s.water !== undefined ? ` on ${text(s.water)}` : ""} (number ${text(s.number)}, uuid ${text(s.uuid)})`;
+  const text = (value: unknown): string | undefined => (typeof value === "string" ? serverTextForMessage(value) : undefined);
+  const water = text(s.water);
+  const number = text(s.number);
+  return `${text(s.shortname) ?? ""}${water !== undefined ? ` on ${water}` : ""} (${number !== undefined ? `number ${number}, ` : ""}uuid ${text(s.uuid) ?? ""})`;
 }
 
 /** The most stations {@link describeStationChoices} lists; the rest are counted. */

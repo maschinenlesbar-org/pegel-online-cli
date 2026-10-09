@@ -358,3 +358,24 @@ test("the ambiguous-station message lists at most MAX_LISTED_STATIONS stations a
   assert.equal(describeStationChoices(two), `${describeStationChoice(two[0]!)} and ${describeStationChoice(two[1]!)}`);
   assert.equal(MAX_LISTED_STATIONS, 10);
 });
+
+test("a station field of the wrong type is left out of the message, not printed as undefined or [object Object] (B01-3)", async () => {
+  const stations = [
+    { uuid: "u-1", shortname: "NEUSTADT", longname: "NEUSTADT" },
+    { uuid: "u-2", number: "9610010", shortname: "NEUSTADT", longname: "NEUSTADT", water: { shortname: { x: 1 }, longname: "X" } },
+    { uuid: "u-3", number: null, shortname: "neustadt", longname: "NEUSTADT", water: null },
+    { uuid: "u-4", number: 42, shortname: "NEUSTADT", longname: "NEUSTADT", water: { shortname: "LEINE" } },
+  ];
+  const client = new PegelOnlineClient({ transport: async () => jsonResponse(stations) });
+  await assert.rejects(client.stations.assertUnique("NEUSTADT"), (err: unknown) => {
+    assert.ok(err instanceof PegelAmbiguousStationError);
+    assert.equal(
+      err.message,
+      'Invalid station "NEUSTADT": it names 4 stations, NEUSTADT (uuid u-1) and NEUSTADT (number 9610010, uuid u-2) and ' +
+        "neustadt (uuid u-3) and NEUSTADT on LEINE (uuid u-4); use the number or uuid.",
+    );
+    assert.doesNotMatch(err.message, /undefined|null|object Object|number 42/);
+    assert.equal(err.stations[1]?.water, undefined, "a water shortname that is no string is no water");
+    return true;
+  });
+});

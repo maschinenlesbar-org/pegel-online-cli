@@ -236,7 +236,8 @@ function choiceOf(s: Station): StationChoice {
     number: s.number,
     shortname: s.shortname,
     longname: s.longname,
-    ...(s.water?.shortname !== undefined ? { water: s.water.shortname } : {}),
+    // A water shortname that is no string (an object from a broken mirror) is no water.
+    ...(typeof s.water?.shortname === "string" ? { water: s.water.shortname } : {}),
   };
 }
 
