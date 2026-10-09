@@ -256,7 +256,12 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   engine keeps the base URL (and any `headers` a caller adds) in real `#private` fields,
   so `console.log(client)`, `util.inspect` and `JSON.stringify` never show them, and it
   scrubs the base URL's userinfo (raw and percent-decoded) from error bodies, details,
-  transport error text and the `cause` chain it attaches.
+  transport error text and the `cause` chain it attaches — and with it the forms a server
+  echoes it back in (`echoedCredentialForms`, exported): the `Authorization: Basic` value,
+  the decoded `user:password`, and the password alone from 4 characters on
+  (`redactSecrets`, exported). The CLI replaces the Basic value and the pair on stdout and
+  stderr, the bare password on stderr only (on stdout a short password may well occur in
+  the data).
 - **Cleartext base URL** (`cleartextProblem(baseUrl, secrets = [])`, exported): returns
   one sentence when requests to `baseUrl` would travel unencrypted — `requests to <host>
   are sent unencrypted (http:, not https:)`, or `the base URL's credentials are sent
