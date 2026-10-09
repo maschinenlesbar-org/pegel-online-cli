@@ -320,7 +320,7 @@ documented shape included. A failed run keeps its code even when nothing reads s
 `--log-format jsonl` as one JSON object per line. The areas: `cli` (usage errors,
 commander's messages, an ambiguous station name, unexpected errors), `api` (the API's
 answers: an error status, a malformed answer — bad JSON, the wrong shape, an unknown
-charset —, and the notes below), `http` (the connection, the cleartext warning) and
+charset —, and the notes below), `http` (the connection, the cleartext warning, and one WARN per retry before it waits) and
 `output` (a failed write to stdout). A record is always one line; control characters in
 it are escaped.
 

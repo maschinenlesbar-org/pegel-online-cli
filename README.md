@@ -282,7 +282,7 @@ These apply to every command and may be given before *or* after it:
 | `--base-url <url>` | API base URL (default `https://www.pegelonline.wsv.de`); http(s) only, a path prefix is fine, no query (`?`), fragment (`#`), whitespace or control characters; userinfo is sent as Basic auth but shown as `***` in messages (write a literal `%` in it as `%25`). A plain `http:` URL to a host other than `localhost`, `127.x.x.x` or `::1` logs one warning on stderr, `WARN  [pegel.http] requests to <host> are sent unencrypted (http:, not https:)` (naming the base URL's credentials when it has userinfo, never printing them); stdout and the exit code are unchanged |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (not blank; Latin-1, no control characters) |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, `0`–`10` (default `2`); each waits 200 ms × attempt, or longer if the server's `Retry-After` asks (up to 30 s; a longer one is not retried, and the error names the wait). A timeout is not retried |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, `0`–`10` (default `2`); each waits 200 ms × attempt, or longer if the server's `Retry-After` asks (up to 30 s; a longer one is not retried, and the error names the wait). A timeout is not retried. Each retry logs one WARN record of `pegel.http` before it waits (`HTTP 503 from host: retry 1 of 3 in 2 s`). |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
 ## Learn more
