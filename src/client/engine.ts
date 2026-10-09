@@ -19,6 +19,7 @@ import {
   PegelParseError,
   PegelValidationError,
   credentialsIn,
+  cutText,
   redactCredentials,
   redactUrl,
 } from "./errors.js";
@@ -163,10 +164,10 @@ function headersOption(value: Record<string, string> | undefined): Record<string
  */
 const MAX_DETAIL_LENGTH = 500;
 
-/** sanitizeServerText, then cut at MAX_DETAIL_LENGTH characters. */
+/** sanitizeServerText, then cut at MAX_DETAIL_LENGTH characters (never inside a surrogate pair). */
 function cleanDetail(text: string): string {
   const clean = sanitizeServerText(text);
-  return clean.length > MAX_DETAIL_LENGTH ? `${clean.slice(0, MAX_DETAIL_LENGTH)}…` : clean;
+  return clean.length > MAX_DETAIL_LENGTH ? `${cutText(clean, MAX_DETAIL_LENGTH)}…` : clean;
 }
 
 /**

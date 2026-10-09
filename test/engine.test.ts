@@ -7,6 +7,8 @@ import {
   PegelNetworkError,
   PegelParseError,
   PegelValidationError,
+  cutText,
+  toWellFormed,
 } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
@@ -434,4 +436,22 @@ test("cleartextProblem: the wording, loopback exemptions, never the secret", () 
     cleartextProblem("http://mirror.example", ["the API key"]),
     "the API key is sent unencrypted to mirror.example (http:, not https:)",
   );
+});
+
+test("cutText never cuts inside a surrogate pair; toWellFormed replaces half a character", () => {
+  assert.equal(cutText("ab\u{1f600}cd", 3), "ab");
+  assert.equal(cutText("ab\u{1f600}cd", 4), "ab\u{1f600}");
+  assert.equal(cutText("short", 10), "short");
+  assert.equal(toWellFormed("a\ud83d b\ude00 \u{1f600}"), "a\ufffd b\ufffd \u{1f600}");
+});
+
+test("a server detail cut at 500 characters keeps the message well-formed", async () => {
+  const detail = "a" + "\u{1f600}".repeat(400);
+  const e = new RequestEngine({ maxRetries: 0, transport: async () => jsonResponse({ detail }, 500) });
+  await assert.rejects(() => e.getJson("/x"), (err: unknown) => {
+    assert.ok(err instanceof PegelApiError);
+    assert.equal(toWellFormed(err.message), err.message);
+    assert.match(err.message, /…$/);
+    return true;
+  });
 });

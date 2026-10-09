@@ -28,6 +28,8 @@ export {
   redactUrl,
   credentialsIn,
   redactCredentials,
+  cutText,
+  toWellFormed,
 } from "./errors.js";
 export {
   assertValid,
