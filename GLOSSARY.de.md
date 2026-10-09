@@ -319,6 +319,16 @@ Wert zweimal angegeben, ein Pegelname, der mehrere Pegel bezeichnet); `4` bei ei
 (Laufzeit/Netzwerk), auch bei einer Antwort ohne die dokumentierte Form. Ein
 fehlgeschlagener Lauf behält seinen Code, auch wenn niemand mehr stderr liest.
 
+**Log-Eintrag.** Jede Diagnosezeile, die die CLI auf stderr schreibt: ein Zeitstempel,
+eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `pegel.<Bereich>`, als Text (im Stil
+von log4j) oder mit `--log-format jsonl` als ein JSON-Objekt pro Zeile. Die Bereiche:
+`cli` (Bedienfehler, Meldungen von commander, ein mehrdeutiger Pegelname, unerwartete
+Fehler), `api` (die Antworten der API: ein Fehlerstatus, eine fehlerhafte Antwort –
+kein JSON, die falsche Form, ein unbekannter Zeichensatz –, und die Hinweise unten),
+`http` (die Verbindung, die Warnung vor unverschlüsseltem `http:`) und `output` (ein
+fehlgeschlagenes Schreiben auf stdout). Ein Eintrag ist immer eine Zeile; Steuerzeichen
+darin werden maskiert.
+
 **Hinweise.** `stations list` gibt `Note: …`-Zeilen auf stderr aus – weiterhin mit
 Exit `0` –, wenn ein `--ids`-Eintrag, `--waters` oder `--fuzzy-id` keinen Pegel traf und
 wenn zwei gelistete Pegel denselben Namen tragen.

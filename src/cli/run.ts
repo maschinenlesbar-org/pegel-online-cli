@@ -10,6 +10,7 @@ import {
   PegelApiError,
   PegelError,
   PegelNetworkError,
+  PegelParseError,
   PegelValidationError,
   credentialsIn,
   echoedCredentialForms,
@@ -177,6 +178,17 @@ export function processLogger(argv: readonly string[]): Logger {
   });
 }
 
+/**
+ * The log area of a `PegelError` that is neither an API nor a usage error: `http` for a
+ * network error, `api` for a malformed answer (a `PegelParseError`: bad JSON, an unknown
+ * charset, a 2xx body without the documented shape — the API's answer as much as an
+ * error status is), else `cli` (a response nested too deeply to print).
+ */
+function areaOf(err: PegelError): string {
+  if (err instanceof PegelNetworkError) return "http";
+  return err instanceof PegelParseError ? "api" : "cli";
+}
+
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
   // The log replaces the secrets of the run in every message, in either format.
   deps = withRedactedOutput(deps, argv);
@@ -227,7 +239,7 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       return USAGE_EXIT;
     }
     if (err instanceof PegelError) {
-      log.error(err instanceof PegelNetworkError ? "http" : "cli", err.message);
+      log.error(areaOf(err), err.message);
       return 1;
     }
     log.error("cli", `Unexpected error: ${err instanceof Error ? err.message : String(err)}`);

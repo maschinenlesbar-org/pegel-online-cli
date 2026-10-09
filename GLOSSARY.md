@@ -314,6 +314,15 @@ name that names several stations); `4` on a
 `404` from the API; `1` for any other (runtime/network) error, an answer without the
 documented shape included. A failed run keeps its code even when nothing reads stderr.
 
+**Log record.** Every diagnostic line the CLI writes to stderr: a timestamp, a level
+(`ERROR`, `WARN`, `INFO`) and a topic `pegel.<area>`, as text (log4j style) or with
+`--log-format jsonl` as one JSON object per line. The areas: `cli` (usage errors,
+commander's messages, an ambiguous station name, unexpected errors), `api` (the API's
+answers: an error status, a malformed answer — bad JSON, the wrong shape, an unknown
+charset —, and the notes below), `http` (the connection, the cleartext warning) and
+`output` (a failed write to stdout). A record is always one line; control characters in
+it are escaped.
+
 **Notes.** `stations list` prints `Note: …` lines on stderr — still with exit `0` — when
 an `--ids` entry, `--waters` or `--fuzzy-id` matched no station, and when two listed
 stations share a name.

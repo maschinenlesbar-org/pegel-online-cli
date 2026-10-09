@@ -548,3 +548,12 @@ test("a parse error is logged in the format commander would have parsed (L6)", a
     assert.ok(cli.err.length > 0 && cli.err.every((line) => isJsonl(line) === jsonl), `${argv.join(" ")}:\n${cli.err.join("\n")}`);
   }
 });
+
+test("a malformed answer to the name lookup is an ERROR record of pegel.api, exit 1 (L9)", async () => {
+  for (const body of ['{"error":"down"}', "not json"]) {
+    const cli = makeCli(() => ({ status: 200, headers: { "content-type": "application/json" }, body: Buffer.from(body) }));
+    assert.equal(await run(["current", "NEUSTADT"], cli.deps), 1, body);
+    assert.equal(cli.err.length, 1, cli.err.join("\n"));
+    assert.match(untimed(cli.err[0]!), /^ERROR \[pegel\.api\] /);
+  }
+});
