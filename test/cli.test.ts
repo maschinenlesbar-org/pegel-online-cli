@@ -504,3 +504,29 @@ test("an a:b@c argument (a station id, a User-Agent) is neither a credential in 
   assert.equal(await run(["--base-url", "alice:hunter2-pw@mirror.example", "waters"], bare.deps), 2);
   assert.ok(!bare.err.join("\n").includes("hunter2-pw"), bare.err.join("\n"));
 });
+
+test("the help after a usage error is one INFO record per line; a suggestion is part of the ERROR (L5)", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["waters", "--no-such-option"], cli.deps), 2);
+  const records = cli.err.map(untimed);
+  assert.equal(records[0], "ERROR [pegel.cli] unknown option '--no-such-option'");
+  assert.ok(records.length > 3, records.join("\n"));
+  for (const record of records.slice(1)) {
+    assert.match(record, /^INFO  \[pegel\.cli\] .*\S$/);
+    assert.doesNotMatch(record, /\\n/, "one line of the help per record");
+  }
+  const typo = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["watres"], typo.deps), 2);
+  assert.equal(untimed(typo.err[0] ?? ""), "ERROR [pegel.cli] unknown command 'watres' (Did you mean waters?)");
+});
+
+test("a group without its subcommand and help for an unknown command show the help one INFO record per line, exit 0 as before (L5)", async () => {
+  for (const argv of [["stations"], ["help", "nope"], ["--compact"]]) {
+    const cli = makeCli(() => jsonResponse([]));
+    assert.equal(await run(argv, cli.deps), 0, argv.join(" "));
+    const records = cli.err.map(untimed);
+    assert.ok(records.length > 3, records.join("\n"));
+    for (const record of records) assert.match(record, /^INFO  \[pegel\.cli\] .*\S$/);
+    assert.ok(records.some((record) => /\] Usage: pegel /.test(record)), records.join("\n"));
+  }
+});

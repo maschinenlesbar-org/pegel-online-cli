@@ -412,7 +412,12 @@ as an ambiguous station name, unexpected errors), `api` (the API's answers, and 
 on a filter that matched nothing or a name two stations share) and `http` (the
 connection, the cleartext warning). Code logs through `logOf(deps)` and never writes
 diagnostics with `io.err` directly. `run()` builds the logger from argv before commander
-parses it, so commander's own usage errors are records too, and with the run's redaction
+parses it, so commander's own usage errors are records too: its `error: …` an ERROR of
+`cli` (a `(Did you mean …?)` line joined to it), and the help it shows after one an INFO
+record per line (`writeCommanderErr`). A command group without its subcommand
+(`pegel stations`), global options without a command and `help` for an unknown command
+show the help as INFO records per line and exit 0, as they always have. The log is built
+with the run's redaction
 (`withRedactedOutput`), which replaces a secret in the message only, before it is
 escaped: the frame is never touched, and a secret is kept out of the log in either format. `CliDeps.now` makes the
 timestamps testable. stdout carries data only; `Output error: …` from
