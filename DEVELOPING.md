@@ -336,6 +336,8 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`client.test.ts`** — every endpoint's method/URL/query mapping — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
 - **`validate.test.ts`** — the input rules and `assertValid`.
+- **`io.test.ts`** — `handleOutputErrors` on fake streams: the pipe cases, and a stdout
+  write error as an ERROR record of `pegel.output`.
 - **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
 - **Parity tests** use `parity()` from `test/helpers.ts`: one input through `run()` and through
@@ -409,8 +411,11 @@ character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellF
 exported from `errors.ts`), and a message longer than `MAX_RECORD_MESSAGE` (4000
 characters, exported) is cut at a code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, validation errors such
 as an ambiguous station name, unexpected errors), `api` (the API's answers, and the notes
-on a filter that matched nothing or a name two stations share) and `http` (the
-connection, the cleartext warning). Code logs through `logOf(deps)` and never writes
+on a filter that matched nothing or a name two stations share), `http` (the
+connection, the cleartext warning) and `output` (a failed write to stdout). A failed
+write to stdout other than a closed pipe (`handleOutputErrors`, in the bin shim, outside
+`run()`) is an ERROR record of `pegel.output` (`Could not write to stdout: …`), in the
+format argv asks for and redacted like the run's log (`processLogger`). Code logs through `logOf(deps)` and never writes
 diagnostics with `io.err` directly. `run()` builds the logger from argv before commander
 parses it (`logFormatFromArgv`, used only for the records of a parse error: it takes the
 first `--log-format`, as commander does with `once()`, and skips the value of the
@@ -424,6 +429,5 @@ show the help as INFO records per line and exit 0, as they always have. The log 
 with the run's redaction
 (`withRedactedOutput`), which replaces a secret in the message only, before it is
 escaped: the frame is never touched, and a secret is kept out of the log in either format. `CliDeps.now` makes the
-timestamps testable. stdout carries data only; `Output error: …` from
-`handleOutputErrors`, written outside `run()`, stays a raw line. Conformance test P23
+timestamps testable. stdout carries data only. Conformance test P23
 checks all of this, and its body is shared across the *-cli repos.
