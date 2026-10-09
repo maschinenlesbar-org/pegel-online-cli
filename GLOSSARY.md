@@ -282,9 +282,10 @@ Location header)`.
 
 **Unencrypted base URL (`cleartextProblem`).** A base URL on plain `http:` sends every
 request — and the base URL's userinfo, if any — unencrypted. The engine accepts it (a
-local mirror may need it), but the CLI warns once per run on stderr: `warning: requests
-to <host> are sent unencrypted (http:, not https:)`, or `the base URL's credentials are
-sent unencrypted to <host> …` with userinfo (never the password itself). Loopback hosts
+local mirror may need it), but the CLI warns once per run on stderr, with a `WARN` record
+of `pegel.http`: `WARN  [pegel.http] requests to <host> are sent unencrypted (http:, not
+https:)`, or `… the base URL's credentials are sent unencrypted to <host> …` with userinfo
+(never the password itself). Loopback hosts
 (`localhost`, `127.x.x.x`, `::1`) are exempt; stdout and the exit code are unchanged.
 
 **Timeout (`timeoutMs`).** Time limit per request in milliseconds, covering the
@@ -323,9 +324,10 @@ charset —, and the notes below), `http` (the connection, the cleartext warning
 `output` (a failed write to stdout). A record is always one line; control characters in
 it are escaped.
 
-**Notes.** `stations list` prints `Note: …` lines on stderr — still with exit `0` — when
-an `--ids` entry, `--waters` or `--fuzzy-id` matched no station, and when two listed
-stations share a name.
+**Notes.** `stations list` logs `INFO` records of `pegel.api` on stderr — still with exit
+`0` — when an `--ids` entry, `--waters` or `--fuzzy-id` matched no station
+(`INFO  [pegel.api] --ids "KOELN" matched no station; …`), and when two listed stations
+share a name (`INFO  [pegel.api] "NEUSTADT" names 2 stations: …`).
 
 ---
 

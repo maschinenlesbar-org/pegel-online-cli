@@ -285,9 +285,10 @@ Sprung über das Limit hinaus sind ein Fehler (Exit 1), der das Ziel nennt:
 **Unverschlüsselte Basis-URL (`cleartextProblem`).** Eine Basis-URL mit einfachem
 `http:` schickt jede Anfrage – und die Userinfo der Basis-URL, falls vorhanden –
 unverschlüsselt. Die Engine nimmt sie an (ein lokaler Spiegel kann sie brauchen), aber die
-CLI warnt einmal pro Aufruf auf stderr: `warning: requests to <host> are sent unencrypted
-(http:, not https:)`, mit Userinfo `the base URL's credentials are sent unencrypted to
-<host> …` (nie das Passwort selbst). Loopback-Hosts (`localhost`, `127.x.x.x`, `::1`) sind
+CLI warnt einmal pro Aufruf auf stderr, mit einem `WARN`-Eintrag von `pegel.http`:
+`WARN  [pegel.http] requests to <host> are sent unencrypted (http:, not https:)`, mit
+Userinfo `… the base URL's credentials are sent unencrypted to <host> …` (nie das Passwort
+selbst). Loopback-Hosts (`localhost`, `127.x.x.x`, `::1`) sind
 ausgenommen; stdout und der Exit-Code bleiben unverändert.
 
 **Timeout (`timeoutMs`).** Zeitlimit pro Anfrage in Millisekunden; es gilt für den
@@ -329,9 +330,10 @@ kein JSON, die falsche Form, ein unbekannter Zeichensatz –, und die Hinweise u
 fehlgeschlagenes Schreiben auf stdout). Ein Eintrag ist immer eine Zeile; Steuerzeichen
 darin werden maskiert.
 
-**Hinweise.** `stations list` gibt `Note: …`-Zeilen auf stderr aus – weiterhin mit
-Exit `0` –, wenn ein `--ids`-Eintrag, `--waters` oder `--fuzzy-id` keinen Pegel traf und
-wenn zwei gelistete Pegel denselben Namen tragen.
+**Hinweise.** `stations list` schreibt `INFO`-Einträge von `pegel.api` auf stderr –
+weiterhin mit Exit `0` –, wenn ein `--ids`-Eintrag, `--waters` oder `--fuzzy-id` keinen
+Pegel traf (`INFO  [pegel.api] --ids "KOELN" matched no station; …`) und wenn zwei
+gelistete Pegel denselben Namen tragen (`INFO  [pegel.api] "NEUSTADT" names 2 stations: …`).
 
 ---
 

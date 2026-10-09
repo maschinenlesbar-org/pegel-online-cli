@@ -125,7 +125,7 @@ Wasserstands mit **pegel-water-level-check**.
 ```bash
 pegel --compact stations list --fuzzy-id rinteln                 # RINTELN, WESER km 163,2
 pegel --compact stations list --fuzzy-id münster                 # MÜNSTER OW und MÜNSTER UW, DEK
-pegel --compact stations list --fuzzy-id neustadt                # stderr: Note: "NEUSTADT" names 2 stations …
+pegel --compact stations list --fuzzy-id neustadt                # stderr: INFO  [pegel.api] "NEUSTADT" names 2 stations …
 pegel --compact stations get RINTELN --include-current | jq '.timeseries[] | select(.shortname == "W") | {unit, comment, currentMeasurement}'
 pegel --compact stations get "MÜNSTER OW" --include-current | jq '…'   # Einheit m+NN
 pegel --compact stations get 9610080 --include-current | jq '…'        # NEUSTADT an der OSTSEE
