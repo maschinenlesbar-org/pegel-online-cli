@@ -28,6 +28,31 @@ export function cutForMessage(text: string, max = MAX_QUOTED_LENGTH): string {
   return cut.length < text.length ? `${cut}…` : text;
 }
 
+/** True for a character server text in a message never carries: C0, DEL, C1, U+2028/2029 and the bidi controls. */
+function droppedFromServerText(n: number): boolean {
+  return (
+    n < 0x20 || (n >= 0x7f && n <= 0x9f) || n === 0x2028 || n === 0x2029 ||
+    n === 0x061c || n === 0x200e || n === 0x200f || (n >= 0x202a && n <= 0x202e) || (n >= 0x2066 && n <= 0x2069)
+  );
+}
+
+/**
+ * Server text that one of the library's own messages quotes — a station's shortname,
+ * water, number or uuid in the ambiguous-station message — made safe and short: white
+ * space (line breaks, tabs, U+2028/U+2029 included) folded to one space, so it stays on
+ * one line and cannot forge a log record; the other control characters (C0, DEL, C1: ESC
+ * and the 8-bit CSI would steer a terminal) and the bidi controls dropped; trimmed and cut
+ * at `max` characters (`MAX_QUOTED_LENGTH`, 200). The data the text came from is kept
+ * as the server sent it.
+ */
+export function serverTextForMessage(text: string, max = MAX_QUOTED_LENGTH): string {
+  let clean = "";
+  for (const ch of text.replace(/\s+/g, " ")) {
+    if (!droppedFromServerText(ch.codePointAt(0) ?? 0)) clean += ch;
+  }
+  return cutForMessage(clean.trim(), max);
+}
+
 function isHighSurrogate(c: number): boolean {
   return c >= 0xd800 && c <= 0xdbff;
 }
@@ -219,9 +244,14 @@ export class PegelAmbiguousStationError extends PegelValidationError {
   }
 }
 
-/** `NEUSTADT on LEINE (number 48800200, uuid dda39817-…)`: one station, told apart. */
+/**
+ * `NEUSTADT on LEINE (number 48800200, uuid dda39817-…)`: one station, told apart. Every
+ * field is the server's text, so each goes through `serverTextForMessage`: one line, no
+ * control or bidi characters, at most 200 characters.
+ */
 export function describeStationChoice(s: StationChoice): string {
-  return `${s.shortname}${s.water !== undefined ? ` on ${s.water}` : ""} (number ${s.number}, uuid ${s.uuid})`;
+  const text = serverTextForMessage;
+  return `${text(s.shortname)}${s.water !== undefined ? ` on ${text(s.water)}` : ""} (number ${text(s.number)}, uuid ${text(s.uuid)})`;
 }
 
 /** A transport-level failure (DNS, connection reset, timeout, ...). */

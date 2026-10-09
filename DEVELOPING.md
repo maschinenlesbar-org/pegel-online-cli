@@ -296,7 +296,12 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   `PegelAmbiguousStationError` (a `PegelValidationError`; `.station`, and `.stations` as
   `StationChoice` objects with water, number and uuid). The CLI calls it before
   `stations get`, `timeseries`, `current` and `measurements`, so a name costs one extra
-  request and an ambiguous one exits 2 without the per-station request.
+  request and an ambiguous one exits 2 without the per-station request. The message
+  quotes each station's shortname, water, number and uuid — the server's text — through
+  `serverTextForMessage` (exported, also used by `describeStationChoice` and the CLI's
+  note): white space folded to one space, control and bidi characters dropped, cut at 200
+  characters, so a hostile mirror can't split the message into a forged log record or
+  steer the terminal. `.stations` keeps the fields as the server sent them.
 
 The CLI's
 commander parsers call the same functions, so a rule exists once; a single-value option

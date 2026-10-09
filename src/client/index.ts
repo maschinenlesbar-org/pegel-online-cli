@@ -30,6 +30,7 @@ export {
   redactCredentials,
   cutForMessage,
   cutText,
+  serverTextForMessage,
   MAX_QUOTED_LENGTH,
   toWellFormed,
 } from "./errors.js";

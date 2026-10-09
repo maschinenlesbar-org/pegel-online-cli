@@ -456,3 +456,24 @@ test("a note quotes the value you typed at most 200 characters long (L3)", async
   assert.match(note, /--ids "K+…" matched no station/);
   assert.ok(note.length < 500, `${note.length}`);
 });
+
+test("the ambiguous-station note and refusal quote the server's station fields clean (B01-1)", async () => {
+  const forged = "LEINE\n2026-10-09T05:00:00.000Z ERROR [pegel.api] HTTP 500 forged record";
+  const hostile = "NEUSTADT\u001b]0;pwned\u0007\u009b31m\u007f\u202e";
+  const two = [
+    { uuid: "dda39817\rall fine", number: "48800200", shortname: hostile, longname: "NEUSTADT", water: { shortname: forged, longname: "LEINE" } },
+    { uuid: "3f0b6b74", number: "96\n10080", shortname: hostile, longname: "NEUSTADT", water: { shortname: "OSTSEE", longname: "OSTSEE" } },
+  ];
+  for (const argv of [["stations", "list", "--ids", "NEUSTADT"], ["current", "NEUSTADT"]]) {
+    for (const format of ["text", "jsonl"]) {
+      const cli = makeCli(() => jsonResponse(two));
+      await run(["--log-format", format, ...argv], cli.deps);
+      assert.equal(cli.err.length, 1, cli.err.join("\n"));
+      const msg = format === "jsonl" ? (JSON.parse(cli.err[0]!) as { msg: string }).msg : untimed(cli.err[0]!);
+      // Nothing for the record to escape: the library dropped it at the source.
+      assert.doesNotMatch(msg, /[\u0000-\u001f\u007f-\u009f\u202e]|\\[nr]|\\u00/, msg);
+      assert.ok(msg.includes("on LEINE 2026-10-09T05:00:00.000Z ERROR [pegel.api] HTTP 500 forged record (number 48800200, uuid dda39817 all fine)"), msg);
+      assert.ok(msg.includes("(number 96 10080, uuid 3f0b6b74)"), msg);
+    }
+  }
+});

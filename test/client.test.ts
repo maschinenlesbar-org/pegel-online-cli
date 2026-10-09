@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PegelOnlineClient, isUnambiguousStationId } from "../src/client/client.js";
-import { PegelAmbiguousStationError, PegelApiError, PegelError, PegelValidationError } from "../src/client/errors.js";
+import { PegelAmbiguousStationError, PegelApiError, PegelError, PegelValidationError, describeStationChoice, serverTextForMessage } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson, validFor } from "./helpers.js";
 import type { MeasurementState, TimeseriesComment } from "../src/client/types.js";
 
@@ -318,4 +318,27 @@ test("includeForecastTimeseries lists the WV series on stations and implies incl
     PegelValidationError,
   );
   assert.equal(mt.calls.length, sent);
+});
+
+/** What a message never carries from a server: C0 (line breaks and TAB included), DEL, C1, U+2028/2029, bidi controls. */
+const RAW_IN_MESSAGE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
+
+test("the ambiguous-station message quotes the server's station fields clean, on one line and cut (B01-1)", async () => {
+  const forged = "LEINE\n2026-10-09T05:00:00.000Z ERROR [pegel.api] HTTP 500 forged record";
+  const hostile = "NEU\u001b]0;pwned\u0007\u009b31m\u007f\u202eTDATSUEN X\u2028Y";
+  const a = { uuid: "u-1\rall fine", number: "488\n00200", shortname: hostile, longname: "NEUSTADT", water: { shortname: forged, longname: "LEINE" } };
+  const b = { uuid: "u-2", number: "9610080", shortname: hostile, longname: "NEUSTADT", water: { shortname: "W".repeat(1_000_000), longname: "X" } };
+  const client = new PegelOnlineClient({ transport: async () => jsonResponse([a, b]) });
+  await assert.rejects(client.stations.assertUnique("NEUSTADT"), (err: unknown) => {
+    assert.ok(err instanceof PegelAmbiguousStationError);
+    assert.doesNotMatch(err.message, RAW_IN_MESSAGE, JSON.stringify(err.message.slice(0, 300)));
+    assert.ok(err.message.includes("NEU]0;pwned31mTDATSUEN X Y on LEINE 2026-10-09T05:00:00.000Z ERROR [pegel.api] HTTP 500 forged record (number 488 00200, uuid u-1 all fine)"), err.message.slice(0, 400));
+    assert.ok(err.message.includes(`on ${"W".repeat(200)}… (number 9610080, uuid u-2)`), "the long water is cut at 200");
+    assert.ok(err.message.length < 1000, `${err.message.length}`);
+    // The stations themselves are data: kept as the server sent them.
+    assert.equal(err.stations[0]?.water, forged);
+    return true;
+  });
+  assert.equal(serverTextForMessage(" a\n\tb\u2029c\u202e \u0085"), "a b c");
+  assert.equal(describeStationChoice({ uuid: "u\n", number: "1", shortname: "S\u001b", longname: "L" }), "S (number 1, uuid u)");
 });
