@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PegelOnlineClient, isUnambiguousStationId } from "../src/client/client.js";
-import { PegelAmbiguousStationError, PegelApiError, PegelError, PegelValidationError, describeStationChoice, serverTextForMessage } from "../src/client/errors.js";
+import { PegelAmbiguousStationError, PegelApiError, PegelError, PegelValidationError, describeStationChoice, describeStationChoices, MAX_LISTED_STATIONS, serverTextForMessage } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson, validFor } from "./helpers.js";
 import type { MeasurementState, TimeseriesComment } from "../src/client/types.js";
 
@@ -341,4 +341,20 @@ test("the ambiguous-station message quotes the server's station fields clean, on
   });
   assert.equal(serverTextForMessage(" a\n\tb\u2029c\u202e \u0085"), "a b c");
   assert.equal(describeStationChoice({ uuid: "u\n", number: "1", shortname: "S\u001b", longname: "L" }), "S (number 1, uuid u)");
+});
+
+test("the ambiguous-station message lists at most MAX_LISTED_STATIONS stations and counts the rest (B01-2)", async () => {
+  const many = Array.from({ length: 500 }, (_, i) => ({ uuid: `u-${i}`, number: `${i}`, shortname: "NEUSTADT", longname: "NEUSTADT", water: { shortname: "LEINE", longname: "LEINE" } }));
+  const client = new PegelOnlineClient({ transport: async () => jsonResponse(many) });
+  await assert.rejects(client.stations.assertUnique("NEUSTADT"), (err: unknown) => {
+    assert.ok(err instanceof PegelAmbiguousStationError);
+    assert.match(err.message, /^Invalid station "NEUSTADT": it names 500 stations, NEUSTADT on LEINE \(number 0, uuid u-0\) and /);
+    assert.match(err.message, /\(number 9, uuid u-9\) and … \(490 more\); use the number or uuid\.$/);
+    assert.ok(!err.message.includes("u-10)"), "the eleventh is not listed");
+    assert.equal(err.stations.length, 500, "the error keeps them all");
+    return true;
+  });
+  const two = many.slice(0, 2).map((s) => ({ ...s, water: s.water.shortname }));
+  assert.equal(describeStationChoices(two), `${describeStationChoice(two[0]!)} and ${describeStationChoice(two[1]!)}`);
+  assert.equal(MAX_LISTED_STATIONS, 10);
 });

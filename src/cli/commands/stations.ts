@@ -4,12 +4,12 @@ import { logOf, type CliDeps } from "../io.js";
 import { STATION_HELP, action, once, parseNonEmpty, parsePathArg, renderJson } from "../shared.js";
 import type { StationIncludeParams, StationListParams } from "../../client/types.js";
 import { stationListNotes, type StationListNote } from "../../client/client.js";
-import { cutForMessage, describeStationChoice, serverTextForMessage } from "../../client/errors.js";
+import { cutForMessage, describeStationChoices, serverTextForMessage } from "../../client/errors.js";
 
 /** A library note about the listing, worded with the CLI's flag names. */
 function noteText(note: StationListNote): string {
   if (note.kind === "ambiguous") {
-    const which = note.stations.map(describeStationChoice).join(" and ");
+    const which = describeStationChoices(note.stations);
     return (
       `${JSON.stringify(serverTextForMessage(note.name))} names ${note.stations.length} stations: ${which}. ` +
       "A lookup by that name (stations get, timeseries, current, measurements) is refused; use the number or uuid."

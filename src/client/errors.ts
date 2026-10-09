@@ -234,7 +234,7 @@ export class PegelAmbiguousStationError extends PegelValidationError {
   readonly station: string;
   readonly stations: StationChoice[];
   constructor(station: string, stations: StationChoice[]) {
-    const which = stations.map(describeStationChoice).join(" and ");
+    const which = describeStationChoices(stations);
     super(
       `Invalid station ${JSON.stringify(cutForMessage(station))}: it names ${stations.length} stations, ${which}; ` +
         "use the number or uuid.",
@@ -252,6 +252,20 @@ export class PegelAmbiguousStationError extends PegelValidationError {
 export function describeStationChoice(s: StationChoice): string {
   const text = serverTextForMessage;
   return `${text(s.shortname)}${s.water !== undefined ? ` on ${text(s.water)}` : ""} (number ${text(s.number)}, uuid ${text(s.uuid)})`;
+}
+
+/** The most stations {@link describeStationChoices} lists; the rest are counted. */
+export const MAX_LISTED_STATIONS = 10;
+
+/**
+ * Same-named stations for a message: at most {@link MAX_LISTED_STATIONS} of them, each
+ * as {@link describeStationChoice} tells it apart, joined with " and ", then
+ * `… (N more)` for the rest. A name 500 stations share used to make a 40 kB line.
+ */
+export function describeStationChoices(stations: readonly StationChoice[]): string {
+  const shown = stations.slice(0, MAX_LISTED_STATIONS).map(describeStationChoice).join(" and ");
+  const more = stations.length - MAX_LISTED_STATIONS;
+  return more > 0 ? `${shown} and … (${more} more)` : shown;
 }
 
 /** A transport-level failure (DNS, connection reset, timeout, ...). */

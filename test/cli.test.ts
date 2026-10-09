@@ -477,3 +477,13 @@ test("the ambiguous-station note and refusal quote the server's station fields c
     }
   }
 });
+
+test("the ambiguous-station note lists at most 10 stations and counts the rest (B01-2)", async () => {
+  const many = Array.from({ length: 500 }, (_, i) => ({ uuid: `u-${i}`, number: `${i}`, shortname: "NEUSTADT", longname: "NEUSTADT", water: { shortname: "LEINE", longname: "LEINE" } }));
+  const cli = makeCli(() => jsonResponse(many));
+  assert.equal(await run(["stations", "list", "--fuzzy-id", "NEU"], cli.deps), 0);
+  assert.equal(cli.err.length, 1, cli.err.join("\n"));
+  const note = untimed(cli.err[0]!);
+  assert.match(note, /^INFO  \[pegel\.api\] "NEUSTADT" names 500 stations: .*\(number 9, uuid u-9\) and … \(490 more\)\. A lookup/);
+  assert.ok(note.length < 1500, `${note.length}`);
+});

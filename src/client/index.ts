@@ -25,6 +25,8 @@ export {
   PegelValidationError,
   PegelAmbiguousStationError,
   describeStationChoice,
+  describeStationChoices,
+  MAX_LISTED_STATIONS,
   redactUrl,
   credentialsIn,
   redactCredentials,

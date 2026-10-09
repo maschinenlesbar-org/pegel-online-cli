@@ -78,7 +78,7 @@ A `<station>` may be a **uuid**, **number**, **shortname** or **longname** — e
 Leine and one on the Baltic coast), so `stations get`, `timeseries`, `current` and
 `measurements` look a name up first (one extra request; none for a number or uuid) and
 refuse one that names several stations: exit `2`, with an `ERROR` record on stderr listing each of
-them with its number and uuid — use one of those. A `[timeseries]` defaults to **`W`** (water
+them with its number and uuid (the first 10, then how many more) — use one of those. A `[timeseries]` defaults to **`W`** (water
 level); other codes include `Q` (flow/discharge), `WT` (water temperature), and
 `LT` (air temperature) depending on the station, and `WV`, the water-level forecast
 some gauges carry (see *Forecasts* below).

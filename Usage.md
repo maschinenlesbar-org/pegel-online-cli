@@ -21,7 +21,8 @@ name, `stations get`, `timeseries`, `current` and `measurements` first look it u
 extra request; none for a number or uuid) and refuse a name that names several stations
 with exit `2` and an `ERROR [pegel.cli] Invalid station "NEUSTADT": it names 2 stations, NEUSTADT
 on LEINE (number 48800200, uuid …) and NEUSTADT on OSTSEE (number 9610080, uuid …); use
-the number or uuid.` record on stderr. A `[timeseries]` argument defaults to **`W`** (water level); other
+the number or uuid.` record on stderr (it lists the first 10 such stations and counts the
+rest, `… (N more)`). A `[timeseries]` argument defaults to **`W`** (water level); other
 common series are `Q` (flow/discharge), `WT` (water temperature) and `LT` (air
 temperature), depending on the station.
 

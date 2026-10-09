@@ -301,7 +301,9 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   `serverTextForMessage` (exported, also used by `describeStationChoice` and the CLI's
   note): white space folded to one space, control and bidi characters dropped, cut at 200
   characters, so a hostile mirror can't split the message into a forged log record or
-  steer the terminal. `.stations` keeps the fields as the server sent them.
+  steer the terminal. It lists at most `MAX_LISTED_STATIONS` (10) stations and counts
+  the rest (`… (490 more)`, `describeStationChoices`, exported). `.stations` keeps them
+  all, with the fields as the server sent them.
 
 The CLI's
 commander parsers call the same functions, so a rule exists once; a single-value option
