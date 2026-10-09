@@ -244,11 +244,14 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   string (`"https://h/ "` requests `/%20/webservices/...`). A bad base URL is a
   `PegelValidationError`, not a `PegelNetworkError`; the CLI's `--base-url` parser
   uses the same rule and messages. The reasons never repeat the value. The CLI also
-  redacts on output: `run.ts` (`withRedactedOutput`) takes the exact userinfo of every
-  argument (`credentialsIn`, exported) and replaces it with `***` in everything it
-  prints — commander's usage errors, which echo rejected values, and its own
-  messages — so a password with spaces, quotes, `#`, `?` or `/` is caught as well as
-  an ordinary one. `redactUrl` falls back to the same text-based cut
+  redacts on output: `run.ts` (`redactionFor`, `withRedactedOutput`) takes the exact
+  userinfo of every argument (`credentialsIn`, exported) and replaces it with `***` in
+  everything it prints — commander's usage errors, which echo rejected values, and its
+  own messages — so a password with spaces, quotes, `#`, `?` or `/` is caught as well as
+  an ordinary one. The log replaces it in each record's *message*, before the record is
+  cut and escaped, and writes it to the raw stderr: the frame (time, level, topic) is
+  never touched, and a password with DEL, C1 or bidi characters is matched in its raw
+  form. `redactUrl` falls back to the same text-based cut
   (`redactCredentials`, exported) for a value that doesn't parse as a URL. In the library, the
   engine keeps the base URL (and any `headers` a caller adds) in real `#private` fields,
   so `console.log(client)`, `util.inspect` and `JSON.stringify` never show them, and it
@@ -401,8 +404,9 @@ as an ambiguous station name, unexpected errors), `api` (the API's answers, and 
 on a filter that matched nothing or a name two stations share) and `http` (the
 connection, the cleartext warning). Code logs through `logOf(deps)` and never writes
 diagnostics with `io.err` directly. `run()` builds the logger from argv before commander
-parses it, so commander's own usage errors are records too, and on top of the redacted
-`io.err`, so a secret is kept out of the log in either format. `CliDeps.now` makes the
+parses it, so commander's own usage errors are records too, and with the run's redaction
+(`withRedactedOutput`), which replaces a secret in the message only, before it is
+escaped: the frame is never touched, and a secret is kept out of the log in either format. `CliDeps.now` makes the
 timestamps testable. stdout carries data only; `Output error: …` from
 `handleOutputErrors`, written outside `run()`, stays a raw line. Conformance test P23
 checks all of this, and its body is shared across the *-cli repos.
