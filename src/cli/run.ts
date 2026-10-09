@@ -23,33 +23,79 @@ import {
  * commander does not propagate these to subcommands, so a parse error on a
  * subcommand would otherwise call process.exit() and bypass our error handling.
  */
-function configureTree(command: Command, deps: CliDeps): void {
+function configureTree(command: Command, deps: CliDeps, state: { errorLogged: boolean } = { errorLogged: false }): void {
   command.exitOverride();
   command.configureOutput({
     writeOut: (str) => deps.io.out(str.replace(/\n$/, "")),
-    writeErr: (str) => writeCommanderErr(deps, str),
+    writeErr: (str) => writeCommanderErr(command, deps, state, str),
   });
-  for (const child of command.commands) configureTree(child, deps);
+  if (command.commands.length > 0) addHelpCommand(command);
+  for (const child of command.commands) configureTree(child, deps, state);
+}
+
+/** `pegel stations`: the command's name with its parents'. */
+function commandPath(command: Command): string {
+  const names: string[] = [];
+  for (let c: Command | null = command; c !== null; c = c.parent) names.unshift(c.name());
+  return names.join(" ");
 }
 
 /**
  * commander's stderr output as log records, one per line. Its `error: …` is an ERROR of
  * `cli`, with a following `(Did you mean …?)` line appended to that same record; the
  * help it shows after an error is one INFO record per non-blank line. A command group
- * run without its subcommand (`pegel stations`), global options without a command and
- * `help` for an unknown command show the help on stderr with no `error:` line: one INFO
- * record per line too, and the run exits 0 (see `run()`), so no ERROR is logged for it.
+ * run without its subcommand (`pegel stations`) or the program run with options but
+ * without a command makes commander show the help as an error (exit 1, so 2 here) with no
+ * `error:` line: an ERROR record "missing command: `pegel stations <subcommand>`" comes
+ * first, so every failed run has one.
  */
-function writeCommanderErr(deps: CliDeps, str: string): void {
+function writeCommanderErr(command: Command, deps: CliDeps, state: { errorLogged: boolean }, str: string): void {
   const log = logOf(deps);
   const text = str.replace(/\n$/, "");
   // The blank line commander writes between an error and the help it shows after.
   if (text.trim() === "") return;
   if (text.startsWith("error: ")) {
+    state.errorLogged = true;
     log.error("cli", text.slice("error: ".length).replace(/\n(\(Did you mean .*\?\))$/, " $1"));
     return;
   }
+  if (!state.errorLogged) {
+    state.errorLogged = true;
+    log.error("cli", `missing command: \`${commandPath(command)} <subcommand>\``);
+  }
   for (const line of text.split("\n")) if (line.trim() !== "") log.info("cli", line.trimEnd());
+}
+
+/**
+ * Replace commander's built-in `help [command]` with one that resolves every name it
+ * is given. The built-in one looked at the first name only: `pegel help nope` printed
+ * the root help with no word about "nope", and `dip help vorgang nope`
+ * printed the vorgang help with exit 0. Now `help a b …` shows the help of `a b`, and
+ * an unknown name is reported exactly as `pegel a nope` reports it (`error: unknown
+ * command 'nope'`, redacted like all output, the usage exit code): the remaining names
+ * are parsed by the command they were meant for, which raises commander's own error.
+ * Added here rather than in `buildProgram`, so the command tree the website documents
+ * stays as commander builds it.
+ */
+function addHelpCommand(command: Command): void {
+  command.helpCommand(false);
+  command
+    .command("help [command...]")
+    .description("display help for command")
+    .action(async (names: string[]) => {
+      let target = command;
+      for (const [i, name] of names.entries()) {
+        const sub = target.commands.find((c) => c.name() === name || c.aliases().includes(name));
+        if (sub === undefined) {
+          // A command without subcommands would run its action on the rest of the names.
+          if (target.commands.length === 0) target.error(`error: unknown command '${name}'`, { exitCode: 1, code: "commander.unknownCommand" });
+          await target.parseAsync(names.slice(i), { from: "user" });
+          return;
+        }
+        target = sub;
+      }
+      target.help();
+    });
 }
 
 /** Distinct exit code for usage/parse errors, so scripts can tell a user mistake
@@ -219,11 +265,10 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     return 0;
   } catch (err) {
     if (err instanceof CommanderError) {
-      // Help/version requests are not errors -> exit 0.
-      if (err.code === "commander.help" || err.code === "commander.helpDisplayed") return 0;
-      if (err.code === "commander.version") return 0;
-      // Every other CommanderError is a usage/parse error -> distinct exit code.
-      return USAGE_EXIT;
+      // Help/version requests are not errors -> exit 0 (commander.help carries exit 1
+      // when a group or the program is run without its command). Every other
+      // CommanderError is a usage/parse error -> distinct exit code.
+      return err.exitCode === 0 ? 0 : USAGE_EXIT;
     }
     const log = logOf(deps);
     if (err instanceof PegelApiError) {

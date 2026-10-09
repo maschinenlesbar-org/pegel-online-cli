@@ -520,14 +520,53 @@ test("the help after a usage error is one INFO record per line; a suggestion is 
   assert.equal(untimed(typo.err[0] ?? ""), "ERROR [pegel.cli] unknown command 'watres' (Did you mean waters?)");
 });
 
-test("a group without its subcommand and help for an unknown command show the help one INFO record per line, exit 0 as before (L5)", async () => {
-  for (const argv of [["stations"], ["help", "nope"], ["--compact"]]) {
+test("a group or the program without its command logs an ERROR 'missing command' before the help, exit 2", async () => {
+  for (const [argv, path] of [[["stations"], "pegel stations"], [["--compact"], "pegel"]] as const) {
     const cli = makeCli(() => jsonResponse([]));
-    assert.equal(await run(argv, cli.deps), 0, argv.join(" "));
+    assert.equal(await run([...argv], cli.deps), 2, argv.join(" "));
     const records = cli.err.map(untimed);
+    assert.equal(records[0], `ERROR [pegel.cli] missing command: \`${path} <subcommand>\``);
     assert.ok(records.length > 3, records.join("\n"));
-    for (const record of records) assert.match(record, /^INFO  \[pegel\.cli\] .*\S$/);
+    for (const record of records.slice(1)) assert.match(record, /^INFO  \[pegel\.cli\] .*\S$/);
     assert.ok(records.some((record) => /\] Usage: pegel /.test(record)), records.join("\n"));
+    assert.deepEqual(cli.out, []);
+  }
+});
+
+test("help for an unknown command reports it like the command itself, exit 2, at every level", async () => {
+  for (const [helpArgv, plainArgv] of [
+    [["help", "nope"], ["nope"]],
+    [["help", "stations", "nope"], ["stations", "nope"]],
+    [["stations", "help", "nope"], ["stations", "nope"]],
+    [["help", "https://alice:s3cret@x.test"], ["https://alice:s3cret@x.test"]],
+  ] as const) {
+    const viaHelp = makeCli(() => jsonResponse([]));
+    const plain = makeCli(() => jsonResponse([]));
+    assert.equal(await run([...helpArgv], viaHelp.deps), 2, helpArgv.join(" "));
+    assert.equal(await run([...plainArgv], plain.deps), 2, plainArgv.join(" "));
+    assert.match(untimed(viaHelp.err[0] ?? ""), /^ERROR \[pegel\.cli\] unknown command '/, helpArgv.join(" "));
+    assert.deepEqual(viaHelp.err.map(untimed), plain.err.map(untimed), helpArgv.join(" "));
+    assert.deepEqual(viaHelp.out, []);
+    assert.ok(!viaHelp.err.join("\n").includes("s3cret"));
+    assert.equal(viaHelp.mt.calls.length, 0);
+  }
+  // A command without subcommands is not run on the rest of the names.
+  const leaf = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["help", "waters", "nope"], leaf.deps), 2);
+  assert.equal(untimed(leaf.err[0] ?? ""), "ERROR [pegel.cli] unknown command 'nope'");
+  assert.equal(leaf.mt.calls.length, 0);
+});
+
+test("help names a command path and shows that command's help on stdout, exit 0", async () => {
+  for (const [argv, usage] of [
+    [["help"], "Usage: pegel [options] [command]"],
+    [["help", "stations"], "Usage: pegel stations [options] [command]"],
+    [["help", "stations", "list"], "Usage: pegel stations list [options]"],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse([]));
+    assert.equal(await run([...argv], cli.deps), 0, argv.join(" "));
+    assert.equal(cli.out.join("\n").split("\n")[0], usage, argv.join(" "));
+    assert.deepEqual(cli.err, []);
   }
 });
 

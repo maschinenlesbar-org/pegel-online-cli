@@ -231,7 +231,7 @@ both `pegel --compact waters` and `pegel waters --compact` do the same thing.
 | Code | Meaning |
 | --- | --- |
 | `0` | success (also `--help` / `--version`) |
-| `2` | bad usage / invalid argument (nothing was sent) |
+| `2` | bad usage / invalid argument (nothing was sent), also a group or the program run without its command and `help` for an unknown command |
 | `4` | station or resource not found (`404`) |
 | `1` | any other error (network, timeout, unexpected response) |
 

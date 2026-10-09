@@ -430,8 +430,12 @@ commander parsed, so `--user-agent --log-format=jsonl` logs text), so commander'
 usage errors are records too: its `error: …` an ERROR of
 `cli` (a `(Did you mean …?)` line joined to it), and the help it shows after one an INFO
 record per line (`writeCommanderErr`). A command group without its subcommand
-(`pegel stations`), global options without a command and `help` for an unknown command
-show the help as INFO records per line and exit 0, as they always have. The log is built
+(`pegel stations`) and global options without a command log an ERROR "missing command:
+`pegel stations <subcommand>`" first, then the help as INFO records per line, and exit 2.
+`run.ts` replaces commander's built-in `help [command]` with its own `help [command...]`
+(`addHelpCommand`, in `configureTree`, so the tree the website documents is unchanged): it
+walks every name, and an unknown one is reported like `pegel nope` (`error: unknown command
+'nope'`, exit 2). A bare `pegel` stays the discovery request: help on stdout, exit 0. The log is built
 with the run's redaction
 (`withRedactedOutput`), which replaces a secret in the message only, before it is
 escaped: the frame is never touched, and a secret is kept out of the log in either format. `CliDeps.now` makes the
