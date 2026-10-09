@@ -336,8 +336,9 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`client.test.ts`** — every endpoint's method/URL/query mapping — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
 - **`validate.test.ts`** — the input rules and `assertValid`.
-- **`io.test.ts`** — `handleOutputErrors` on fake streams: the pipe cases, and a stdout
-  write error as an ERROR record of `pegel.output`.
+- **`io.test.ts`** — `handleOutputErrors` and `stderrAfterStdout` on fake streams: the
+  pipe cases, a stdout write error as an ERROR record of `pegel.output`, and a record
+  held behind stdout's backlog.
 - **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`, `installWarningLog`); the CLI-level checks are P23's.
 - **Parity tests** use `parity()` from `test/helpers.ts`: one input through `run()` and through
@@ -434,5 +435,8 @@ show the help as INFO records per line and exit 0, as they always have. The log 
 with the run's redaction
 (`withRedactedOutput`), which replaces a secret in the message only, before it is
 escaped: the frame is never touched, and a secret is kept out of the log in either format. `CliDeps.now` makes the
-timestamps testable. stdout carries data only. Conformance test P23
+timestamps testable. stdout carries data only, and a record waits for it: the default
+`io.err` (`stderrAfterStdout`) holds a record while stdout still has data queued and
+writes it, in order, once that is out, so with `2>&1 |` and a slow reader a record never
+lands inside the JSON. Conformance test P23
 checks all of this, and its body is shared across the *-cli repos.
