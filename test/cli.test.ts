@@ -4,7 +4,7 @@ import { run } from "../src/cli/run.js";
 import { PegelOnlineClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { PegelValidationError } from "../src/client/errors.js";
+import { PegelValidationError, credentialsIn } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, untimed, validFor } from "./helpers.js";
 
 const V2 = "/webservices/rest-api/v2";
@@ -486,4 +486,21 @@ test("the ambiguous-station note lists at most 10 stations and counts the rest (
   const note = untimed(cli.err[0]!);
   assert.match(note, /^INFO  \[pegel\.api\] "NEUSTADT" names 500 stations: .*\(number 9, uuid u-9\) and … \(490 more\)\. A lookup/);
   assert.ok(note.length < 1500, `${note.length}`);
+});
+
+test("an a:b@c argument (a station id, a User-Agent) is neither a credential in the log nor rewritten in the JSON on stdout (L14)", async () => {
+  const station = { uuid: "u-1", number: "1", shortname: "X", longname: "run:2026-10-09@x" };
+  const ids = makeCli(() => jsonResponse([station]));
+  assert.equal(await run(["stations", "list", "--ids", "run:2026-10-09@x", "--ids", "nowhere:1@y"], ids.deps), 0);
+  assert.match(ids.out.join("\n"), /"longname": "run:2026-10-09@x"/);
+  assert.ok(ids.err.some((line) => line.includes('--ids "nowhere:1@y" matched no station')), ids.err.join("\n"));
+  const ua = makeCli(() => jsonResponse([station]));
+  assert.equal(await run(["--user-agent", "run:2026-10-09@x", "stations", "list"], ua.deps), 0);
+  assert.match(ua.out.join("\n"), /"longname": "run:2026-10-09@x"/);
+  assert.deepEqual(credentialsIn("run:2026-10-09@x"), []);
+  assert.deepEqual(credentialsIn("https://alice:pw@host"), ["alice:pw"]);
+  // A base URL typed without its scheme is still read as one: its password is never echoed.
+  const bare = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["--base-url", "alice:hunter2-pw@mirror.example", "waters"], bare.deps), 2);
+  assert.ok(!bare.err.join("\n").includes("hunter2-pw"), bare.err.join("\n"));
 });
