@@ -1,6 +1,6 @@
 {
   "name": "pegel",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Live German waterway water-level intelligence skills powered by the pegel-online-cli (PEGELONLINE / WSV API).",
   "author": {
     "name": "Sebastian Schürmann",
