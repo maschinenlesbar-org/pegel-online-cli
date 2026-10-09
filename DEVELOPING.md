@@ -66,7 +66,10 @@ silently disable the timeout. A `transport` or `sleep` that is not a function, a
 way; so is a station or timeseries id that is not a non-blank string, or is "." / "..".
 Server text in a message (an error `detail`, a transport's error text, a redirect target)
 is cut at 500 characters, never inside a surrogate pair (`cutText`, exported), so the
-message stays well-formed; `PegelApiError.body` keeps it all.
+message stays well-formed; `PegelApiError.body` keeps it all. Any other value an own
+message quotes from a server answer or the caller's input (a station name, an unknown key,
+a header name, a charset) is cut at `MAX_QUOTED_LENGTH` (200, `cutForMessage`, both
+exported), so `err.message` stays bounded for a library caller.
 
 ```ts
 new PegelOnlineClient({
@@ -383,7 +386,8 @@ every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and t
 controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
 forge another one or steer the terminal. Before that a lone surrogate (half a
 character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`,
-exported from `errors.ts`). The areas are `cli` (usage errors, commander's messages, validation errors such
+exported from `errors.ts`), and a message longer than `MAX_RECORD_MESSAGE` (4000
+characters, exported) is cut at a code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, validation errors such
 as an ambiguous station name, unexpected errors), `api` (the API's answers, and the notes
 on a filter that matched nothing or a name two stations share) and `http` (the
 connection, the cleartext warning). Code logs through `logOf(deps)` and never writes

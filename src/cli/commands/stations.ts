@@ -4,7 +4,7 @@ import { logOf, type CliDeps } from "../io.js";
 import { STATION_HELP, action, once, parseNonEmpty, parsePathArg, renderJson } from "../shared.js";
 import type { StationIncludeParams, StationListParams } from "../../client/types.js";
 import { stationListNotes, type StationListNote } from "../../client/client.js";
-import { describeStationChoice } from "../../client/errors.js";
+import { cutForMessage, describeStationChoice } from "../../client/errors.js";
 
 /** A library note about the listing, worded with the CLI's flag names. */
 function noteText(note: StationListNote): string {
@@ -15,7 +15,7 @@ function noteText(note: StationListNote): string {
       "A lookup by that name (stations get, timeseries, current, measurements) is refused; use the number or uuid."
     );
   }
-  const value = JSON.stringify(note.value);
+  const value = JSON.stringify(cutForMessage(note.value));
   switch (note.filter) {
     case "ids":
       return `--ids ${value} matched no station; the list has only the others. Find the name with --fuzzy-id.`;

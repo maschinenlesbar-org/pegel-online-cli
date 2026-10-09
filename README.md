@@ -180,7 +180,8 @@ errors, `pegel.api` for the API's answers and the notes on a filter that matched
 jsonl` writes one JSON object per line instead. A record is always one line: a line break,
 a control character or a bidi control in a message (a server's text, a value you typed) is
 written as an escape (`\n`, `\u001b`, `\u202e`), so it can neither split a record nor forge
-another one, nor steer the terminal:
+another one, nor steer the terminal; a message longer than 4000 characters is cut and ends
+in `… (N more characters)`:
 
 ```text
 2026-10-09T14:03:12.481Z WARN  [pegel.http] requests to mirror.test are sent unencrypted (http:, not https:)

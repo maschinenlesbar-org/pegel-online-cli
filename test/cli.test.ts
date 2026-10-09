@@ -447,3 +447,12 @@ test("measurements of WV print the forecast points with initialized and type", a
   assert.equal(new URL(cli.mt.last().url).pathname, `${V2}/stations/2730010/WV/measurements.json`);
   assert.deepEqual(JSON.parse(cli.out.join("")), served);
 });
+
+test("a note quotes the value you typed at most 200 characters long (L3)", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  const long = "K".repeat(5000);
+  assert.equal(await run(["stations", "list", "--ids", long], cli.deps), 0);
+  const note = cli.err.find((line) => line.includes("matched no station")) ?? "";
+  assert.match(note, /--ids "K+…" matched no station/);
+  assert.ok(note.length < 500, `${note.length}`);
+});

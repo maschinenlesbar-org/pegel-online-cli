@@ -10,6 +10,7 @@ import {
   cutText,
   toWellFormed,
 } from "../src/client/errors.js";
+import { PegelOnlineClient } from "../src/client/client.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 test("buildUrl normalises the path and appends the query", () => {
@@ -454,4 +455,18 @@ test("a server detail cut at 500 characters keeps the message well-formed", asyn
     assert.match(err.message, /…$/);
     return true;
   });
+});
+
+test("own messages quote a server or user value at most 200 characters long (L3)", async () => {
+  const long = "x".repeat(5000);
+  const charset = new RequestEngine({ transport: async () => rawResponse("[]", `application/json; charset=${long}`) });
+  await assert.rejects(() => charset.getJson("/x"), (err: unknown) =>
+    err instanceof PegelParseError && err.message.length < 400 && /charset "x+…"/.test(err.message));
+  const client = new PegelOnlineClient({ transport: async () => jsonResponse([]) });
+  await assert.rejects(() => client.stations.list({ [long]: "1" } as never), (err: unknown) =>
+    err instanceof PegelValidationError && err.message.length < 600 && /Unknown key "x+…"/.test(err.message));
+  await assert.rejects(() => client.stations.get(" ".repeat(5000)), (err: unknown) =>
+    err instanceof PegelValidationError && err.message.length < 400);
+  assert.throws(() => new RequestEngine({ headers: { [long]: "\u0001" } }), (err: unknown) =>
+    err instanceof PegelValidationError && err.message.length < 400);
 });

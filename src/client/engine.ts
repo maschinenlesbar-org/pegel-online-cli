@@ -19,7 +19,7 @@ import {
   PegelParseError,
   PegelValidationError,
   credentialsIn,
-  cutText,
+  cutForMessage,
   redactCredentials,
   redactUrl,
 } from "./errors.js";
@@ -151,7 +151,7 @@ function headersOption(value: Record<string, string> | undefined): Record<string
   }
   for (const [name, header] of Object.entries(value)) {
     const reason = headerValueProblem(header);
-    if (reason !== undefined) throw new PegelValidationError(`Invalid option headers: ${JSON.stringify(name)}: ${reason}`);
+    if (reason !== undefined) throw new PegelValidationError(`Invalid option headers: ${JSON.stringify(cutForMessage(name))}: ${reason}`);
   }
   return { ...value };
 }
@@ -167,7 +167,7 @@ const MAX_DETAIL_LENGTH = 500;
 /** sanitizeServerText, then cut at MAX_DETAIL_LENGTH characters (never inside a surrogate pair). */
 function cleanDetail(text: string): string {
   const clean = sanitizeServerText(text);
-  return clean.length > MAX_DETAIL_LENGTH ? `${cutText(clean, MAX_DETAIL_LENGTH)}…` : clean;
+  return cutForMessage(clean, MAX_DETAIL_LENGTH);
 }
 
 /**
@@ -483,7 +483,7 @@ export class RequestEngine {
     const dotSegment = normalizedPath.split("/").find((s) => s === "." || s === "..");
     if (dotSegment !== undefined) {
       throw new PegelValidationError(
-        `Invalid path segment "${dotSegment}" in ${normalizedPath}: "." and ".." cannot be used as an id.`,
+        `Invalid path segment "${dotSegment}" in ${cutForMessage(normalizedPath)}: "." and ".." cannot be used as an id.`,
       );
     }
     const qs = query ? buildQueryString(query) : "";
@@ -756,7 +756,7 @@ function decodeBody(body: Buffer, contentType: string, path: string): string {
   try {
     decoder = new TextDecoder(charset);
   } catch {
-    throw new PegelParseError(`Unsupported response charset "${sanitizeServerText(charset)}" from ${path}.`);
+    throw new PegelParseError(`Unsupported response charset "${cutForMessage(sanitizeServerText(charset))}" from ${path}.`);
   }
   return decoder.decode(body);
 }

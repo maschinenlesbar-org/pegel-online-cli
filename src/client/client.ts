@@ -8,7 +8,7 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
-import { PegelAmbiguousStationError, PegelParseError, PegelValidationError } from "./errors.js";
+import { PegelAmbiguousStationError, PegelParseError, PegelValidationError, cutForMessage } from "./errors.js";
 import {
   assertValid,
   idListProblem,
@@ -42,7 +42,7 @@ const API = "/webservices/rest-api/v2";
 function enc(name: string, value: string): string {
   if (typeof value !== "string" || value.trim() === "") {
     throw new PegelValidationError(
-      `Invalid ${name}: expected a non-empty string, got ${typeof value === "string" ? JSON.stringify(value) : typeof value}.`,
+      `Invalid ${name}: expected a non-empty string, got ${typeof value === "string" ? JSON.stringify(cutForMessage(value)) : typeof value}.`,
     );
   }
   const id = normalizeInput(value);

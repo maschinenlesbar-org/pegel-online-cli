@@ -4,7 +4,7 @@
 // commander parsers call the same functions and turn the reason into a usage
 // error, so a rule is written once and the CLI and the library cannot drift apart.
 
-import { PegelValidationError } from "./errors.js";
+import { PegelValidationError, cutForMessage } from "./errors.js";
 
 /** A rule: the reason `value` is invalid (e.g. `"Expected a non-empty value."`), or `undefined` when it is valid. */
 export type Problem<T = unknown> = (value: T) => string | undefined;
@@ -143,7 +143,7 @@ export function knownKeysProblem(allowed: readonly string[]): Problem<unknown> {
       const lower = key.toLowerCase();
       const hint = allowed.find((name) => name.toLowerCase().includes(lower) || lower.includes(name.toLowerCase()));
       return (
-        `Unknown key ${JSON.stringify(key)}` +
+        `Unknown key ${JSON.stringify(cutForMessage(key))}` +
         (hint === undefined ? `; the keys are ${allowed.join(", ")}.` : ` (did you mean ${hint}?).`)
       );
     }

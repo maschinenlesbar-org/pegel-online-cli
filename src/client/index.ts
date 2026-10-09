@@ -28,7 +28,9 @@ export {
   redactUrl,
   credentialsIn,
   redactCredentials,
+  cutForMessage,
   cutText,
+  MAX_QUOTED_LENGTH,
   toWellFormed,
 } from "./errors.js";
 export {
