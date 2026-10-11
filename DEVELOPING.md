@@ -22,14 +22,14 @@ The package ships both a CLI (`pegel`) and a typed API client
 
 ```bash
 npm install
-npm run build        # compiles TypeScript to dist/
+npm run build        # compiles every workspace (tsc -b) to its dist/
 ```
 
 Run the locally built CLI without a global install:
 
 ```bash
-node dist/src/cli/index.js --help
-# or, after `npm link`:
+node apps/cli/dist/src/cli/index.js --help    # or: npm start -- --help
+# or, after `npm link --workspace apps/cli`:
 pegel --help
 ```
 
@@ -98,9 +98,46 @@ it. A forecast series' metadata carries `start`/`end` (the forecast window), and
 
 ## Architecture
 
+The repository is an **npm workspace** with two folders: `apps/` holds the programs it
+publishes, `packages/` the libraries they are built from.
+
 ```
-src/
-  client/
+package.json         # private workspace manifest: no version, never packed
+apps/cli/            # @maschinenlesbar.org/pegel-online-cli — the published package
+  package.json       # its version, bin, files, bundleDependencies
+  src/index.ts       # library entry: re-exports @maschinenlesbar.org/pegel-online-client
+  src/cli/           # the CLI (below)
+  test/              # CLI tests and every conformance-*.test.ts
+packages/client/     # @maschinenlesbar.org/pegel-online-client — private, bundled into the CLI
+  src/               # the API client (below)
+  test/              # tests that only touch the client, + the transport helpers
+tools/pack/          # prepack/postpack: bundle the client and commander into the tarball
+tools/bump.mjs       # version bump + commit + tag (npm run bump)
+tsconfig.docs.json   # TypeDoc only: the package entry, with the client read from its sources
+```
+
+- **The client is its own package** so a later MCP app can share it with the CLI. It is
+  never published on its own: `apps/cli`'s `prepack` copies it (and commander) into the
+  app's `node_modules`, and `bundleDependencies` ships it inside the tarball. The library
+  entry re-exports the client's `"."`, so `import { PegelOnlineClient } from
+  "@maschinenlesbar.org/pegel-online-cli"` is unchanged.
+- **The client's exports:** `"."` is the public library surface (`src/index.ts`);
+  `"./internal/*"` maps to any module (`…/pegel-online-client/internal/engine`) for what the
+  CLI needs beyond that; `"./test/*"` reaches the client's test helpers from the CLI's
+  tests (not bundled). Only `"."` is part of the library.
+- **Dependencies point one way:** the app depends on the client, the client on nothing
+  in the workspace.
+- **The version lives in `apps/cli/package.json`.** The root has none; a plain
+  `npm version` at the root is refused. Release with `npm run bump -- <patch|minor|major>`,
+  which bumps the app, commits (the bare version as the message) and tags `vX.Y.Z`.
+- **TypeScript:** `tsconfig.base.json` holds the compiler options; every workspace has a
+  `tsconfig.json` (`src/`) and a `tsconfig.test.json` (`test/`), and the root
+  `tsconfig.json`/`tsconfig.test.json` reference them, built with `tsc -b`.
+
+The client (`packages/client/src/`) and the CLI (`apps/cli/src/`):
+
+```
+packages/client/src/
     types.ts     # Station / TimeseriesInfo / CurrentMeasurement / Measurement + param objects
     query.ts     # dependency-free query-string builder
     http.ts      # the Transport interface + default node:http/https transport
@@ -108,7 +145,8 @@ src/
     errors.ts    # PegelError / PegelApiError / PegelNetworkError / PegelParseError / PegelValidationError
     validate.ts  # input rules (Problem functions) + assertValid, shared by library and CLI
     client.ts    # PegelOnlineClient — stations + timeseries resources over the engine
-  cli/
+    index.ts     # the client's public surface (the library entry re-exports it)
+apps/cli/src/cli/
     io.ts        # injectable I/O seam (stdout/stderr), the logger and the clock
     log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers, global-option resolver, JSON renderer
@@ -128,20 +166,20 @@ src/
 
 ### Library & technical terms
 
-**API client (`PegelOnlineClient`).** [`src/client/client.ts`](src/client/client.ts) — the typed,
+**API client (`PegelOnlineClient`).** [`packages/client/src/client.ts`](packages/client/src/client.ts) — the typed,
 resource-grouped wrapper over the API. Usable as a library independently of the CLI. Exposes
 `stations`, `timeseries` and the `waters()` method.
 
 **Resource group.** A cohesive set of client methods for one part of the API
 (`client.stations`, `client.timeseries`) and the matching top-level CLI command.
 
-**Request engine (`RequestEngine`).** [`src/client/engine.ts`](src/client/engine.ts)
+**Request engine (`RequestEngine`).** [`packages/client/src/engine.ts`](packages/client/src/engine.ts)
 — builds URLs, serialises queries, applies retry/backoff, follows redirects,
 decodes JSON and maps errors. Sits between the client's resource methods and the transport.
 `DEFAULT_BASE_URL` is `https://www.pegelonline.wsv.de`.
 
 **Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
-([`src/client/http.ts`](src/client/http.ts)). The default (`nodeHttpTransport`) uses Node's
+([`packages/client/src/http.ts`](packages/client/src/http.ts)). The default (`nodeHttpTransport`) uses Node's
 built-in `http`/`https`; tests inject a mock. This is the only HTTP seam.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are retried automatically,
@@ -161,7 +199,7 @@ Each retry is announced: the engine option `onRetry(event: RetryEvent)` (exporte
 redacted) `}`) is called once per retry right before the sleep, never when there is none, and
 a throw in it is swallowed. The CLI's `action()` sets it to log one `WARN` record of
 `pegel.http`, `HTTP 503 from <host>: retry 1 of 3 in 2 s` (`retryMessage`; host only, whole
-seconds, ms under 1 s). Tests: `test/retry-log.test.ts`.
+seconds, ms under 1 s). Tests: `apps/cli/test/retry-log.test.ts`.
 
 **Redirects.** The engine follows up to `maxRedirects` (default `5`) HTTP redirects
 (301/302/303/307/308), resolving `Location` relative to the current URL. Any other 3xx,
@@ -207,15 +245,15 @@ raw bytes, never lossily decoded. Exported for completeness; endpoints return de
 bytes by the charset the `Content-Type` names (UTF-8 when it names none; a byte order mark is
 dropped); an unknown charset label is a `PegelParseError`.
 
-**Query builder (`buildQueryString`).** [`src/client/query.ts`](src/client/query.ts) — a
+**Query builder (`buildQueryString`).** [`packages/client/src/query.ts`](packages/client/src/query.ts) — a
 dependency-free serialiser: omits `undefined`/`null`, repeats keys for arrays, renders booleans
 as `true`/`false`, dates as ISO-8601, and encodes spaces as `%20` (not `+`).
 
 **CliDeps / CliIO.** The dependency-injection seam for the CLI
-([`src/cli/io.ts`](src/cli/io.ts)): a client factory plus an I/O object (`out`/`err`). Lets the
+([`apps/cli/src/cli/io.ts`](apps/cli/src/cli/io.ts)): a client factory plus an I/O object (`out`/`err`). Lets the
 whole CLI run in tests with a mocked client and captured output — no subprocess.
 
-**Error types.** [`src/client/errors.ts`](src/client/errors.ts):
+**Error types.** [`packages/client/src/errors.ts`](packages/client/src/errors.ts):
 `PegelApiError` (non-2xx; carries `status`, `detail`, `url`, `method`, `body`),
 `PegelNetworkError` (transport failure/timeout — whatever a custom transport throws —,
 an invalid transport response, a body over `maxResponseBytes`, and the default
@@ -227,7 +265,7 @@ error envelope or a proxy page is never returned as data),
 `PegelValidationError` (an input rejected before any request), all extending the
 base `PegelError`.
 
-**Input validation.** [`src/client/validate.ts`](src/client/validate.ts) holds the
+**Input validation.** [`packages/client/src/validate.ts`](packages/client/src/validate.ts) holds the
 library's input rules as pure `<thing>Problem(value)` functions, which return the
 reason a value is invalid or `undefined`. The client enforces them with
 `assertValid(name, value, problem)` before any request, so a rejected input sends
@@ -334,8 +372,13 @@ given twice is a usage error (`once` in `cli/shared.ts`) rather than the last on
 ## Testing
 
 ```bash
-npm test          # builds, then runs `node --test` over dist/test
+npm test          # builds, then runs `node --test` over each workspace's dist/test
+npm run coverage  # the same tests in one run, with a coverage report
+node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 ```
+
+The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`),
+everything that drives the CLI is in `apps/cli/test/`.
 
 - **`query.test.ts`** — query-string serialisation.
 - **`http.test.ts`** — the default transport against a real loopback `http.createServer`.
@@ -346,9 +389,9 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`io.test.ts`** — `handleOutputErrors` and `stderrAfterStdout` on fake streams: the
   pipe cases, a stdout write error as an ERROR record of `pegel.output`, and a record
   held behind stdout's backlog.
-- **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
+- **`log.test.ts`** — the record helpers of `apps/cli/src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`, `installWarningLog`); the CLI-level checks are P23's.
-- **Parity tests** use `parity()` from `test/helpers.ts`: one input through `run()` and through
+- **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input through `run()` and through
   the library call on recording mock transports; both must reject without a request, or both
   send the same request.
 - **`conformance-p*.test.ts`** — the shared checks of the 2026-10-05 fix patterns, copied
@@ -363,15 +406,19 @@ npm test          # builds, then runs `node --test` over dist/test
   to a file `package.json` `files` ships; a document the tarball leaves out is linked by its
   `https://github.com/maschinenlesbar-org/pegel-online-cli/blob/main/…` URL), and P23 (the
   stderr log: records with timestamp, level and topic, `--log-format text|jsonl`). `validFor()` in
-  `test/helpers.ts` answers any endpoint with a body of its documented shape.
+  `packages/client/test/helpers.ts` answers any endpoint with a body of its documented shape.
 
 ## Continuous integration
 
 GitHub Actions workflows under `.github/workflows/`:
 
-- **ci.yml** — type-check, build and test on Node 22/24 for every push and PR.
-- **release.yml** — on a `v*` tag: verify the tag matches `package.json`, test, `npm pack`, and create a GitHub Release with the tarball.
-- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): publish to npm via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
+- **ci.yml** — type-check, build and test on Node 22/24 for every push and PR; then pack the
+  real tarball, check the pack left nothing behind, install it globally with the registry out
+  of reach and run the bin.
+- **release.yml** — on a `v*` tag (made by `npm run bump`): verify the tag matches
+  `apps/cli/package.json`, test, write the SBOMs (scoped to the `apps/cli` workspace), then
+  `npm pack --workspace apps/cli`, and create a GitHub Release with the tarball.
+- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): `npm publish --workspace apps/cli` via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
 - **docs.yml** — build the project website (`site/`, English and German) with the TypeDoc API docs
   under `/api/`, and deploy both to GitHub Pages on each `v*` tag.
   TypeDoc runs from the isolated, lockfile-pinned `tools/docs/` toolchain because it
@@ -387,7 +434,9 @@ and [Fylgja](https://fylgja.dev/) CSS, and deployed by `docs.yml` together with 
 reference under `/api/`. Its content comes from this repository: the README intro and quick
 start, the command tree of the built CLI (`site/scripts/cli-reference.mjs`), `Usage.md`,
 `GLOSSARY.md` and its German version `GLOSSARY.de.md`, the skills, and the skill examples in
-`EXAMPLE.md` and `EXAMPLE.de.md`. The only repo-specific files are `site/_config.yml` and
+`EXAMPLE.md` and `EXAMPLE.de.md`. The only repo-specific files are `site/_config.yml` (which
+also says where the published manifest and the built program are: `manifest:
+apps/cli/package.json`, `program: apps/cli/dist/src/cli/program.js`) and
 `site/_data/project.yml` (the German intro and the access requirements); the rest of `site/` is
 identical in every maschinenlesbar.org CLI, so change it in all of them together. When the
 README intro changes, update the German intro in `site/_data/project.yml`.
@@ -406,7 +455,7 @@ contributions; see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## The log on stderr
 
-Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+Every diagnostic line on stderr is a log record (`apps/cli/src/cli/log.ts`): a timestamp, a level
 (`ERROR`, `WARN`, `INFO`) and a topic, `pegel.<area>`. `--log-format text` (the default)
 writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
 `--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`

@@ -13,7 +13,7 @@ npm i -g @maschinenlesbar.org/pegel-online-cli
 ```
 
 This installs the **`pegel`** binary. Without a global install you can run the
-same commands via `node dist/src/cli/index.js …` from a built checkout.
+same commands via `node apps/cli/dist/src/cli/index.js …` from a built checkout.
 
 A `<station>` argument may be a **uuid**, **number**, **shortname** or
 **longname**. Names are not unique (`NEUSTADT` is a LEINE and an OSTSEE gauge): given a
