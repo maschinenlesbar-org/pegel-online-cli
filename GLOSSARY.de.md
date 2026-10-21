@@ -104,7 +104,9 @@ Client-Bibliothek lehnt sie ebenfalls ab, mit einem `PegelValidationError` vor j
 Anfrage. Pegel- und Zeitreihennamen, `--ids`, `--waters` und `--fuzzy-id` werden ohne
 umgebende Leerzeichen und in zusammengesetzter Unicode-Form (NFC) gesendet, sodass ein
 mitkopiertes Leerzeichen oder ein zerlegter Umlaut (`KÖLN` als `KO` + U+0308 + `LN`,
-häufig in Text aus macOS-Dateinamen oder PDFs) denselben Pegel findet.
+häufig in Text aus macOS-Dateinamen oder PDFs) denselben Pegel findet. Die Hinweise von
+`stations list` und die Prüfung auf einen Namen mehrerer Pegel vergleichen die Namen des
+Servers in derselben Form.
 
 **Gewässer.** Eine Wasserstraße im Netz, modelliert durch den Typ `Water` mit einem
 `shortname` (z. B. `RHEIN`) und einem `longname`. Der Filter `waters` von

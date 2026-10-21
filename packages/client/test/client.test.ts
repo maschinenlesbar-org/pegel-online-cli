@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PegelOnlineClient, isUnambiguousStationId } from "../src/client.js";
+import { PegelOnlineClient, isUnambiguousStationId, stationListNotes } from "../src/client.js";
 import { PegelAmbiguousStationError, PegelApiError, PegelError, PegelValidationError, describeStationChoice, describeStationChoices, MAX_LISTED_STATIONS, serverTextForMessage } from "../src/errors.js";
 import { makeMockTransport, jsonResponse, constantJson, validFor } from "./helpers.js";
 import type { MeasurementState, TimeseriesComment } from "../src/types.js";
@@ -284,6 +284,19 @@ test("stations.assertUnique rejects a name two stations carry, listing them; acc
   assert.equal(mt.calls.length, before);
   assert.equal(isUnambiguousStationId("NEUSTADT"), false);
   assert.equal(isUnambiguousStationId(" 9610080 "), true);
+});
+
+test("the client-side name comparison puts both sides in the same canonical form (trimmed, NFC)", async () => {
+  // The filter value is sent trimmed and composed; a name the server sends decomposed (a mirror
+  // or a backend change) or with a stray space is the same name, not "matched no station".
+  const decomposed = { uuid: "u-1", number: "2730010", shortname: "KO\u0308LN ", longname: "KO\u0308LN" };
+  const notes = stationListNotes({ ids: ["KÖLN", " Köln\n"] }, [decomposed]);
+  assert.deepEqual(notes.filter((n) => n.kind === "unmatched"), []);
+  // Two stations that carry the name in different forms are both counted by assertUnique.
+  const a = { uuid: "u-1", number: "48800200", shortname: "NEUSTADT", longname: "NEUSTADT" };
+  const b = { uuid: "u-2", number: "9610080", shortname: "NEUSTADT ", longname: "NEUSTADT " };
+  const client = new PegelOnlineClient({ transport: constantJson([a, b]).transport });
+  await assert.rejects(client.stations.assertUnique("NEUSTADT"), PegelAmbiguousStationError);
 });
 
 test("includeForecastTimeseries lists the WV series on stations and implies includeTimeseries", async () => {

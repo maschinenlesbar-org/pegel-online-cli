@@ -284,8 +284,14 @@ export type StationListNote =
       stations: StationChoice[];
     };
 
-/** Case-insensitive equality the way the API's id lookup behaves (`roßdorf` finds `ROSSDORF`). */
+/**
+ * Case-insensitive equality the way the API's id lookup behaves (`roßdorf` finds `ROSSDORF`),
+ * with both sides in the canonical form a filter value is sent in (normalizeInput: trimmed,
+ * NFC), so a name the server sends decomposed or padded is still the same name.
+ */
 function sameId(a: string, b: string): boolean {
+  a = normalizeInput(a);
+  b = normalizeInput(b);
   return a.toLowerCase() === b.toLowerCase() || a.toUpperCase() === b.toUpperCase();
 }
 
@@ -321,7 +327,7 @@ export function stationListNotes(params: StationListParams, stations: readonly S
   if (params.ids !== undefined || params.fuzzyId !== undefined) {
     const byName = new Map<string, Station[]>();
     for (const s of stations) {
-      const key = s.shortname.toUpperCase();
+      const key = normalizeInput(s.shortname).toUpperCase();
       byName.set(key, [...(byName.get(key) ?? []), s]);
     }
     for (const same of byName.values()) {

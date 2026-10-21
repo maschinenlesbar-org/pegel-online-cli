@@ -346,7 +346,9 @@ nothing: it throws (from a constructor) or rejects (from a method) with
 - **Normalised ids and filters** (`normalizeInput`): every station and timeseries id,
   `ids` entry, `waters`, `fuzzyId`, `start` and `end` is sent trimmed and composed (NFC).
   The API matches them exactly, so `"RHEIN "` used to list no station and `"BONN "` was a
-  404; no upstream name begins or ends with whitespace.
+  404; no upstream name begins or ends with whitespace. Where the client compares a name
+  itself (`stationListNotes`, `stations.assertUnique`), both sides are in that form, so a
+  name the server sends decomposed or padded is still the same name.
 - **Parameter keys** (`knownKeysProblem`, `optionalBooleanProblem`): every method's
   parameter object, and the constructor's options, may hold only the documented keys; a
   misspelled one (`water`, `fuzzyID`, `timeout`), `__proto__` or `constructor` is a

@@ -104,7 +104,8 @@ client library refuses them too, with a `PegelValidationError` before any reques
 Station and timeseries names, `--ids`, `--waters` and `--fuzzy-id` are sent trimmed
 and in composed Unicode form (NFC), so a pasted trailing space or a decomposed umlaut
 (`KÖLN` typed as `KO` + U+0308 + `LN`, common in text pasted from macOS file names or
-PDFs) finds the same station.
+PDFs) finds the same station. The notes on `stations list` and the check for a name
+several stations carry compare the server's names in the same form.
 
 **Gewässer (water / body of water).** A waterway in the network, modelled by the
 `Water` type with a `shortname` (e.g. `RHEIN`) and a `longname`. The `waters`
