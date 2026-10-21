@@ -78,6 +78,7 @@ test("an option given as undefined means its default, as an omitted one does", a
     maxResponseBytes: undefined,
     sleep: undefined,
     onRetry: undefined,
+    onWarning: undefined,
     bigIntegerKeys: undefined,
     transport: mt.transport,
   });

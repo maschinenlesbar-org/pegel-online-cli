@@ -265,7 +265,13 @@ called.
 **RawResponse.** The low-level result of a request: `{ data: Buffer, contentType, contentEncoding, status }` —
 raw bytes, never lossily decoded. Exported for completeness; endpoints return decoded JSON. `getJson` decodes the
 bytes by the charset the `Content-Type` names (UTF-8 when it names none; a byte order mark is
-dropped); an unknown charset label is a `PegelParseError`.
+dropped); an unknown charset label is a `PegelParseError`. Text is never changed silently:
+bytes that are not valid in the charset (a `fatal` decoder first, then a replacing one that
+counts) and lone surrogates written as JSON escapes (`\ud800`, `wellFormedEscapes`) become
+U+FFFD, and the engine option `onWarning(message)` is told how many (`GET <url>: 2 characters
+of the answer were not valid text (invalid bytes or a lone surrogate) and replaced with
+U+FFFD.`); the CLI's `action()` logs it as a `WARN` record of `pegel.api`. One bad character
+never sinks a whole answer, and the printed JSON stays readable for `jq`.
 
 **Query builder (`buildQueryString`).** [`packages/client/src/query.ts`](packages/client/src/query.ts) — a
 dependency-free serialiser: omits `undefined`/`null`, repeats keys for arrays, renders booleans
@@ -450,7 +456,11 @@ everything that drives the CLI is in `apps/cli/test/`.
   `--fuzzy-id`, `--ids` — and the `[timeseries]` path id: canonical or refused, alike in CLI
   and library; the `<station>` id is not listed, since a name costs a lookup first) and P25 (a
   number the answer can't carry exactly, and an empty answer, are errors; P26, `-o`, does not
-  apply: pegel has no `-o`). Both use `kitParity` (`apps/cli/test/helpers.ts`), `parity` with
+  apply: pegel has no `-o`), and, from the 2026-10-21 fix round, P27
+  (`conformance-p27-big-and-odd-answers`: the built bin under a small heap prints a large flat
+  answer with `--compact`, an answer full of DEL characters escaped or, past V8's longest
+  string, as one ERROR record; a lone surrogate or invalid bytes are replaced with U+FFFD and
+  reported in a WARN record, on the CLI and in the library). They use `kitParity` (`apps/cli/test/helpers.ts`), `parity` with
   the library's error named by its class. `validFor()` in
   `packages/client/test/helpers.ts` answers any endpoint with a body of its documented shape.
 
@@ -521,7 +531,8 @@ characters, exported) is cut at a code point and ends in `… (N more characters
 as an ambiguous station name, unexpected errors),
 `api` (the API's answers: an error status, a malformed answer — a `PegelParseError`: bad
 JSON, an unknown charset, a 2xx body without the documented shape — and the notes on a
-filter that matched nothing or a name two stations share), `http` (the
+filter that matched nothing or a name two stations share, and text replaced with U+FFFD, a
+WARN), `http` (the
 connection, the cleartext warning) and `output` (an answer nested too deeply or too large to
 print, a failed write to stdout). A failed
 write to stdout other than a closed pipe (`handleOutputErrors`, in the bin shim, outside

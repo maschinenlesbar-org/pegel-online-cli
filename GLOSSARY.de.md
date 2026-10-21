@@ -342,6 +342,11 @@ weiterhin mit Exit `0` –, wenn ein `--ids`-Eintrag, `--waters` oder `--fuzzy-i
 Pegel traf (`INFO  [pegel.api] --ids "KOELN" matched no station; …`) und wenn zwei
 gelistete Pegel denselben Namen tragen (`INFO  [pegel.api] "NEUSTADT" names 2 stations: …`).
 
+**Ersetzter Text.** Bytes einer Antwort, die in ihrem Zeichensatz ungültig sind, und halbe
+Zeichen (einzelne Surrogate) werden durch U+FFFD ersetzt und in einem `WARN`-Eintrag von
+`pegel.api` mit Anzahl und Anfrage gemeldet; der Lauf gelingt trotzdem, und die Ausgabe bleibt
+für `jq` lesbar.
+
 ---
 
 > **Bibliothek & Interna.** Begriffe zum TypeScript-Client und seinen Interna –

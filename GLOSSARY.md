@@ -334,6 +334,10 @@ it are escaped.
 (`INFO  [pegel.api] --ids "KOELN" matched no station; …`), and when two listed stations
 share a name (`INFO  [pegel.api] "NEUSTADT" names 2 stations: …`).
 
+**Replaced text.** Bytes of an answer that are not valid in its charset, and half characters
+(lone surrogates), are replaced with U+FFFD and reported in one `WARN` record of `pegel.api`
+with the count and the request; the run still succeeds, and the output stays readable for `jq`.
+
 ---
 
 > **Library & internals.** Terms for the TypeScript client and its internals —

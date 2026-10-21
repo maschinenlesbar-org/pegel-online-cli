@@ -178,7 +178,10 @@ Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `W
 errors, `pegel.api` for the API's answers, a malformed answer included, and the notes on a
 filter that matched nothing,
 `pegel.http` for the connection, `pegel.output` for an answer too deeply nested or too large to
-print and a failed write to stdout). By default it is written log4j style; `--log-format
+print and a failed write to stdout). An error about an answer names the request (`GET <url>: the
+answer is not valid JSON`). Text in an answer is never changed silently: bytes that are not
+valid in its charset and half characters (lone surrogates) are replaced with U+FFFD, so the
+output stays readable for `jq`, and a `WARN` record of `pegel.api` says how many. By default it is written log4j style; `--log-format
 jsonl` writes one JSON object per line instead. A record is always one line: a line break,
 a control character or a bidi control in a message (a server's text, a value you typed) is
 written as an escape (`\n`, `\u001b`, `\u202e`), so it can neither split a record nor forge
