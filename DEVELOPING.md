@@ -271,7 +271,11 @@ counts) and lone surrogates written as JSON escapes (`\ud800`, `wellFormedEscape
 U+FFFD, and the engine option `onWarning(message)` is told how many (`GET <url>: 2 characters
 of the answer were not valid text (invalid bytes or a lone surrogate) and replaced with
 U+FFFD.`); the CLI's `action()` logs it as a `WARN` record of `pegel.api`. One bad character
-never sinks a whole answer, and the printed JSON stays readable for `jq`.
+never sinks a whole answer, and the printed JSON stays readable for `jq`. A body too large to be one
+string (512 MB and more, possible with `maxResponseBytes: 0`) is a `PegelParseError` too: `GET
+<url>: the answer is too large to read as text (N bytes; the longest string is 536870888
+characters).` (V8's `ERR_STRING_TOO_LONG` used to escape as a plain Error, "Unexpected error");
+an error status with such a body keeps its `PegelApiError`, without the body.
 
 **Query builder (`buildQueryString`).** [`packages/client/src/query.ts`](packages/client/src/query.ts) — a
 dependency-free serialiser: omits `undefined`/`null`, repeats keys for arrays, renders booleans
