@@ -426,7 +426,13 @@ everything that drives the CLI is in `apps/cli/test/`.
   and sends no key) and P21 (every relative link in `README.md`, which npmjs.com shows, points
   to a file `package.json` `files` ships; a document the tarball leaves out is linked by its
   `https://github.com/maschinenlesbar-org/pegel-online-cli/blob/main/…` URL), and P23 (the
-  stderr log: records with timestamp, level and topic, `--log-format text|jsonl`). `validFor()` in
+  stderr log: records with timestamp, level and topic, `--log-format text|jsonl`), and, from the
+  2026-10-21 kit rollout, P24 (a corpus of tricky inputs through every text filter — `--waters`,
+  `--fuzzy-id`, `--ids` — and the `[timeseries]` path id: canonical or refused, alike in CLI
+  and library; the `<station>` id is not listed, since a name costs a lookup first) and P25 (a
+  number the answer can't carry exactly, and an empty answer, are errors; P26, `-o`, does not
+  apply: pegel has no `-o`). Both use `kitParity` (`apps/cli/test/helpers.ts`), `parity` with
+  the library's error named by its class. `validFor()` in
   `packages/client/test/helpers.ts` answers any endpoint with a body of its documented shape.
 
 ## Continuous integration
