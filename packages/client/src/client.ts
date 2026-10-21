@@ -38,6 +38,9 @@ const API = "/webservices/rest-api/v2";
  * value would build a different path (`stations/.json`, `stations//W.json`), and
  * "." / ".." pass encodeURIComponent unchanged and are resolved by URL parsing
  * (the engine's `buildUrl` refuses them as path segments too), so all are refused.
+ * So is a "/": encodeURIComponent sends it as %2F, which a server or proxy that
+ * decodes it reads as more path segments (`BONN/../KOELN` would re-target the
+ * request); a station is always reachable by its number or uuid.
  */
 function enc(name: string, value: string): string {
   if (typeof value !== "string" || value.trim() === "") {
@@ -48,6 +51,10 @@ function enc(name: string, value: string): string {
   const id = normalizeInput(value);
   if (id === "." || id === "..") {
     throw new PegelValidationError(`Invalid ${name} "${id}": "." and ".." cannot be used as an id.`);
+  }
+  if (id.includes("/")) {
+    const hint = name === "station" ? "; use the station's number or uuid" : "";
+    throw new PegelValidationError(`Invalid ${name} ${JSON.stringify(cutForMessage(id))}: an id cannot contain "/"${hint}.`);
   }
   return encodeURIComponent(id);
 }

@@ -99,8 +99,10 @@ library: `stations.assertUnique`) and refuse one that names several stations —
 **number** or **uuid** of the one you mean. The
 CLI rejects an empty selector and the path segments
 `.` / `..` for both `<station>` and `[timeseries]` before building the request
-URL (URL parsing would otherwise resolve them and query a different resource); the
-client library refuses them too, with a `PegelValidationError` before any request.
+URL (URL parsing would otherwise resolve them and query a different resource), and a
+selector with a `/` (sent as `%2F`, a server that decodes it would read more path
+segments; give the station's number or uuid); the client library refuses them too,
+with a `PegelValidationError` before any request.
 Station and timeseries names, `--ids`, `--waters` and `--fuzzy-id` are sent trimmed
 and in composed Unicode form (NFC), so a pasted trailing space or a decomposed umlaut
 (`KÖLN` typed as `KO` + U+0308 + `LN`, common in text pasted from macOS file names or

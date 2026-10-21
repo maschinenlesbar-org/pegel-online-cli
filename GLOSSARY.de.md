@@ -99,9 +99,10 @@ lehnen einen Namen ab, der mehrere Pegel bezeichnet – Exit `2`,
 aus; nehmen Sie die **number** oder **uuid** des gemeinten Pegels. Die CLI lehnt eine
 leere Angabe sowie die Pfadsegmente
 `.` / `..` für `<station>` und `[timeseries]` ab, bevor sie die Anfrage-URL baut (die
-URL-Auflösung würde sie sonst auflösen und eine andere Ressource abfragen); die
-Client-Bibliothek lehnt sie ebenfalls ab, mit einem `PegelValidationError` vor jeder
-Anfrage. Pegel- und Zeitreihennamen, `--ids`, `--waters` und `--fuzzy-id` werden ohne
+URL-Auflösung würde sie sonst auflösen und eine andere Ressource abfragen), ebenso eine
+Angabe mit `/` (als `%2F` gesendet, läse ein Server, der es dekodiert, weitere
+Pfadsegmente; nehmen Sie number oder uuid des Pegels); die Client-Bibliothek lehnt sie
+ebenfalls ab, mit einem `PegelValidationError` vor jeder Anfrage. Pegel- und Zeitreihennamen, `--ids`, `--waters` und `--fuzzy-id` werden ohne
 umgebende Leerzeichen und in zusammengesetzter Unicode-Form (NFC) gesendet, sodass ein
 mitkopiertes Leerzeichen oder ein zerlegter Umlaut (`KÖLN` als `KO` + U+0308 + `LN`,
 häufig in Text aus macOS-Dateinamen oder PDFs) denselben Pegel findet. Die Hinweise von

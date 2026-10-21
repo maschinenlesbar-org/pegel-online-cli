@@ -65,7 +65,8 @@ constructor throws `PegelValidationError` (`Invalid option timeoutMs: expected a
 from 0 to 2147483647, got NaN.`), so `Number(process.env.X)` of an unset variable can't
 silently disable the timeout. A `transport` or `sleep` that is not a function, and a
 `headers` option that is not an object of sendable header values, are rejected the same
-way; so is a station or timeseries id that is not a non-blank string, or is "." / "..".
+way; so is a station or timeseries id that is not a non-blank string, is "." / "..", or
+holds a "/" (sent as `%2F`, a server that decodes it reads more path segments).
 Server text in a message (an error `detail`, a transport's error text, a redirect target)
 is cut at 500 characters, never inside a surrogate pair (`cutText`, exported), so the
 message stays well-formed; `PegelApiError.body` keeps it all. Any other value an own

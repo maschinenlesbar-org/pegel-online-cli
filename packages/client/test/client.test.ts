@@ -129,6 +129,24 @@ test('library: "." / ".." ids are rejected before any request, in every method',
   assert.equal(mt.calls.length, 0);
 });
 
+test('library: a station or timeseries id with a "/" is rejected before any request, in every method', async () => {
+  // encodeURIComponent sends it as %2F, which a server or proxy that decodes it reads as more path
+  // segments: "BONN/../KOELN" would re-target the request.
+  const mt = constantJson({});
+  const c = clientWith(mt);
+  const calls: Array<[string, RegExp, () => Promise<unknown>]> = [
+    ["stations.get", /^Invalid station "BONN\/\.\.\/KOELN": an id cannot contain "\/"; use the station's number or uuid\.$/, () => c.stations.get("BONN/../KOELN")],
+    ["assertUnique", /^Invalid station "\/BONN": /, () => c.stations.assertUnique(" /BONN ")],
+    ["timeseries.get", /^Invalid timeseries "W\/": an id cannot contain "\/"\.$/, () => c.timeseries.get("2710080", "W/")],
+    ["currentMeasurement", /^Invalid station "a\/b": /, () => c.timeseries.currentMeasurement("a/b", "W")],
+    ["measurements", /^Invalid timeseries "\.\.\/W": /, () => c.timeseries.measurements("2710080", "../W")],
+  ];
+  for (const [name, message, call] of calls) {
+    await assert.rejects(call, (err: unknown) => err instanceof PegelValidationError && message.test(err.message), name);
+  }
+  assert.equal(mt.calls.length, 0);
+});
+
 test("library: a blank station or timeseries is rejected before any request", async () => {
   const mt = constantJson({});
   const c = clientWith(mt);
