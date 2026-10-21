@@ -273,7 +273,8 @@ whole CLI run in tests with a mocked client and captured output — no subproces
 an invalid transport response, a body over `maxResponseBytes`, and the default
 transport's per-hop scheme check), `PegelParseError` (bad JSON, an unknown charset, a number
 `JSON.parse` can't carry exactly — past 2^53 printed differently from how it was written
-(`12345678901234567890`), out of a double's range (`1e400`) or too small for one (`1e-400`):
+(`12345678901234567890`), out of a double's range (`1e400`), too small for one (`1e-400`) or
+a subnormal that would print changed (`3e-324` became `5e-324`; `5e-324` and `1e-310` pass):
 `Unexpected response from <path>: the number <N> cannot be represented exactly.` — or a 2xx
 answer without the documented shape: every method checks it — an array of waters or
 stations with string `shortname`/`longname`/`uuid`, a station or timeseries object, a
