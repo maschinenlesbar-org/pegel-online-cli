@@ -333,8 +333,8 @@ Fehler), `api` (die Antworten der API: ein Fehlerstatus, eine fehlerhafte Antwor
 kein JSON, die falsche Form, ein unbekannter Zeichensatz, eine Zahl, die JSON nicht
 genau tragen kann –, und die Hinweise unten),
 `http` (die Verbindung, die Warnung vor unverschlüsseltem `http:` und je Wiederholung eine WARN-Zeile vor dem Warten) und `output` (eine
-Antwort, zu tief verschachtelt oder zu groß zum Ausgeben, ein fehlgeschlagenes Schreiben auf
-stdout). Ein Eintrag ist immer eine Zeile; Steuerzeichen
+Antwort, zu tief verschachtelt oder zu groß zum Ausgeben, ein fehlgeschlagenes oder abgeschnittenes
+Schreiben auf stdout). Ein Eintrag ist immer eine Zeile; Steuerzeichen
 darin werden maskiert.
 
 **Hinweise.** `stations list` schreibt `INFO`-Einträge von `pegel.api` auf stderr –

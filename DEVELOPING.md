@@ -438,7 +438,8 @@ everything that drives the CLI is in `apps/cli/test/`.
 - **`validate.test.ts`** — the input rules and `assertValid`.
 - **`io.test.ts`** — `handleOutputErrors` and `stderrAfterStdout` on fake streams: the
   pipe cases, a stdout write error as an ERROR record of `pegel.output`, and a record
-  held behind stdout's backlog.
+  held behind stdout's backlog; and `stdoutWriter`, which writes every byte to a stdout that is
+  a regular file or reports the error.
 - **`log.test.ts`** — the record helpers of `apps/cli/src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`, `installWarningLog`); the CLI-level checks are P23's.
 - **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input through `run()` and through
@@ -459,8 +460,9 @@ everything that drives the CLI is in `apps/cli/test/`.
   2026-10-21 kit rollout, P24 (a corpus of tricky inputs through every text filter — `--waters`,
   `--fuzzy-id`, `--ids` — and the `[timeseries]` path id: canonical or refused, alike in CLI
   and library; the `<station>` id is not listed, since a name costs a lookup first) and P25 (a
-  number the answer can't carry exactly, and an empty answer, are errors; P26, `-o`, does not
-  apply: pegel has no `-o`), and, from the 2026-10-21 fix round, P27
+  number the answer can't carry exactly, and an empty answer, are errors), P26 output integrity
+  (stdout redirected to a file and cut short is an `ERROR` record, exit 1; its `-o` tests are
+  skipped, `HAS_OUTPUT_OPTION = false`: pegel has no `-o`), and, from the 2026-10-21 fix round, P27
   (`conformance-p27-big-and-odd-answers`: the built bin under a small heap prints a large flat
   answer with `--compact`, an answer full of DEL characters escaped or, past V8's longest
   string, as one ERROR record; a lone surrogate or invalid bytes are replaced with U+FFFD and
@@ -540,7 +542,10 @@ WARN), `http` (the
 connection, the cleartext warning) and `output` (an answer nested too deeply or too large to
 print, a failed write to stdout). A failed
 write to stdout other than a closed pipe (`handleOutputErrors`, in the bin shim, outside
-`run()`) is an ERROR record of `pegel.output` (`Could not write to stdout: …`), in the
+`run()`) is an ERROR record of `pegel.output` (`Could not write to stdout: …`) — also a write
+cut short when stdout is a regular file (`> out.json` under a file-size limit or on a full disk:
+EFBIG, ENOSPC), which `stdoutWriter` (`io.ts`) writes with `writeAll` and reports as stdout's
+`error`, where Node's stream ignored the short count and exited 0 —, in the
 format argv asks for and redacted like the run's log (`processLogger`). So are Node's own
 process warnings (`installWarningLog`, also installed by the shim): a WARN record of
 `pegel.cli`, `(node) <name>: <message>`, instead of Node's plain `(node:PID) Warning: …`
