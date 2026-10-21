@@ -37,6 +37,13 @@ const repeatedFlags: string[][] = [
   ["stations", "list", "--fuzzy-id", "a", "--fuzzy-id", "b"],
   ["measurements", "BONN", "--start", "P7D", "--start", "P1D"],
   ["--timeout", "1000", "--timeout", "2000", "waters"],
+  ["--timeout=1000", "waters", "--timeout", "2000"],
+  ["--base-url", "http://127.0.0.1:1", "--base-url", "http://127.0.0.1:2", "waters"],
+  ["--log-format", "text", "--log-format", "jsonl", "waters"],
+  ["--user-agent", "a", "--user-agent", "b", "waters"],
+  ["--max-retries", "1", "--max-retries", "2", "waters"],
+  ["--max-response-bytes", "1", "--max-response-bytes", "2", "waters"],
+  ["measurements", "2710080", "--end", "2026-01-01", "--end", "2026-01-02"],
 ];
 const USAGE_EXIT = 2;
 /** A filter value the server matches nothing for, the answer it gives, and what stderr must name. */
