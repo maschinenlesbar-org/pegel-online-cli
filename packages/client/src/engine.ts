@@ -45,11 +45,11 @@ export interface RawResponse {
  */
 export interface EngineOptions {
   /** Base URL of the API. Defaults to https://www.pegelonline.wsv.de */
-  baseUrl?: string;
+  baseUrl?: string | undefined;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
-  transport?: Transport;
+  transport?: Transport | undefined;
   /** Value of the User-Agent header. */
-  userAgent?: string;
+  userAgent?: string | undefined;
   /**
    * Extra headers sent on every request. Credential-bearing headers
    * (Authorization, Cookie, X-API-Key, Proxy-Authorization) are automatically
@@ -57,12 +57,12 @@ export interface EngineOptions {
    * an arbitrary host named in Location. This client is keyless and sets none, but
    * library consumers may add one.
    */
-  headers?: Record<string, string>;
+  headers?: Record<string, string> | undefined;
   /**
    * Time limit per request in milliseconds, covering the whole response body, not
    * only idle gaps (0 disables; at most `MAX_TIMEOUT_MS`, 2^31 - 1 ms).
    */
-  timeoutMs?: number;
+  timeoutMs?: number | undefined;
   /**
    * Number of automatic retries for transient (429/503) responses and reset
    * connections (ECONNRESET, EPIPE, ECONNABORTED, undici's UND_ERR_SOCKET, anywhere in
@@ -70,30 +70,30 @@ export interface EngineOptions {
    * `retryDelayMs * attempt`, or longer when the response's `Retry-After` asks (up to
    * `MAX_RETRY_AFTER_MS`; a longer one is not retried). Timeouts are not retried.
    */
-  maxRetries?: number;
+  maxRetries?: number | undefined;
   /**
    * Base backoff between retries in milliseconds (grows linearly); the floor of every
    * wait, Retry-After or not. At most `MAX_RETRY_AFTER_MS`.
    */
-  retryDelayMs?: number;
+  retryDelayMs?: number | undefined;
   /**
    * Number of HTTP redirects (301/302/303/307/308) to follow, 0..20. Defaults to 5. Any
    * other 3xx, one with a missing or malformed Location, and one past this limit
    * surface as a PegelApiError naming the target.
    */
-  maxRedirects?: number;
+  maxRedirects?: number | undefined;
   /**
    * Hard cap on response body size in bytes (defends against memory exhaustion
    * from a hostile/buggy endpoint). Defaults to 100 MiB; set to 0 for no limit.
    */
-  maxResponseBytes?: number;
+  maxResponseBytes?: number | undefined;
   /** Injectable sleep, primarily for deterministic tests. */
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: ((ms: number) => Promise<void>) | undefined;
   /**
    * Called once per retry, right before the backoff sleep, for each retried status
    * and reset connection; never when there is no retry. A throw is swallowed.
    */
-  onRetry?: (event: RetryEvent) => void;
+  onRetry?: ((event: RetryEvent) => void) | undefined;
 }
 
 /** What `EngineOptions.onRetry` is told about one retry. */
@@ -600,7 +600,7 @@ export class RequestEngine {
   async request(
     method: string,
     path: string,
-    options: { query?: QueryParams; accept: string } = { accept: "application/json" },
+    options: { query?: QueryParams | undefined; accept: string } = { accept: "application/json" },
   ): Promise<RawResponse> {
     let url = this.buildUrl(path, options.query);
     const headers: Record<string, string> = {

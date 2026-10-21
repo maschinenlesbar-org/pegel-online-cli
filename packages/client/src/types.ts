@@ -158,27 +158,27 @@ export interface StationListParams {
    * At least one, none blank. A name may match more than one station (NEUSTADT: LEINE
    * and OSTSEE) and an unknown one matches none, silently: `stationListNotes` reports both.
    */
-  ids?: string[];
+  ids?: string[] | undefined;
   /** Water shortname filter; not blank. */
-  waters?: string;
+  waters?: string | undefined;
   /** Fuzzy id match; not blank. */
-  fuzzyId?: string;
+  fuzzyId?: string | undefined;
   /** Embed each station's timeseries list. */
-  includeTimeseries?: boolean;
+  includeTimeseries?: boolean | undefined;
   /**
    * Embed the current measurement inside each timeseries. Implies
    * `includeTimeseries: true` unless that is set explicitly: the API drops the
    * measurement without the timeseries list.
    */
-  includeCurrentMeasurement?: boolean;
+  includeCurrentMeasurement?: boolean | undefined;
   /** Embed the gauge marks inside each timeseries. Implies `includeTimeseries` like the above. */
-  includeCharacteristicValues?: boolean;
+  includeCharacteristicValues?: boolean | undefined;
   /**
    * Also list the forecast series (`WV`, see {@link TimeseriesInfo.start}) in each
    * station's timeseries list; the API leaves them out otherwise. Implies
    * `includeTimeseries` like the above.
    */
-  includeForecastTimeseries?: boolean;
+  includeForecastTimeseries?: boolean | undefined;
 }
 
 /**
@@ -188,9 +188,9 @@ export interface StationListParams {
  * both inside the timeseries list and drops them without it).
  */
 export interface IncludeParams {
-  includeTimeseries?: boolean;
-  includeCurrentMeasurement?: boolean;
-  includeCharacteristicValues?: boolean;
+  includeTimeseries?: boolean | undefined;
+  includeCurrentMeasurement?: boolean | undefined;
+  includeCharacteristicValues?: boolean | undefined;
 }
 
 /** {@link IncludeParams} for a single-station request (`stations.get`). */
@@ -199,11 +199,11 @@ export interface StationIncludeParams extends IncludeParams {
    * Also list the forecast series (`WV`) in the station's timeseries list; the API leaves
    * them out otherwise. Implies `includeTimeseries` unless that is set explicitly.
    */
-  includeForecastTimeseries?: boolean;
+  includeForecastTimeseries?: boolean | undefined;
 }
 
 /** Time window for a measurements request (ISO-8601 instants or periods, e.g. "P7D"); neither bound may be blank. */
 export interface MeasurementsParams {
-  start?: string;
-  end?: string;
+  start?: string | undefined;
+  end?: string | undefined;
 }

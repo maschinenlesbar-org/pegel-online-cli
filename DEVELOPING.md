@@ -54,7 +54,9 @@ try {
 
 ### Client options
 
-All fields are optional; the values below are illustrative overrides, **not**
+All fields are optional, and one given as `undefined` means its default, as an omitted one
+does (the option and parameter types say `?: T | undefined`, so `{ baseUrl:
+process.env.X }` compiles under `exactOptionalPropertyTypes`); the values below are illustrative overrides, **not**
 defaults (defaults are `maxRetries: 2`, `maxResponseBytes: 100 MiB`, `timeoutMs:
 30_000`, `maxRedirects: 5`). Numeric options must be integers in range —
 `timeoutMs` 0..`MAX_TIMEOUT_MS`, `maxRetries` 0..`MAX_RETRIES` (10), `retryDelayMs`
@@ -383,13 +385,15 @@ npm run coverage  # the same tests in one run, with a coverage report
 node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 ```
 
-The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`),
+The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`, `types`),
 everything that drives the CLI is in `apps/cli/test/`.
 
 - **`query.test.ts`** — query-string serialisation.
 - **`http.test.ts`** — the default transport against a real loopback `http.createServer`.
 - **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry — mocked transport.
 - **`client.test.ts`** — every endpoint's method/URL/query mapping — mocked transport.
+- **`types.test.ts`** — a consumer compiled by `tsc` with `exactOptionalPropertyTypes` (it starts
+  a process, so it gets 30 s), and every option given as `undefined` meaning its default.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
 - **`validate.test.ts`** — the input rules and `assertValid`.
 - **`io.test.ts`** — `handleOutputErrors` and `stderrAfterStdout` on fake streams: the
