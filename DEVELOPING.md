@@ -180,7 +180,11 @@ apps/cli/src/cli/
   path aborts the process on Node 26, so it goes through the gap path (an empty gap, same text).
   Both forms escape what `JSON.stringify` leaves raw although a terminal acts on it
   (`escapeControlChars`): DEL, C1 (U+0080–U+009F) and the bidi controls (`isBidiControl`:
-  U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069), as `\uXXXX`.
+  U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069), as `\uXXXX`. Each becomes six
+  characters, so the escaped length is counted first: past V8's longest string it is an
+  `OutputError` ("The answer is too large to print (N characters once its control characters are
+  escaped)."), and otherwise the text is built in 64 Ki chunks joined once, never one `+=` per
+  character (that crashed the process with a heap out-of-memory error on 90 MB of DEL).
 
 ### Library & technical terms
 
