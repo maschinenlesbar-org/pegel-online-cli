@@ -89,9 +89,12 @@ const isTimeseries = hasStrings("shortname", "unit");
 const isMeasurement: Shape = (v) =>
   hasStrings("timestamp")(v) && (typeof (v as { value?: unknown }).value === "number" || (v as { value?: unknown }).value === null);
 
-/** `value` when `shape(value)` holds; otherwise a PegelParseError naming the expectation. */
-function expectShape<T>(path: string, value: unknown, shape: Shape, what: string): T {
-  if (!shape(value)) throw new PegelParseError(`Unexpected response from ${path}: expected ${what}.`);
+/**
+ * `value` when `shape(value)` holds; otherwise a PegelParseError naming the request (`GET <url>`,
+ * as the engine's `describeUrl` gives it: userinfo redacted, cut) and the expectation.
+ */
+function expectShape<T>(url: string, value: unknown, shape: Shape, what: string): T {
+  if (!shape(value)) throw new PegelParseError(`GET ${url}: unexpected response shape: expected ${what}.`);
   return value as T;
 }
 
@@ -192,7 +195,8 @@ class StationsResource {
       ...stationIncludes(params),
     });
     const path = `${API}/stations.json`;
-    return expectShape<Station[]>(path, await this.e.getJson(path, query), arrayOf(isStation), "an array of stations").map(stationOf);
+    const body = await this.e.getJson(path, query);
+    return expectShape<Station[]>(this.e.describeUrl(path, query), body, arrayOf(isStation), "an array of stations").map(stationOf);
   }
 
   /**
@@ -218,7 +222,8 @@ class StationsResource {
   async get(station: string, params: StationIncludeParams = {}): Promise<Station> {
     params = checkParams("stations.get parameters", params, STATION_INCLUDE_KEYS);
     const path = `${API}/stations/${enc("station", station)}.json`;
-    return stationOf(expectShape(path, await this.e.getJson(path, stationIncludes(params)), isStation, "a station object"));
+    const query = stationIncludes(params);
+    return stationOf(expectShape(this.e.describeUrl(path, query), await this.e.getJson(path, query), isStation, "a station object"));
   }
 }
 
@@ -256,12 +261,13 @@ class TimeseriesResource {
   async get(station: string, timeseries = "W", params: IncludeParams = {}): Promise<TimeseriesInfo> {
     params = checkParams("timeseries.get parameters", params, INCLUDE_KEYS);
     const path = `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}.json`;
-    return timeseriesOf(expectShape(path, await this.e.getJson(path, includeQuery(params)), isTimeseries, "a timeseries object"));
+    const query = includeQuery(params);
+    return timeseriesOf(expectShape(this.e.describeUrl(path, query), await this.e.getJson(path, query), isTimeseries, "a timeseries object"));
   }
 
   async currentMeasurement(station: string, timeseries = "W"): Promise<CurrentMeasurement> {
     const path = `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}/currentmeasurement.json`;
-    return readingOf(expectShape(path, await this.e.getJson(path), isMeasurement, "a measurement object"));
+    return readingOf(expectShape(this.e.describeUrl(path), await this.e.getJson(path), isMeasurement, "a measurement object"));
   }
 
   /** Rejects (PegelValidationError, no request) a blank `start` or `end`. */
@@ -273,7 +279,8 @@ class TimeseriesResource {
     params = checkParams("timeseries.measurements parameters", params, MEASUREMENT_KEYS);
     const path = `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}/measurements.json`;
     const query = prune({ start: optionalValue("start", params.start), end: optionalValue("end", params.end) });
-    return expectShape<Measurement[]>(path, await this.e.getJson(path, query), arrayOf(isMeasurement), "an array of measurements").map(readingOf);
+    const body = await this.e.getJson(path, query);
+    return expectShape<Measurement[]>(this.e.describeUrl(path, query), body, arrayOf(isMeasurement), "an array of measurements").map(readingOf);
   }
 }
 
@@ -365,6 +372,6 @@ export class PegelOnlineClient {
   /** List all bodies of water (Gewässer) covered by the service. */
   async waters(): Promise<Water[]> {
     const path = `${API}/waters.json`;
-    return expectShape(path, await this.engine.getJson(path), arrayOf(isWater), "an array of waters");
+    return expectShape(this.engine.describeUrl(path), await this.engine.getJson(path), arrayOf(isWater), "an array of waters");
   }
 }

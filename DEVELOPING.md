@@ -254,7 +254,7 @@ all of them). Whatever it throws, and a response without a usable `status` (100�
 but `http:`/`https:` (`file:`, `data:`, `javascript:`) is refused before the transport is
 called.
 
-**RawResponse.** The low-level result of a request: `{ data: Buffer, contentType, status }` —
+**RawResponse.** The low-level result of a request: `{ data: Buffer, contentType, contentEncoding, status }` —
 raw bytes, never lossily decoded. Exported for completeness; endpoints return decoded JSON. `getJson` decodes the
 bytes by the charset the `Content-Type` names (UTF-8 when it names none; a byte order mark is
 dropped); an unknown charset label is a `PegelParseError`.
@@ -275,7 +275,7 @@ transport's per-hop scheme check), `PegelParseError` (bad JSON, an unknown chars
 `JSON.parse` can't carry exactly — past 2^53 printed differently from how it was written
 (`12345678901234567890`), out of a double's range (`1e400`), too small for one (`1e-400`) or
 a subnormal that would print changed (`3e-324` became `5e-324`; `5e-324` and `1e-310` pass):
-`Unexpected response from <path>: the number <N> cannot be represented exactly.`; a library
+`GET <url>: the number <N> cannot be represented exactly.`; a library
 caller whose server sends a member past 2^53 (a 64-bit id) declares it with the engine option
 `bigIntegerKeys` (a set of member names, none by default), and the value of a declared member is
 then delivered as its exact literal, a string (`"1858054135406919680"`), whatever its size, while
@@ -284,7 +284,12 @@ with no reviver; pegel declares none — or a 2xx
 answer without the documented shape: every method checks it — an array of waters or
 stations with string `shortname`/`longname`/`uuid`, a station or timeseries object, a
 measurement with a string `timestamp` and a numeric or `null` `value` — so `null`, `{}`, an
-error envelope or a proxy page is never returned as data),
+error envelope or a proxy page is never returned as data; an empty body is one too, and so is
+a compressed one, named by its Content-Encoding, since the client does not decompress). Every
+error about an answer names the request, method and URL (`describeUrl`: absolute, userinfo
+redacted, cut at 500 characters): `GET <url>: the answer is not valid JSON (expected JSON, got
+Content-Type "text/html").`, `GET <url>: empty response body.`, `GET <url>: unsupported response
+charset "…".`, `GET <url>: unexpected response shape: expected a measurement object.`),
 `PegelValidationError` (an input rejected before any request), all extending the
 base `PegelError`.
 

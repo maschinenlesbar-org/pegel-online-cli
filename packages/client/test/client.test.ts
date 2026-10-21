@@ -202,7 +202,7 @@ test("a 2xx body without the documented shape is a PegelParseError in every meth
     ];
     for (const [name, call] of calls) {
       await assert.rejects(call, (err: unknown) =>
-        err instanceof PegelError && err.name === "PegelParseError" && /^Unexpected response from \/webservices\/rest-api\/v2\/.*: expected /.test(err.message),
+        err instanceof PegelError && err.name === "PegelParseError" && /^GET https:\/\/www\.pegelonline\.wsv\.de\/webservices\/rest-api\/v2\/\S*: unexpected response shape: expected /.test(err.message),
         `${name} ${JSON.stringify(body)}`);
     }
   }

@@ -33,6 +33,8 @@ const DEFAULT_USER_AGENT = "pegel-online-cli";
 export interface RawResponse {
   data: Buffer;
   contentType: string;
+  /** The Content-Encoding header ("" when absent). */
+  contentEncoding: string;
   status: number;
 }
 
@@ -569,8 +571,24 @@ export class RequestEngine {
         `Invalid path segment "${dotSegment}" in ${cutForMessage(normalizedPath)}: "." and ".." cannot be used as an id.`,
       );
     }
+    return this.joinUrl(normalizedPath, query);
+  }
+
+  /** Base URL + path + query string, without buildUrl's validation. */
+  private joinUrl(path: string, query?: QueryParams): string {
+    const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
     return `${this.#baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
+  }
+
+  /**
+   * The request URL as error messages show it: absolute (so a message names the host that gave
+   * a bad answer, which matters with a custom base URL), userinfo redacted and cut at 500
+   * characters. It never throws: describing a URL for a message does not validate it (buildUrl
+   * does).
+   */
+  describeUrl(path: string, query?: QueryParams): string {
+    return cutForMessage(redactUrl(this.joinUrl(path, query)), MAX_DETAIL_LENGTH);
   }
 
   /**
@@ -773,26 +791,50 @@ export class RequestEngine {
         throw this.toApiError(method, url, status, body, location, undefined, refusedWaitMs, hint);
       }
 
-      return { data: body, contentType, status };
+      const contentEncoding = String(headerValue(responseHeaders["content-encoding"]) ?? "").trim();
+      return { data: body, contentType, contentEncoding, status };
     }
   }
 
-  /** Perform a GET expecting JSON and parse it into `T`. */
+  /**
+   * Perform a GET expecting JSON and parse it into `T`. An empty (or whitespace-only) body is a
+   * PegelParseError: every endpoint answers with a JSON document. Every error about the answer
+   * names the request (`GET <url>: …`, userinfo redacted).
+   */
   async getJson<T>(path: string, query?: QueryParams): Promise<T> {
     const res = await this.request("GET", path, { query, accept: "application/json" });
-    const text = decodeBody(res.data, res.contentType, path);
+    const request = `GET ${this.describeUrl(path, query)}`;
+    // The client sends no Accept-Encoding and does not decompress; a compressed body can only
+    // come from a misbehaving proxy. Name it rather than fail as "not JSON". A list of codings
+    // is allowed (RFC 9110 §8.4); only `identity` ones mean "not encoded".
+    const codings = res.contentEncoding.split(",").map((c) => c.trim()).filter((c) => c !== "");
+    if (codings.some((c) => !/^identity$/i.test(c))) {
+      throw new PegelParseError(
+        `${request}: unsupported Content-Encoding "${cleanDetail(res.contentEncoding)}" (the client does not decompress responses).`,
+      );
+    }
+    const text = decodeBody(res.data, res.contentType, request);
+    if (text.trim() === "") {
+      // A broken answer, not "no results": printed as nothing with exit 0, it would let a
+      // script carry on as if the API had found nothing.
+      throw new PegelParseError(`${request}: empty response body.`);
+    }
     // Declared big integers are quoted first, so JSON.parse delivers them exactly.
     const { json, inexact } = scanNumbers(text, this.bigIntegerKeys);
     let parsed: T;
     try {
       parsed = JSON.parse(json) as T;
     } catch (cause) {
-      throw new PegelParseError(`Failed to parse JSON response from ${path}`, { cause });
+      // An HTML maintenance or proxy page is the usual non-JSON answer: name its type, so it
+      // reads as an upstream problem rather than a client bug.
+      const type = res.contentType.split(";")[0]?.trim() ?? "";
+      const hint = type !== "" && !/json/i.test(type) ? ` (expected JSON, got Content-Type "${cleanDetail(type)}")` : "";
+      throw new PegelParseError(`${request}: the answer is not valid JSON${hint}.`, { cause });
     }
     // JSON.parse rounds and overflows numbers silently: refuse the answer rather than print a
     // changed value.
     if (inexact !== undefined) {
-      throw new PegelParseError(`Unexpected response from ${path}: the number ${cutForMessage(inexact)} cannot be represented exactly.`);
+      throw new PegelParseError(`${request}: the number ${cutForMessage(inexact)} cannot be represented exactly.`);
     }
     return parsed;
   }
@@ -841,15 +883,15 @@ export class RequestEngine {
  * none). A proxy or mirror that answers in ISO-8859-1 used to come out as "K\uFFFDLN"
  * with exit 0. TextDecoder also drops a leading byte order mark, which
  * Buffer#toString keeps and JSON.parse then rejects. An unknown charset label is a
- * PegelParseError.
+ * PegelParseError naming `request`.
  */
-function decodeBody(body: Buffer, contentType: string, path: string): string {
+function decodeBody(body: Buffer, contentType: string, request: string): string {
   const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(charset);
   } catch {
-    throw new PegelParseError(`Unsupported response charset "${cutForMessage(sanitizeServerText(charset))}" from ${path}.`);
+    throw new PegelParseError(`${request}: unsupported response charset "${cutForMessage(sanitizeServerText(charset))}".`);
   }
   return decoder.decode(body);
 }
