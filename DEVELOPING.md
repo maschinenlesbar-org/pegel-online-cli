@@ -168,6 +168,11 @@ apps/cli/src/cli/
 - The CLI is built around injectable `CliDeps` (client factory + I/O), so the whole program can be
   driven in-process by tests with a mocked client and captured output — no subprocesses.
 - The engine follows HTTP redirects, so trailing-slash and host normalisations are handled transparently.
+- JSON output (`renderJson`, `cli/shared.ts`): an answer nested too deeply to pretty-print is a
+  clean error that suggests `--compact`. `--compact` takes V8's fast path (`JSON.stringify(value)`),
+  the only one that prints very deep nesting on Node 26, unless the answer holds a string or key
+  of 64 Mi characters or more (`holdsHugeString`): on such a string from `JSON.parse` the fast
+  path aborts the process on Node 26, so it goes through the gap path (an empty gap, same text).
 
 ### Library & technical terms
 
