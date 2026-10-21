@@ -28,12 +28,23 @@ export function cutForMessage(text: string, max = MAX_QUOTED_LENGTH): string {
   return cut.length < text.length ? `${cut}…` : text;
 }
 
+/**
+ * True for a bidi formatting character, which reorders the text that follows on a terminal:
+ * U+061C, U+200E, U+200F, U+202A–U+202E and U+2066–U+2069.
+ */
+export function isBidiControl(code: number): boolean {
+  return (
+    code === 0x061c ||
+    code === 0x200e ||
+    code === 0x200f ||
+    (code >= 0x202a && code <= 0x202e) ||
+    (code >= 0x2066 && code <= 0x2069)
+  );
+}
+
 /** True for a character server text in a message never carries: C0, DEL, C1, U+2028/2029 and the bidi controls. */
 function droppedFromServerText(n: number): boolean {
-  return (
-    n < 0x20 || (n >= 0x7f && n <= 0x9f) || n === 0x2028 || n === 0x2029 ||
-    n === 0x061c || n === 0x200e || n === 0x200f || (n >= 0x202a && n <= 0x202e) || (n >= 0x2066 && n <= 0x2069)
-  );
+  return n < 0x20 || (n >= 0x7f && n <= 0x9f) || n === 0x2028 || n === 0x2029 || isBidiControl(n);
 }
 
 /**

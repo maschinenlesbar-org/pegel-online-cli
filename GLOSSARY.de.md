@@ -311,7 +311,9 @@ vorab abgelehnt; das schließt auch Header-Injection aus: Der Client wirft
 ## Ausgabe und Fehlerbehandlung
 
 **JSON-Ausgabe.** Jeder Befehl gibt JSON auf stdout aus – standardmäßig formatiert,
-mit `--compact` in einer einzigen Zeile.
+mit `--compact` in einer einzigen Zeile. Zeichen, auf die ein Terminal reagieren würde –
+Steuerzeichen und die Bidi-Steuerzeichen, die Text umordnen (U+202E) –, werden maskiert
+ausgegeben (`\u202e`); das JSON liest sich als dieselben Daten zurück.
 
 **Exit-Codes.** `0` bei Erfolg; `2` bei Aufruf- bzw. Parse-Fehlern (unbekannter Befehl
 oder unbekannte Option, fehlendes Argument, ungültiger Flag-Wert, eine Option mit einem

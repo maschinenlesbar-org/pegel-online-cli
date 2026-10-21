@@ -173,6 +173,9 @@ apps/cli/src/cli/
   the only one that prints very deep nesting on Node 26, unless the answer holds a string or key
   of 64 Mi characters or more (`holdsHugeString`): on such a string from `JSON.parse` the fast
   path aborts the process on Node 26, so it goes through the gap path (an empty gap, same text).
+  Both forms escape what `JSON.stringify` leaves raw although a terminal acts on it
+  (`escapeControlChars`): DEL, C1 (U+0080–U+009F) and the bidi controls (`isBidiControl`:
+  U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069), as `\uXXXX`.
 
 ### Library & technical terms
 

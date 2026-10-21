@@ -307,7 +307,9 @@ carry, are rejected up front, which also closes header injection: the client thr
 ## Output and error handling
 
 **JSON output.** Every command prints JSON to stdout — pretty-printed by default,
-or on a single line with `--compact`.
+or on a single line with `--compact`. Characters a terminal would act on — control
+characters and the bidi controls that reorder text (U+202E) — are written escaped
+(`\u202e`), so the JSON reads back as the same data.
 
 **Exit codes.** `0` success; `2` for usage/parse errors (unknown command/option,
 missing argument, invalid flag value, a single-value option given twice, a station

@@ -103,6 +103,21 @@ test("measurements passes --start", async () => {
   assert.equal(new URL(cli.mt.last().url).searchParams.get("start"), "P3D");
 });
 
+test("bidi controls in server data are escaped in the JSON output", async () => {
+  // JSON.stringify leaves them raw, and a terminal reorders the text after them: U+202E shows
+  // "BONN\u202eNNOK" as "BONNKONN".
+  const bidi = [0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069];
+  const served = { uuid: "x", shortname: "BONN", longname: `BONN\u202eNNOK${String.fromCharCode(...bidi)}` };
+  for (const format of [[], ["--compact"]]) {
+    const cli = makeCli(() => jsonResponse(served));
+    assert.equal(await run([...format, "stations", "get", "2710080"], cli.deps), 0);
+    const text = cli.out.join("\n");
+    assert.match(text, /BONN\\u202eNNOK/, format.join(" "));
+    assert.deepEqual([...text].filter((c) => bidi.includes(c.charCodeAt(0))), [], format.join(" "));
+    assert.deepEqual(JSON.parse(text), served);
+  }
+});
+
 test("waters hits waters.json", async () => {
   const cli = makeCli(() => jsonResponse([]));
   await run(["waters"], cli.deps);
