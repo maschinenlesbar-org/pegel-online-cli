@@ -120,3 +120,20 @@ test("headerValueProblem: not blank, no controls but tab, nothing above U+00FF",
   assert.equal(headerValueProblem("Pegel€"), "Value contains characters outside Latin-1 (above U+00FF).");
   for (const value of ["pegel-online-cli", "a\tb", "Müller"]) assert.equal(headerValueProblem(value), undefined);
 });
+
+test("a refusal quotes the value visibly: invisible and format characters escaped, never raw (D10)", async () => {
+  const c = new PegelOnlineClient({ transport: async () => jsonResponse([]) });
+  const cases: Array<[string, () => Promise<unknown>, string]> = [
+    ["a / in a timeseries id", () => c.timeseries.currentMeasurement("2710080", "a/​b"), "\\u200b"],
+    ["a / in a station id", () => c.stations.get("x/‮y"), "\\u202e"],
+    ["an unknown key", () => c.stations.list({ ["wat­ers"]: "RHEIN" } as never), "\\u00ad"],
+  ];
+  for (const [label, call, escape] of cases) {
+    await assert.rejects(call, (err: unknown) => {
+      assert.ok(err instanceof PegelValidationError, label);
+      assert.ok(err.message.includes(escape), `${label}: ${err.message}`);
+      assert.ok(!/[­​‮]/.test(err.message), `${label}: raw in ${err.message}`);
+      return true;
+    });
+  }
+});

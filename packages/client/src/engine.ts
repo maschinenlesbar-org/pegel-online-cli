@@ -22,6 +22,7 @@ import {
   credentialsIn,
   cutForMessage,
   echoedCredentialForms,
+  quoteValue,
   redactCredentials,
   redactSecrets,
   redactUrl,
@@ -216,7 +217,7 @@ function headersOption(value: Record<string, string> | undefined): Record<string
   }
   for (const [name, header] of Object.entries(value)) {
     const reason = headerValueProblem(header);
-    if (reason !== undefined) throw new PegelValidationError(`Invalid option headers: ${JSON.stringify(cutForMessage(name))}: ${reason}`);
+    if (reason !== undefined) throw new PegelValidationError(`Invalid option headers: ${quoteValue(name)}: ${reason}`);
   }
   return { ...value };
 }

@@ -28,6 +28,35 @@ export function cutForMessage(text: string, max = MAX_QUOTED_LENGTH): string {
   return cut.length < text.length ? `${cut}…` : text;
 }
 
+/** Unicode General Category Cf (format): bidi controls, zero-width characters, U+00AD, U+FEFF, … */
+const FORMAT_CHAR = /\p{Cf}/u;
+
+/**
+ * Quote a value for an error message, as `JSON.stringify` does, and also escape what it
+ * leaves raw although a terminal acts on it or no one can see it: DEL, the C1 controls, every
+ * Unicode format character (bidi overrides, zero-width characters, the soft hyphen), the line
+ * and paragraph separators U+2028/U+2029 and lone surrogates (JSON.stringify writes those as
+ * `\ud800` already). A refused id or filter is echoed in messages; an override in it would
+ * reorder the rest of the line ("Trojan Source"), and a zero-width space in it would make the
+ * refusal look like one of a valid value. A value longer than `MAX_QUOTED_LENGTH` (200)
+ * characters is cut, and the "…" goes after the closing quote (`"AAAA"…`), so it does not read
+ * as part of the value. The quoted part stays a valid JSON string.
+ */
+export function quoteValue(value: string): string {
+  const cut = value.length > MAX_QUOTED_LENGTH;
+  let out = "";
+  for (const ch of JSON.stringify(cut ? cutText(value, MAX_QUOTED_LENGTH) : value)) {
+    const n = ch.codePointAt(0) ?? 0;
+    if ((n >= 0x7f && n <= 0x9f) || n === 0x2028 || n === 0x2029 || FORMAT_CHAR.test(ch)) {
+      // One escape per UTF-16 unit, so a character above U+FFFF stays valid JSON.
+      for (let i = 0; i < ch.length; i++) out += `\\u${ch.charCodeAt(i).toString(16).padStart(4, "0")}`;
+    } else {
+      out += ch;
+    }
+  }
+  return cut ? `${out}…` : out;
+}
+
 /**
  * True for a bidi formatting character, which reorders the text that follows on a terminal:
  * U+061C, U+200E, U+200F, U+202A–U+202E and U+2066–U+2069.
@@ -286,7 +315,7 @@ export class PegelAmbiguousStationError extends PegelValidationError {
   constructor(station: string, stations: StationChoice[]) {
     const which = describeStationChoices(stations);
     super(
-      `Invalid station ${JSON.stringify(cutForMessage(station))}: it names ${stations.length} stations, ${which}; ` +
+      `Invalid station ${quoteValue(station)}: it names ${stations.length} stations, ${which}; ` +
         "use the number or uuid.",
     );
     this.station = station;

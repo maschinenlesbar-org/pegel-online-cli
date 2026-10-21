@@ -8,7 +8,7 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
-import { PegelAmbiguousStationError, PegelParseError, PegelValidationError, cutForMessage } from "./errors.js";
+import { PegelAmbiguousStationError, PegelParseError, PegelValidationError, quoteValue } from "./errors.js";
 import {
   assertValid,
   idListProblem,
@@ -45,16 +45,16 @@ const API = "/webservices/rest-api/v2";
 function enc(name: string, value: string): string {
   if (typeof value !== "string" || value.trim() === "") {
     throw new PegelValidationError(
-      `Invalid ${name}: expected a non-empty string, got ${typeof value === "string" ? JSON.stringify(cutForMessage(value)) : typeof value}.`,
+      `Invalid ${name}: expected a non-empty string, got ${typeof value === "string" ? quoteValue(value) : typeof value}.`,
     );
   }
   const id = normalizeInput(value);
   if (id === "." || id === "..") {
-    throw new PegelValidationError(`Invalid ${name} "${id}": "." and ".." cannot be used as an id.`);
+    throw new PegelValidationError(`Invalid ${name} ${quoteValue(id)}: "." and ".." cannot be used as an id.`);
   }
   if (id.includes("/")) {
     const hint = name === "station" ? "; use the station's number or uuid" : "";
-    throw new PegelValidationError(`Invalid ${name} ${JSON.stringify(cutForMessage(id))}: an id cannot contain "/"${hint}.`);
+    throw new PegelValidationError(`Invalid ${name} ${quoteValue(id)}: an id cannot contain "/"${hint}.`);
   }
   return encodeURIComponent(id);
 }

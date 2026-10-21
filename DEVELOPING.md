@@ -72,7 +72,11 @@ is cut at 500 characters, never inside a surrogate pair (`cutText`, exported), s
 message stays well-formed; `PegelApiError.body` keeps it all. Any other value an own
 message quotes from a server answer or the caller's input (a station name, an unknown key,
 a header name, a charset) is cut at `MAX_QUOTED_LENGTH` (200, `cutForMessage`, both
-exported), so `err.message` stays bounded for a library caller.
+exported), so `err.message` stays bounded for a library caller. A value of the caller's that a
+refusal quotes (an id, a key, a filter) goes through `quoteValue` (exported): quoted as JSON, with
+DEL, C1, U+2028/2029, lone surrogates and every format character (a zero-width space, a soft
+hyphen, a bidi control) escaped (`"a\u200bb"`), cut at 200 characters with the "…" after the
+closing quote, so an invisible character in a refused value is visible.
 
 ```ts
 new PegelOnlineClient({

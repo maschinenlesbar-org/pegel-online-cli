@@ -523,7 +523,7 @@ test("own messages quote a server or user value at most 200 characters long (L3)
     err instanceof PegelParseError && err.message.length < 400 && /charset "x+…"/.test(err.message));
   const client = new PegelOnlineClient({ transport: async () => jsonResponse([]) });
   await assert.rejects(() => client.stations.list({ [long]: "1" } as never), (err: unknown) =>
-    err instanceof PegelValidationError && err.message.length < 600 && /Unknown key "x+…"/.test(err.message));
+    err instanceof PegelValidationError && err.message.length < 600 && /Unknown key "x+"…/.test(err.message));
   await assert.rejects(() => client.stations.get(" ".repeat(5000)), (err: unknown) =>
     err instanceof PegelValidationError && err.message.length < 400);
   assert.throws(() => new RequestEngine({ headers: { [long]: "\u0001" } }), (err: unknown) =>

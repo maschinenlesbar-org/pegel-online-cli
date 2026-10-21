@@ -34,6 +34,7 @@ export {
   redactSecrets,
   cutForMessage,
   cutText,
+  quoteValue,
   serverTextForMessage,
   MAX_QUOTED_LENGTH,
   toWellFormed,
