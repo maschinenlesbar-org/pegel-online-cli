@@ -332,8 +332,9 @@ von log4j) oder mit `--log-format jsonl` als ein JSON-Objekt pro Zeile. Die Bere
 Fehler), `api` (die Antworten der API: ein Fehlerstatus, eine fehlerhafte Antwort –
 kein JSON, die falsche Form, ein unbekannter Zeichensatz, eine Zahl, die JSON nicht
 genau tragen kann –, und die Hinweise unten),
-`http` (die Verbindung, die Warnung vor unverschlüsseltem `http:` und je Wiederholung eine WARN-Zeile vor dem Warten) und `output` (ein
-fehlgeschlagenes Schreiben auf stdout). Ein Eintrag ist immer eine Zeile; Steuerzeichen
+`http` (die Verbindung, die Warnung vor unverschlüsseltem `http:` und je Wiederholung eine WARN-Zeile vor dem Warten) und `output` (eine
+Antwort, zu tief verschachtelt oder zu groß zum Ausgeben, ein fehlgeschlagenes Schreiben auf
+stdout). Ein Eintrag ist immer eine Zeile; Steuerzeichen
 darin werden maskiert.
 
 **Hinweise.** `stations list` schreibt `INFO`-Einträge von `pegel.api` auf stderr –

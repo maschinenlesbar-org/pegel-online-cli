@@ -5,6 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { logOf, type CliDeps } from "./io.js";
+import { OutputError } from "./shared.js";
 import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat, type Logger } from "./log.js";
 import {
   PegelApiError,
@@ -228,9 +229,11 @@ export function processLogger(argv: readonly string[]): Logger {
  * The log area of a `PegelError` that is neither an API nor a usage error: `http` for a
  * network error, `api` for a malformed answer (a `PegelParseError`: bad JSON, an unknown
  * charset, a 2xx body without the documented shape — the API's answer as much as an
- * error status is), else `cli` (a response nested too deeply to print).
+ * error status is), `output` for an answer that can't be printed (an `OutputError`: nested
+ * too deeply, too large), else `cli`.
  */
 function areaOf(err: PegelError): string {
+  if (err instanceof OutputError) return "output";
   if (err instanceof PegelNetworkError) return "http";
   return err instanceof PegelParseError ? "api" : "cli";
 }

@@ -326,7 +326,7 @@ documented shape included. A failed run keeps its code even when nothing reads s
 commander's messages, an ambiguous station name, unexpected errors), `api` (the API's
 answers: an error status, a malformed answer — bad JSON, the wrong shape, an unknown
 charset, a number JSON can't carry exactly —, and the notes below), `http` (the connection, the cleartext warning, and one WARN per retry before it waits) and
-`output` (a failed write to stdout). A record is always one line; control characters in
+`output` (an answer nested too deeply or too large to print, a failed write to stdout). A record is always one line; control characters in
 it are escaped.
 
 **Notes.** `stations list` logs `INFO` records of `pegel.api` on stderr — still with exit

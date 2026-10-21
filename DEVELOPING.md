@@ -169,10 +169,14 @@ apps/cli/src/cli/
 - The CLI is built around injectable `CliDeps` (client factory + I/O), so the whole program can be
   driven in-process by tests with a mocked client and captured output — no subprocesses.
 - The engine follows HTTP redirects, so trailing-slash and host normalisations are handled transparently.
-- JSON output (`renderJson`, `cli/shared.ts`): an answer nested too deeply to pretty-print is a
-  clean error that suggests `--compact`. `--compact` takes V8's fast path (`JSON.stringify(value)`),
+- JSON output (`renderJson`, `cli/shared.ts`): an answer that can't be printed is an
+  `OutputError` (an ERROR record of `pegel.output`, exit 1) that names the cause: "nested too
+  deeply" for a stack overflow, "too large (more than 536870888 characters of JSON)" for a text
+  past V8's longest string; "try --compact" is added only when the compact form of that very
+  answer prints (probed, since it depends on the Node version and the stack). `--compact` takes V8's fast path (`JSON.stringify(value)`),
   the only one that prints very deep nesting on Node 26, unless the answer holds a string or key
-  of 64 Mi characters or more (`holdsHugeString`): on such a string from `JSON.parse` the fast
+  of 64 Mi characters or more (`holdsHugeString`, iterative, linear and without an allocation
+  per value): on such a string from `JSON.parse` the fast
   path aborts the process on Node 26, so it goes through the gap path (an empty gap, same text).
   Both forms escape what `JSON.stringify` leaves raw although a terminal acts on it
   (`escapeControlChars`): DEL, C1 (U+0080–U+009F) and the bidi controls (`isBidiControl`:
@@ -510,11 +514,12 @@ forge another one or steer the terminal. Before that a lone surrogate (half a
 character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`,
 exported from `errors.ts`), and a message longer than `MAX_RECORD_MESSAGE` (4000
 characters, exported) is cut at a code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, validation errors such
-as an ambiguous station name, unexpected errors, a response nested too deeply to print),
+as an ambiguous station name, unexpected errors),
 `api` (the API's answers: an error status, a malformed answer — a `PegelParseError`: bad
 JSON, an unknown charset, a 2xx body without the documented shape — and the notes on a
 filter that matched nothing or a name two stations share), `http` (the
-connection, the cleartext warning) and `output` (a failed write to stdout). A failed
+connection, the cleartext warning) and `output` (an answer nested too deeply or too large to
+print, a failed write to stdout). A failed
 write to stdout other than a closed pipe (`handleOutputErrors`, in the bin shim, outside
 `run()`) is an ERROR record of `pegel.output` (`Could not write to stdout: …`), in the
 format argv asks for and redacted like the run's log (`processLogger`). So are Node's own
