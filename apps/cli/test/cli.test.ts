@@ -702,3 +702,35 @@ test("--ids takes a comma-separated list, each item its own id; an empty or invi
     }
   }
 });
+
+// T15 of the 2026-10-21 fix round (jobsuche-cli 28be809): a URL with a password anywhere in an
+// argument — padded, mid-phrase, in a list item, after a dash — must never reach stderr, neither
+// raw in a refusal or note nor percent-encoded in the request URL of an error record.
+test("a password in a URL inside any argument is redacted on stderr, raw or percent-encoded (T15)", async () => {
+  const url = "https://bob:s3cretpw@host.example/x";
+  const argvs = [
+    ["stations", "list", "--waters", ` ${url}`],
+    ["stations", "list", "--fuzzy-id", `near ${url} please`],
+    ["stations", "list", "--ids", `BONN, ${url}`],
+    ["stations", "list", `--waters=${url} `],
+    ["current", ` ${url}`],
+    ["current", "2710080", ` -${url}`],
+    ["measurements", "2710080", "W", "--start", ` ${url}`],
+    ["measurements", "2710080", "W", "--end", `-${url}`],
+    ["stations", "list", "--waters", ` ${url}`, "--bogus"],
+    ["stations", "list", "--ids", `a​${url}`],
+  ];
+  const answers = [
+    () => jsonResponse([]),
+    () => jsonResponse({ message: "Station does not exist." }, 404),
+    () => ({ status: 503, headers: {}, body: Buffer.from("busy") }),
+  ];
+  for (const argv of argvs) {
+    for (const answer of answers) {
+      const cli = makeCli(answer);
+      await run(["--max-retries", "0", ...argv], cli.deps);
+      const err = cli.err.join("\n");
+      assert.doesNotMatch(err, /s3cretpw|bob%3As3/, `${JSON.stringify(argv)}: ${err}`);
+    }
+  }
+});
