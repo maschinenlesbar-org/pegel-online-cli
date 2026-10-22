@@ -363,7 +363,7 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   with the `@`, as a request URL in an error record carries it) and replaces it with `***` in
   everything it prints — commander's usage errors, which echo rejected values, and its
   own messages — so a password with spaces, quotes, `#`, `?` or `/` is caught as well as
-  an ordinary one. Only a URL that starts with a scheme counts (a bare `a:b@c` is a
+  an ordinary one. Each `://` is found with `indexOf` and its scheme by walking back, so the search stays linear in a long argument, and at most 64 URLs are read from one argument. Only a URL that starts with a scheme counts (a bare `a:b@c` is a
   station id, a User-Agent or a typed value as often as a credential), except as the
   `--base-url` value, where a `user:password@host` typed without its scheme is still a
   credential. The log replaces it in each record's *message*, before the record is
