@@ -192,7 +192,7 @@ in `… (N more characters)`:
 
 ```text
 2026-10-09T14:03:12.481Z WARN  [pegel.http] requests to mirror.test are sent unencrypted (http:, not https:)
-2026-10-09T14:03:12.902Z ERROR [pegel.api] HTTP 404 for GET https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations/NOWHERE.json: Station not found
+2026-10-09T14:03:12.902Z ERROR [pegel.api] HTTP 404 for GET https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations/NOWHERE.json: Station does not exist.
 ```
 
 ```bash

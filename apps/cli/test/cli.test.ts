@@ -331,7 +331,7 @@ test("--base-url with a query, fragment or surrounding whitespace is a usage err
 });
 
 test("userinfo in --base-url is sent but redacted in error messages", async () => {
-  const cli = makeCli(() => jsonResponse({ message: "Station not found" }, 404));
+  const cli = makeCli(() => jsonResponse({ message: "Station does not exist." }, 404));
   const code = await run(["--base-url", "http://user:s3cret@127.0.0.1:1", "stations", "get", "S404"], cli.deps);
   assert.equal(code, 4);
   assert.ok(cli.mt.last().url.includes("user:s3cret@"));
@@ -733,4 +733,18 @@ test("a password in a URL inside any argument is redacted on stderr, raw or perc
       assert.doesNotMatch(err, /s3cretpw|bob%3As3/, `${JSON.stringify(argv)}: ${err}`);
     }
   }
+});
+
+test("the README's log example is the record a real 404 gives (bug 5)", async () => {
+  // results/04 bug 5: the README quoted "Station not found"; the live API answers an unknown
+  // station with "Station does not exist." (2026-10-21, twice). The fixture carries the live text.
+  const { readFileSync } = await import("node:fs");
+  const readme = readFileSync(new URL("../../../../README.md", import.meta.url), "utf8");
+  const cli = makeCli((req) =>
+    new URL(req.url).pathname.endsWith("/stations.json") ? jsonResponse([]) : jsonResponse({ status: 404, message: "Station does not exist." }, 404),
+  );
+  assert.equal(await run(["stations", "get", "NOWHERE"], cli.deps), 4);
+  const record = untimed(cli.err.join("\n"));
+  assert.equal(record, "ERROR [pegel.api] HTTP 404 for GET https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations/NOWHERE.json: Station does not exist.");
+  assert.ok(readme.includes(` ${record}\n`), "README.md shows another text for this record");
 });
