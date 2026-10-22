@@ -8,14 +8,19 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
-import { PegelAmbiguousStationError, PegelParseError, PegelValidationError, quoteValue } from "./errors.js";
+import { PegelAmbiguousStationError, PegelParseError } from "./errors.js";
 import {
   assertValid,
   idListProblem,
+  idProblem,
   knownKeysProblem,
-  nonEmptyProblem,
   normalizeInput,
+  normalizeToken,
   optionalBooleanProblem,
+  stationIdProblem,
+  textProblem,
+  tokenProblem,
+  type Problem,
 } from "./validate.js";
 import type {
   Station,
@@ -34,37 +39,23 @@ const API = "/webservices/rest-api/v2";
 
 
 /**
- * One URL path segment from a caller-supplied station or timeseries id. A blank
- * value would build a different path (`stations/.json`, `stations//W.json`), and
- * "." / ".." pass encodeURIComponent unchanged and are resolved by URL parsing
- * (the engine's `buildUrl` refuses them as path segments too), so all are refused.
- * So is a "/": encodeURIComponent sends it as %2F, which a server or proxy that
- * decodes it reads as more path segments (`BONN/../KOELN` would re-target the
- * request); a station is always reachable by its number or uuid.
+ * One URL path segment from a caller-supplied station or timeseries id, checked before any
+ * request ({@link stationIdProblem} / {@link idProblem}: a token — not blank or only invisible
+ * characters, no control or format character, no lone surrogate, which encodeURIComponent threw a
+ * raw URIError on — and no "/", "." or ".."; a station also no ","), then sent trimmed and in NFC
+ * (normalizeToken), percent-encoded. A rejected id is a PegelValidationError `Invalid station: …`.
  */
-function enc(name: string, value: string): string {
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new PegelValidationError(
-      `Invalid ${name}: expected a non-empty string, got ${typeof value === "string" ? quoteValue(value) : typeof value}.`,
-    );
-  }
-  const id = normalizeInput(value);
-  if (id === "." || id === "..") {
-    throw new PegelValidationError(`Invalid ${name} ${quoteValue(id)}: "." and ".." cannot be used as an id.`);
-  }
-  if (id.includes("/")) {
-    const hint = name === "station" ? "; use the station's number or uuid" : "";
-    throw new PegelValidationError(`Invalid ${name} ${quoteValue(id)}: an id cannot contain "/"${hint}.`);
-  }
+function enc(name: "station" | "timeseries", value: string): string {
+  const id = normalizeToken(assertValid(name, value, name === "station" ? stationIdProblem : idProblem));
   return encodeURIComponent(id);
 }
 
 /**
- * An optional query value: `undefined` means omitted; anything else must be a
- * non-blank string (nonEmptyProblem), or PegelValidationError is thrown.
+ * An optional query value: `undefined` means omitted; anything else must pass `problem` (a token
+ * or a text filter), or PegelValidationError is thrown. It is sent trimmed and in NFC.
  */
-function optionalValue(name: string, value: string | undefined): string | undefined {
-  return value === undefined ? undefined : normalizeInput(assertValid(name, value, nonEmptyProblem));
+function optionalValue(name: string, value: string | undefined, problem: Problem<string> = tokenProblem): string | undefined {
+  return value === undefined ? undefined : normalizeInput(assertValid(name, value, problem));
 }
 
 /**
@@ -183,15 +174,17 @@ class StationsResource {
   /**
    * Rejects (PegelValidationError, no request) a blank `waters` or `fuzzyId`, a
    * blank `ids` entry and an empty `ids` array: the API reads an empty parameter as
-   * no filter and would answer with every station.
+   * no filter and would answer with every station. `waters` and each `ids` entry are tokens
+   * (tokenProblem: no invisible or control character, no lone surrogate), an `ids` entry has no
+   * comma (the entries are sent comma-joined), and `fuzzyId` is a text filter (textProblem).
    */
   async list(params: StationListParams = {}): Promise<Station[]> {
     params = checkParams("stations.list parameters", params, LIST_KEYS);
     const query = prune({
       ids:
-        params.ids === undefined ? undefined : assertValid("ids", params.ids, idListProblem).map(normalizeInput).join(","),
+        params.ids === undefined ? undefined : (assertValid("ids", params.ids, idListProblem) as string[]).map(normalizeToken).join(","),
       waters: optionalValue("waters", params.waters),
-      fuzzyId: optionalValue("fuzzyId", params.fuzzyId),
+      fuzzyId: optionalValue("fuzzyId", params.fuzzyId, textProblem),
       ...stationIncludes(params),
     });
     const path = `${API}/stations.json`;

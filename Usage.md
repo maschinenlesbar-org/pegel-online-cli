@@ -183,13 +183,15 @@ pegel stations get BONN --include-timeseries | jq -r '.timeseries[].shortname'
 ### 9. Look up several specific stations at once
 
 Fetch a fixed set of gauges by id — uuids, numbers, shortnames or longnames —
-using the repeatable `--ids` flag.
+using `--ids`, a comma-separated list (it may also be repeated).
 
 ```bash
-pegel stations list --ids BONN --ids KÖLN --ids EMMERICH --include-current
+pegel stations list --ids BONN,KÖLN,EMMERICH --include-current
 ```
 
-`--ids` is repeatable; supply it once per station. For an inexact name match use
+`--ids BONN --ids KÖLN` is the same as `--ids BONN,KÖLN`. Each item is one id, sent
+trimmed and in NFC; an empty item (`BONN,,KÖLN`, a trailing comma, `","`) is a usage error,
+since the API reads it as no filter. For an inexact name match use
 `--fuzzy-id` instead. The API drops an id it doesn't know without saying so; the CLI
 logs `INFO  [pegel.api] --ids "KOELN" matched no station; …` on stderr for each such id (exit 0, the
 others are listed), and the same kind of note when `--waters` or `--fuzzy-id` matched

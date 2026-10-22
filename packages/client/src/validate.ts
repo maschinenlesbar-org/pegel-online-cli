@@ -35,32 +35,167 @@ export function normalizeInput(value: string): string {
   return value.trim().normalize("NFC");
 }
 
-/** True for an empty or whitespace-only string. */
+/** Characters that never make a value non-blank: whitespace, controls, format characters, combining marks. */
+const INVISIBLE = /[\s\p{Cc}\p{Cf}\p{M}]/gu;
+
+/** A lone surrogate: half of a character, which encodeURIComponent throws on and URLSearchParams sends as U+FFFD. */
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+
+/**
+ * True when nothing in `value` would match anything: it holds only whitespace, control and
+ * format characters (a zero-width space, a soft hyphen) and combining marks. Such a value reads
+ * as "no filter" upstream, or matches nothing, so it is refused as blank.
+ */
 export function isBlank(value: string): boolean {
-  return value.trim() === "";
+  return value.replace(INVISIBLE, "") === "";
+}
+
+/** `U+200B` for the first character of `text` that `pattern` matches. */
+function codePointOf(text: string, pattern: RegExp): string {
+  const ch = pattern.exec(text)?.[0] ?? "";
+  return `U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`;
 }
 
 /**
  * A filter or query value must be a non-blank string: the API treats an empty
  * parameter (`?waters=`, `?start=`) as no filter, so a blank value would silently
- * return the unfiltered set or the default window.
+ * return the unfiltered set or the default window. Blank includes a value of only invisible
+ * characters (`isBlank`).
  */
 export const nonEmptyProblem: Problem<unknown> = (value) =>
   typeof value !== "string" || isBlank(value) ? "Expected a non-empty value." : undefined;
 
+/** A control character inside a text filter: C0 and C1, but not TAB, LF or CR (whitespace in a pasted phrase). */
+const TEXT_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/;
+
+/** A format character inside a text filter, but not ZWNJ/ZWJ (U+200C/U+200D), which some scripts and emoji need. */
+const TEXT_FORMAT = /(?![\u200c\u200d])\p{Cf}/u;
+
 /**
- * The `ids` filter of `stations.list`: at least one id, none of them blank. An
- * empty list would be dropped and list every station; a blank entry would be sent
- * as `ids=BONN,%20`.
+ * Why `value` cannot be sent as a text filter (`fuzzyId`), or undefined when it can. Refused,
+ * before any request, as the API would match nothing or everything:
+ * - a value that is blank once trimmed, or that holds only invisible characters and combining
+ *   marks (`isBlank`): an empty filter reads as "no filter" upstream;
+ * - a lone surrogate (half of a character, sent as U+FFFD);
+ * - a control character (but TAB, LF and CR) or a format character (a zero-width space, a soft
+ *   hyphen, a bidi control; ZWNJ and ZWJ are allowed): pasted along, it makes the search find
+ *   nothing.
+ * The reason quotes the value with every invisible character escaped (`quoteValue`).
+ */
+export function textProblem(value: string): string | undefined {
+  if (typeof value !== "string") return "Expected a string.";
+  if (isBlank(value)) return "Expected a non-empty value.";
+  if (LONE_SURROGATE.test(value)) return `${quoteValue(value)} contains half of a character (a lone surrogate).`;
+  if (TEXT_CONTROL.test(value)) return `${quoteValue(value)} contains a control character (${codePointOf(value, TEXT_CONTROL)}).`;
+  if (TEXT_FORMAT.test(value)) return `${quoteValue(value)} contains an invisible character (${codePointOf(value, TEXT_FORMAT)}).`;
+  return undefined;
+}
+
+/** A text filter as it is sent: trimmed and composed (NFC), as `normalizeInput`. Check it with {@link textProblem} first. */
+export function normalizeText(value: string): string {
+  return normalizeInput(value);
+}
+
+/** A control or format character in a token (after trimming): every Cc and every Cf. */
+const TOKEN_INVISIBLE = /[\p{Cc}\p{Cf}]/u;
+
+/**
+ * Why `value` cannot be sent as a token, or undefined when it can. A token is a value the API
+ * compares exactly: a station or timeseries id, a water shortname (`waters`), an ISO date or
+ * period (`start`, `end`), an `ids` entry. The rules apply to the value with surrounding
+ * whitespace trimmed, as it is sent ({@link normalizeToken}): not blank (and not only invisible
+ * characters or combining marks), no lone surrogate, and no control or format character at all
+ * (a zero-width space, ZWJ, a soft hyphen, a bidi control), since an invisible character in an id
+ * only ever makes it match nothing. The reason quotes the value visibly.
+ */
+export function tokenProblem(value: string): string | undefined {
+  if (typeof value !== "string") return "Expected a string.";
+  if (isBlank(value)) return "Expected a non-empty value.";
+  const token = value.trim();
+  if (LONE_SURROGATE.test(token)) return `${quoteValue(value)} contains half of a character (a lone surrogate).`;
+  if (TOKEN_INVISIBLE.test(token)) {
+    return `${quoteValue(value)} contains an invisible or control character (${codePointOf(token, TOKEN_INVISIBLE)}).`;
+  }
+  return undefined;
+}
+
+/** A token as it is sent: trimmed and composed (NFC), as `normalizeInput`. Check it with {@link tokenProblem} first. */
+export function normalizeToken(value: string): string {
+  return normalizeInput(value);
+}
+
+/**
+ * Why `value` cannot be put into a request path as a timeseries id (or, through
+ * {@link stationIdProblem}, a station id), or undefined when it can: the {@link tokenProblem}
+ * rules, and then on the trimmed value no "/" (sent as `%2F`, which a server or proxy that
+ * decodes it reads as more path segments: `BONN/../KOELN` would re-target the request), and not
+ * "." or ".." (encodeURIComponent leaves them unchanged and URL parsing resolves them).
+ */
+export function idProblem(value: string): string | undefined {
+  const problem = tokenProblem(value);
+  if (problem !== undefined) return problem;
+  const id = value.trim();
+  if (id.includes("/")) return `${quoteValue(id)}: an id cannot contain "/" (the API reads it as a path separator).`;
+  if (id === "." || id === "..") return `${quoteValue(id)}: "." and ".." cannot be used as an id.`;
+  return undefined;
+}
+
+/**
+ * Why `value` cannot name a station (uuid, number, shortname or longname), or undefined when it
+ * can: {@link idProblem}, with the hint that a station is always reachable by its number or uuid,
+ * and no ",": a name is looked up first as `ids=<name>` (`stations.assertUnique`), where the API
+ * splits at the comma — `"NEUSTADT,"` found both NEUSTADTs and `","` downloaded every station —
+ * and no station's name holds one.
+ */
+export function stationIdProblem(value: string): string | undefined {
+  const problem = tokenProblem(value);
+  if (problem !== undefined) return problem;
+  const id = value.trim();
+  if (id.includes("/")) return `${quoteValue(id)}: an id cannot contain "/" (the API reads it as a path separator); use the station's number or uuid.`;
+  if (id.includes(",")) return `${quoteValue(id)}: a station id cannot contain "," (the API reads it as a list); for several stations use stations list --ids.`;
+  return idProblem(value);
+}
+
+/**
+ * The items of a comma-separated list option (`--ids BONN,KÖLN`), as typed: each item is checked
+ * (`listProblem`) and canonicalised (`normalizeToken`) on its own, so `"BONN, KÖLN"` sends `KÖLN`,
+ * and `"BONN,,KÖLN"`, `"BONN,"` and `","` are refused rather than sent as an empty item (which the
+ * API reads as "no filter").
+ */
+export function splitList(value: string): string[] {
+  return value.split(",");
+}
+
+/**
+ * Why `items` cannot be sent as a list, or undefined when it can: not an array of strings, no
+ * item at all (an empty list reads as "no filter"), or an item that `itemProblem` refuses (by
+ * default {@link tokenProblem}: a blank item is refused, never dropped). The reason names the item.
+ */
+export function listProblem(items: readonly string[], itemProblem: Problem<string> = tokenProblem): string | undefined {
+  if (!Array.isArray(items)) return "Expected a list of strings.";
+  if (items.length === 0) return "Expected at least one value.";
+  for (let i = 0; i < items.length; i++) {
+    const problem = itemProblem(items[i] as string);
+    if (problem !== undefined) return items.length === 1 ? problem : `item ${i + 1} of ${items.length}: ${problem}`;
+  }
+  return undefined;
+}
+
+/** An entry of the comma-joined `ids` list: a token without a comma (it would split into two ids). */
+function listedIdProblem(value: string): string | undefined {
+  return tokenProblem(value) ?? (value.includes(",") ? "An id in a list cannot contain a comma." : undefined);
+}
+
+/**
+ * The `ids` filter of `stations.list`: an array of at least one id, each a token
+ * ({@link tokenProblem}) without a comma. An empty list would be dropped and list every station;
+ * a blank entry would be sent as `ids=BONN,%20`, and a comma inside an entry splits it upstream
+ * (`","` alone listed every station).
  */
 export const idListProblem: Problem<unknown> = (value) => {
   if (!Array.isArray(value)) return "Expected an array of ids.";
   if (value.length === 0) return "Expected at least one id.";
-  for (const id of value) {
-    const reason = nonEmptyProblem(id);
-    if (reason !== undefined) return reason;
-  }
-  return undefined;
+  return listProblem(value as string[], listedIdProblem);
 };
 
 /**

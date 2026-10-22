@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { Option } from "commander";
 import { logOf, type CliDeps } from "../io.js";
-import { STATION_HELP, action, once, parseNonEmpty, parsePathArg, renderJson } from "../shared.js";
+import { STATION_HELP, action, once, parseList, parseStationId, parseText, parseToken, renderJson } from "../shared.js";
 import type { StationIncludeParams, StationListParams } from "@maschinenlesbar.org/pegel-online-client/internal/types";
 import { stationListNotes, type StationListNote } from "@maschinenlesbar.org/pegel-online-client/internal/client";
 import { describeStationChoices, quoteValue, serverTextForMessage } from "@maschinenlesbar.org/pegel-online-client/internal/errors";
@@ -26,9 +26,9 @@ function noteText(note: StationListNote): string {
   }
 }
 
-/** commander accumulator for a repeatable string option. */
+/** commander accumulator for `--ids`: a comma-separated list (parseList), repeatable. */
 function collect(value: string, previous: string[] = []): string[] {
-  return previous.concat([parseNonEmpty(value)]);
+  return previous.concat(parseList(value));
 }
 
 /** Read the four include flags off a parsed-options object. */
@@ -70,9 +70,9 @@ export function registerStationCommands(program: Command, deps: CliDeps): void {
   const list = stations
     .command("list")
     .description("List/filter stations")
-    .option("--ids <id>", "station id (uuid/number/shortname/longname); repeatable", collect)
-    .option("--waters <shortname>", "filter by water shortname (see `waters`)", once("--waters", parseNonEmpty))
-    .option("--fuzzy-id <id>", "fuzzy id match", once("--fuzzy-id", parseNonEmpty));
+    .option("--ids <ids>", "station ids (uuid/number/shortname/longname), comma-separated; repeatable", collect)
+    .option("--waters <shortname>", "filter by water shortname (see `waters`)", once("--waters", parseToken))
+    .option("--fuzzy-id <id>", "fuzzy id match", once("--fuzzy-id", parseText));
   addIncludeOptions(list).action(
     action(deps, async ({ client, global, opts }) => {
       const params: StationListParams = {
@@ -91,7 +91,7 @@ export function registerStationCommands(program: Command, deps: CliDeps): void {
 
   const get = stations
     .command("get")
-    .argument("<station>", STATION_HELP, parsePathArg)
+    .argument("<station>", STATION_HELP, parseStationId)
     .description("Get one station by uuid/number/shortname/longname");
   addIncludeOptions(get).action(
     action(deps, async ({ client, global, opts }, [station]) => {

@@ -87,7 +87,7 @@ some gauges carry (see *Forecasts* below).
 
 | Flag | Meaning |
 | --- | --- |
-| `--ids <id>` | station id (uuid/number/shortname/longname); repeatable |
+| `--ids <ids>` | station ids (uuid/number/shortname/longname), comma-separated (`BONN,KÖLN`); repeatable |
 | `--waters <shortname>` | filter by water shortname (see `waters`) |
 | `--fuzzy-id <id>` | fuzzy match against short/long name |
 | `--include-timeseries` | embed each station's timeseries list |
@@ -120,7 +120,9 @@ current <station> WV` is a 404: a forecast has no current measurement.
 The API answers an unknown `--ids` entry by leaving it out, and an unknown `--waters` or
 `--fuzzy-id` with `[]`. The CLI says so on stderr (`INFO  [pegel.api] --ids "KOELN" matched no
 station; …`) and still exits `0`. Every option but `--ids` takes one value; giving one
-twice is a usage error (exit `2`).
+twice is a usage error (exit `2`). `--ids` takes a comma-separated list, and may be repeated;
+each item is one id, and an empty item (`--ids ","`, `BONN,,KÖLN`) is a usage error, not
+"every station".
 
 ### `measurements` options
 
@@ -250,8 +252,10 @@ stderr any more (`2>&1 | head -1`).
   subdirectory) and add that to your `PATH`, or run via
   `npx @maschinenlesbar.org/pegel-online-cli …`.
 - **Exit `2` / "invalid argument"** — check the command syntax: a `<station>`
-  argument is required, and no argument or option value may be blank (or `.` /
-  `..` for an id). Run `pegel <command> --help` for the exact signature.
+  argument is required, and no argument or option value may be blank or only invisible
+  characters, hold a control or invisible format character (a zero-width space, a soft
+  hyphen, a bidi control; the refusal shows it escaped, `\u200b`) or half a character (or be
+  `.` / `..` for an id, or hold a `,` for a station: a station name never does). Run `pegel <command> --help` for the exact signature.
 - **Exit `2` / `Invalid station "NEUSTADT": it names 2 stations, …`** — the name
   belongs to more than one gauge; the message lists each with its water, number and
   uuid. Run the command again with the number or uuid of the one you mean.

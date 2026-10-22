@@ -1,14 +1,14 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { STATION_HELP, action, once, parseNonEmpty, parsePathArg, renderJson, timeseriesOr } from "../shared.js";
+import { STATION_HELP, action, once, parseId, parseStationId, parseToken, renderJson, timeseriesOr } from "../shared.js";
 
 const TIMESERIES_HELP = "timeseries shortname, e.g. W (water level) or Q (flow)";
 
 export function registerTimeseriesCommands(program: Command, deps: CliDeps): void {
   program
     .command("timeseries")
-    .argument("<station>", STATION_HELP, parsePathArg)
-    .argument("[timeseries]", TIMESERIES_HELP, parsePathArg)
+    .argument("<station>", STATION_HELP, parseStationId)
+    .argument("[timeseries]", TIMESERIES_HELP, parseId)
     .description("Timeseries metadata (timeseries defaults to 'W' = water level)")
     .action(
       action(deps, async ({ client, global }, [station, ts]) => {
@@ -23,8 +23,8 @@ export function registerTimeseriesCommands(program: Command, deps: CliDeps): voi
 
   program
     .command("current")
-    .argument("<station>", STATION_HELP, parsePathArg)
-    .argument("[timeseries]", TIMESERIES_HELP, parsePathArg)
+    .argument("<station>", STATION_HELP, parseStationId)
+    .argument("[timeseries]", TIMESERIES_HELP, parseId)
     .description("The current measurement (timeseries defaults to 'W')")
     .action(
       action(deps, async ({ client, global }, [station, ts]) => {
@@ -39,11 +39,11 @@ export function registerTimeseriesCommands(program: Command, deps: CliDeps): voi
 
   program
     .command("measurements")
-    .argument("<station>", STATION_HELP, parsePathArg)
-    .argument("[timeseries]", TIMESERIES_HELP, parsePathArg)
+    .argument("<station>", STATION_HELP, parseStationId)
+    .argument("[timeseries]", TIMESERIES_HELP, parseId)
     .description("A window of measurements (timeseries defaults to 'W')")
-    .option("--start <iso>", "window start: ISO-8601 instant, or a period like P7D", once("--start", parseNonEmpty))
-    .option("--end <iso>", "window end: ISO-8601 instant", once("--end", parseNonEmpty))
+    .option("--start <iso>", "window start: ISO-8601 instant, or a period like P7D", once("--start", parseToken))
+    .option("--end <iso>", "window end: ISO-8601 instant", once("--end", parseToken))
     .action(
       action(deps, async ({ client, global, opts }, [station, ts]) => {
         await client.stations.assertUnique(station!);

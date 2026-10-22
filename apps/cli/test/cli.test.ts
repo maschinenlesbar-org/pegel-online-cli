@@ -673,3 +673,32 @@ test("terminal controls are escaped in chunks: the same text as one pass, across
   assert.equal(out[0], expected);
   assert.deepEqual(JSON.parse(out[0]!), { text });
 });
+
+test("--ids takes a comma-separated list, each item its own id; an empty or invisible item is refused (bug 1)", async () => {
+  // results/01 bug 1: `--ids ","` sent ids=%2C, which the API reads as no filter (all 786 stations),
+  // and `--ids "BONN,KÖLN"` listed both but logged a false "matched no station" note.
+  for (const value of [",", " , ", "BONN,", ",BONN", "BONN,,KÖLN", "BONN,​"]) {
+    const cli = makeCli(() => jsonResponse([]));
+    assert.equal(await run(["stations", "list", "--ids", value], cli.deps), 2, JSON.stringify(value));
+    assert.equal(cli.mt.calls.length, 0, JSON.stringify(value));
+  }
+  const both = [
+    { uuid: "b", number: "2710080", shortname: "BONN", longname: "BONN" },
+    { uuid: "k", number: "2730010", shortname: "KÖLN", longname: "KÖLN" },
+  ];
+  for (const ids of [["--ids", "BONN,KÖLN"], ["--ids", " BONN , KÖLN "], ["--ids", "BONN", "--ids", "KÖLN"]]) {
+    const cli = makeCli(() => jsonResponse(both));
+    assert.equal(await run(["--compact", "stations", "list", ...ids], cli.deps), 0, ids.join(" "));
+    assert.equal(cli.mt.calls.length, 1);
+    assert.equal(new URL(cli.mt.last().url).searchParams.get("ids"), "BONN,KÖLN");
+    assert.deepEqual(cli.err, [], ids.join(" "));
+  }
+  // A station name never holds a comma, and its lookup sends it as ids: refused, not split.
+  for (const cmd of stationCommands) {
+    for (const value of [",", "NEUSTADT,", "BONN,KÖLN"]) {
+      const cli = makeCli(() => jsonResponse([]));
+      assert.equal(await run([...cmd, value], cli.deps), 2, `${cmd.join(" ")} ${value}`);
+      assert.equal(cli.mt.calls.length, 0);
+    }
+  }
+});

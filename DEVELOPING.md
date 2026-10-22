@@ -322,11 +322,28 @@ reason a value is invalid or `undefined`. The client enforces them with
 nothing: it throws (from a constructor) or rejects (from a method) with
 `PegelValidationError` and the message `Invalid <name>: <reason>`. The rules so far:
 
-- **Blank filters** (`nonEmptyProblem`, `idListProblem`): `stations.list` rejects a
-  blank `waters` or `fuzzyId`, a blank `ids` entry and an empty `ids` array, and
-  `timeseries.measurements` a blank `start` or `end`. The API reads an empty
-  parameter as no filter, so these would silently return every station or the
-  default window.
+- **Every value that goes into a request passes one rule for its kind** (decision D8 of the
+  2026-10-21 fix round), each exported:
+  - `tokenProblem` + `normalizeToken` for what the API compares exactly: `waters`, `start`,
+    `end`, each `ids` entry, and (through `idProblem`/`stationIdProblem`) the station and
+    timeseries ids in the path. Trimmed and NFC; refused when blank or only invisible
+    characters and combining marks (`isBlank`), with a lone surrogate (encodeURIComponent threw
+    a raw `URIError` on one, URLSearchParams sent U+FFFD), or with any control or format
+    character (a zero-width space, ZWJ, a soft hyphen, a bidi control).
+  - `textProblem` + `normalizeText` for the free-text `fuzzyId`: the same, but ZWJ/ZWNJ and an
+    inner TAB, LF or CR are allowed.
+  - `idProblem` adds no "/" and not "." / ".." for a path id; `stationIdProblem` adds the hint
+    to use the number or uuid, and no ",": a name is looked up as `ids=<name>`, where the API
+    splits at the comma (`"NEUSTADT,"` found both NEUSTADTs, `","` downloaded every station).
+  - `splitList` + `listProblem` for a comma list: the CLI's `--ids` value is split at commas
+    (`parseList`) and may be repeated; every item is checked on its own, an empty or invisible
+    item is refused (`item 2 of 3: …`), never dropped. In the library `idListProblem` refuses an
+    empty `ids` array and an entry with a comma (`stations.list({ ids: [","] })` listed every
+    station, `["BONN,KÖLN"]` gave a false "matched no station" note).
+  The API reads an empty parameter as no filter, so a blank value would silently return every
+  station or the default window. A refusal quotes the value with `quoteValue`, so an invisible
+  character shows escaped (`\u200b`); the CLI escapes commander's own echo of a rejected value
+  the same way (`escapeTerminalText` in `run.ts`).
 - **Base URL** (`baseUrlProblem`, applied by the exported `validateBaseUrl`): the
   constructor rejects, in this order, a `baseUrl` with surrounding whitespace or any
   whitespace/control character inside (`baseUrlWhitespaceProblem`), one that is not
@@ -461,8 +478,9 @@ everything that drives the CLI is in `apps/cli/test/`.
   to a file `package.json` `files` ships; a document the tarball leaves out is linked by its
   `https://github.com/maschinenlesbar-org/pegel-online-cli/blob/main/…` URL), and P23 (the
   stderr log: records with timestamp, level and topic, `--log-format text|jsonl`), and, from the
-  2026-10-21 kit rollout, P24 (a corpus of tricky inputs through every text filter — `--waters`,
-  `--fuzzy-id`, `--ids` — and the `[timeseries]` path id: canonical or refused, alike in CLI
+  2026-10-21 kit rollout, P24 (a corpus of tricky inputs through every query value — `--waters`,
+  `--fuzzy-id`, `--start`, `--end` —, the `[timeseries]` path id and the `--ids` list item by
+  item: canonical or refused, refusals showing an invisible character escaped, alike in CLI
   and library; the `<station>` id is not listed, since a name costs a lookup first) and P25 (a
   number the answer can't carry exactly, and an empty answer, are errors), P26 output integrity
   (stdout redirected to a file and cut short is an `ERROR` record, exit 1; its `-o` tests are

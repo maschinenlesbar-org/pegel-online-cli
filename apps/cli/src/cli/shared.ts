@@ -7,7 +7,17 @@ import { InvalidArgumentError } from "commander";
 import { logOf, type CliDeps } from "./io.js";
 import { DEFAULT_BASE_URL, cleartextProblem, type EngineOptions } from "@maschinenlesbar.org/pegel-online-client/internal/engine";
 import { PegelError, isBidiControl } from "@maschinenlesbar.org/pegel-online-client/internal/errors";
-import { baseUrlProblem, headerValueProblem, nonEmptyProblem } from "@maschinenlesbar.org/pegel-online-client/internal/validate";
+import {
+  baseUrlProblem,
+  headerValueProblem,
+  idProblem,
+  listProblem,
+  splitList,
+  stationIdProblem,
+  textProblem,
+  tokenProblem,
+  type Problem,
+} from "@maschinenlesbar.org/pegel-online-client/internal/validate";
 import type { RetryEvent } from "@maschinenlesbar.org/pegel-online-client/internal/engine";
 
 /** Help text of every `<station>` positional. */
@@ -56,16 +66,49 @@ export function once<T>(flag: string, parser: (value: string) => T): (value: str
   };
 }
 
+/** A commander value-parser from a library rule: the rule's reason becomes a usage error; the value goes on as typed. */
+function parserOf(problem: Problem<string>): (value: string) => string {
+  return (value) => {
+    const reason = problem(value);
+    if (reason !== undefined) throw new InvalidArgumentError(reason);
+    return value;
+  };
+}
+
 /**
- * commander value-parser: a value that is not blank. The rule is the library's
- * nonEmptyProblem, which the client enforces on every filter value too (the API
- * reads an empty parameter as no filter); here it only turns a blank value into an
- * early usage error.
+ * commander value-parser for a token (`--waters`, `--start`, `--end`): the library's
+ * tokenProblem (not blank or only invisible characters, no control or format character, no lone
+ * surrogate), which the client enforces too; here it only turns a bad value into an early usage
+ * error. The library sends it trimmed and in NFC.
  */
-export function parseNonEmpty(value: string): string {
-  const reason = nonEmptyProblem(value);
-  if (reason !== undefined) throw new InvalidArgumentError(reason);
-  return value;
+export const parseToken = parserOf(tokenProblem);
+
+/** commander value-parser for a text filter (`--fuzzy-id`): the library's textProblem, as a usage error. */
+export const parseText = parserOf(textProblem);
+
+/**
+ * commander value-parser for the `[timeseries]` positional: the library's idProblem (a token, no
+ * "/", not "." or ".."), as a usage error before any request.
+ */
+export const parseId = parserOf(idProblem);
+
+/**
+ * commander value-parser for the `<station>` positional: the library's stationIdProblem (idProblem,
+ * and no ",", which the name lookup would read as a list), as a usage error before any request.
+ */
+export const parseStationId = parserOf(stationIdProblem);
+
+/**
+ * commander value-parser for a comma-separated list (`--ids BONN,KÖLN`): split with the library's
+ * `splitList`, each item checked by `listProblem` (a blank or invisible item is refused, never
+ * dropped), as a usage error before any request. The items go on as typed; the library
+ * canonicalises each (`normalizeToken`).
+ */
+export function parseList(value: string): string[] {
+  const items = splitList(value);
+  const problem = listProblem(items);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
+  return items;
 }
 
 /**
@@ -77,21 +120,6 @@ export function parseNonEmpty(value: string): string {
 export function parseHeaderValue(value: string): string {
   const reason = headerValueProblem(value);
   if (reason !== undefined) throw new InvalidArgumentError(reason);
-  return value;
-}
-
-/**
- * commander value-parser for an id that becomes a URL path segment (the
- * `<station>` and `[timeseries]` positionals): not blank (which would build
- * `/stations//W/...`), and not "." / "..", which
- * encodeURIComponent leaves untouched and URL parsing would resolve, sending the
- * request to a different resource. A usage error, before any request.
- */
-export function parsePathArg(value: string): string {
-  parseNonEmpty(value);
-  if (value === "." || value === "..") {
-    throw new InvalidArgumentError('"." and ".." cannot be used as an id.');
-  }
   return value;
 }
 
@@ -111,7 +139,7 @@ export function parseBaseUrl(value: string): string {
 /**
  * Default an omitted optional `[timeseries]` positional to "W" (water level),
  * matching the documented default. A blank value never reaches here: the
- * positional's `parseNonEmpty` parser rejects it as a usage error.
+ * positional's `parseId` parser rejects it as a usage error.
  */
 export function timeseriesOr(value: string | undefined, fallback = "W"): string {
   return value ?? fallback;

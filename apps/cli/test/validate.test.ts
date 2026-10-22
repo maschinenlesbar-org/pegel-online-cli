@@ -82,7 +82,8 @@ test("nonEmptyProblem rejects blank and non-string values", () => {
 test("idListProblem needs at least one id and no blank entry", () => {
   assert.equal(idListProblem([]), "Expected at least one id.");
   assert.equal(idListProblem([""]), "Expected a non-empty value.");
-  assert.equal(idListProblem(["BONN", " "]), "Expected a non-empty value.");
+  assert.equal(idListProblem(["BONN", " "]), "item 2 of 2: Expected a non-empty value.");
+  assert.equal(idListProblem(["BONN,KÖLN"]), "An id in a list cannot contain a comma.");
   assert.equal(idListProblem("BONN"), "Expected an array of ids.");
   assert.equal(idListProblem(["BONN", "KÖLN"]), undefined);
 });

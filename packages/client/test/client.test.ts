@@ -135,11 +135,11 @@ test('library: a station or timeseries id with a "/" is rejected before any requ
   const mt = constantJson({});
   const c = clientWith(mt);
   const calls: Array<[string, RegExp, () => Promise<unknown>]> = [
-    ["stations.get", /^Invalid station "BONN\/\.\.\/KOELN": an id cannot contain "\/"; use the station's number or uuid\.$/, () => c.stations.get("BONN/../KOELN")],
-    ["assertUnique", /^Invalid station "\/BONN": /, () => c.stations.assertUnique(" /BONN ")],
-    ["timeseries.get", /^Invalid timeseries "W\/": an id cannot contain "\/"\.$/, () => c.timeseries.get("2710080", "W/")],
-    ["currentMeasurement", /^Invalid station "a\/b": /, () => c.timeseries.currentMeasurement("a/b", "W")],
-    ["measurements", /^Invalid timeseries "\.\.\/W": /, () => c.timeseries.measurements("2710080", "../W")],
+    ["stations.get", /^Invalid station: "BONN\/\.\.\/KOELN": an id cannot contain "\/" \(the API reads it as a path separator\); use the station's number or uuid\.$/, () => c.stations.get("BONN/../KOELN")],
+    ["assertUnique", /^Invalid station: "\/BONN": /, () => c.stations.assertUnique(" /BONN ")],
+    ["timeseries.get", /^Invalid timeseries: "W\/": an id cannot contain "\/" \(the API reads it as a path separator\)\.$/, () => c.timeseries.get("2710080", "W/")],
+    ["currentMeasurement", /^Invalid station: "a\/b": /, () => c.timeseries.currentMeasurement("a/b", "W")],
+    ["measurements", /^Invalid timeseries: "\.\.\/W": /, () => c.timeseries.measurements("2710080", "../W")],
   ];
   for (const [name, message, call] of calls) {
     await assert.rejects(call, (err: unknown) => err instanceof PegelValidationError && message.test(err.message), name);
@@ -150,8 +150,9 @@ test('library: a station or timeseries id with a "/" is rejected before any requ
 test("library: a blank station or timeseries is rejected before any request", async () => {
   const mt = constantJson({});
   const c = clientWith(mt);
-  await assert.rejects(() => c.stations.get(""), /Invalid station: expected a non-empty string, got ""\./);
-  await assert.rejects(() => c.timeseries.currentMeasurement("BONN", " "), /Invalid timeseries: expected a non-empty string, got " "\./);
+  await assert.rejects(() => c.stations.get(""), /Invalid station: Expected a non-empty value\.$/);
+  await assert.rejects(() => c.timeseries.currentMeasurement("BONN", " "), /Invalid timeseries: Expected a non-empty value\.$/);
+  await assert.rejects(() => c.stations.get(7 as unknown as string), /Invalid station: Expected a string\.$/);
   await assert.rejects(() => c.timeseries.measurements("", "W"), PegelError);
   assert.equal(mt.calls.length, 0);
 });
@@ -409,4 +410,31 @@ test("a station field of the wrong type is left out of the message, not printed 
     assert.equal(err.stations[1]?.water, undefined, "a water shortname that is no string is no water");
     return true;
   });
+});
+
+test("library: a lone surrogate, an invisible character or a comma in an id or filter is refused before any request (bugs 1, 2)", async () => {
+  // results/01 bug 2: a lone surrogate in an id threw a raw URIError from encodeURIComponent, and
+  // in a filter was sent as U+FFFD; bug 1: a comma inside an ids entry (or a station name, which
+  // the lookup sends as ids) split it upstream, and "," alone listed every station.
+  const mt = constantJson([]);
+  const c = clientWith(mt);
+  const calls: Array<[string, () => Promise<unknown>]> = [
+    ["lone high surrogate station", () => c.timeseries.currentMeasurement("\uD800")],
+    ["lone low surrogate timeseries", () => c.timeseries.currentMeasurement("2710080", "W\uDC00")],
+    ["lone surrogate in a looked-up name", () => c.stations.assertUnique("BO\uDC00NN")],
+    ["zero-width space in a station", () => c.stations.get("BONN​")],
+    ["lone surrogate in ids", () => c.stations.list({ ids: ["\uD800"] })],
+    ["lone surrogate in waters", () => c.stations.list({ waters: "\uD800" })],
+    ["lone surrogate in fuzzyId", () => c.stations.list({ fuzzyId: "a\uD800" })],
+    ["zero-width space in start", () => c.timeseries.measurements("2710080", "W", { start: "P7D​" })],
+    ["a comma alone in ids", () => c.stations.list({ ids: [","] })],
+    ["two names in one ids entry", () => c.stations.list({ ids: ["BONN,KÖLN"] })],
+    ["only an invisible character in ids", () => c.stations.list({ ids: ["​"] })],
+    ["a comma in a looked-up name", () => c.stations.assertUnique("NEUSTADT,")],
+    ["a comma as a station", () => c.stations.get(",")],
+  ];
+  for (const [label, call] of calls) {
+    await assert.rejects(call, (err: unknown) => err instanceof PegelValidationError, label);
+  }
+  assert.equal(mt.calls.length, 0);
 });

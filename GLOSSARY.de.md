@@ -101,8 +101,14 @@ leere Angabe sowie die Pfadsegmente
 `.` / `..` für `<station>` und `[timeseries]` ab, bevor sie die Anfrage-URL baut (die
 URL-Auflösung würde sie sonst auflösen und eine andere Ressource abfragen), ebenso eine
 Angabe mit `/` (als `%2F` gesendet, läse ein Server, der es dekodiert, weitere
-Pfadsegmente; nehmen Sie number oder uuid des Pegels); die Client-Bibliothek lehnt sie
-ebenfalls ab, mit einem `PegelValidationError` vor jeder Anfrage. Pegel- und Zeitreihennamen, `--ids`, `--waters` und `--fuzzy-id` werden ohne
+Pfadsegmente; nehmen Sie number oder uuid des Pegels), und einen Pegel mit `,` (seine
+Namenssuche läse es als Liste); die Client-Bibliothek lehnt sie
+ebenfalls ab, mit einem `PegelValidationError` vor jeder Anfrage. Jede Kennung und jeder
+Filterwert wird außerdem abgelehnt, wenn er nur aus unsichtbaren Zeichen besteht
+(Null-Breite-Leerzeichen, kombinierende Zeichen), ein Steuer- oder Formatzeichen enthält
+(Null-Breite-Leerzeichen, weiches Trennzeichen, Bidi-Steuerzeichen; in `--fuzzy-id` sind
+ZWJ/ZWNJ und ein inneres Tab oder ein Zeilenumbruch erlaubt) oder ein halbes Zeichen (ein
+einzelnes Surrogat); die Ablehnung zeigt das Zeichen maskiert (`\u200b`). Pegel- und Zeitreihennamen, `--ids`, `--waters` und `--fuzzy-id` werden ohne
 umgebende Leerzeichen und in zusammengesetzter Unicode-Form (NFC) gesendet, sodass ein
 mitkopiertes Leerzeichen oder ein zerlegter Umlaut (`KÖLN` als `KO` + U+0308 + `LN`,
 häufig in Text aus macOS-Dateinamen oder PDFs) denselben Pegel findet. Die Hinweise von
@@ -228,11 +234,12 @@ statt als geratenen Typ.
 ## Filter, Einbettungen und Zeitfenster
 
 **`ids`.** Eine Liste von Pegelkennungen (uuid/number/shortname/longname), auf die eine
-Liste eingeschränkt wird. Wird kommagetrennt an die API gesendet. CLI: wiederholbares
-`--ids <id>`.
+Liste eingeschränkt wird. Wird kommagetrennt an die API gesendet. CLI: `--ids <ids>`, eine
+kommagetrennte Liste, wiederholbar; ein leerer Eintrag wird abgelehnt, im Client auch ein
+Eintrag mit Komma.
 
 **Filter `ids` / `waters` / `fuzzyId`.** Schränken `stations list` ein: nach
-Pegel-ID (`--ids`, wiederholbar), nach Gewässer-shortname (`--waters`) oder über
+Pegel-ID (`--ids`, kommagetrennt, wiederholbar), nach Gewässer-shortname (`--waters`) oder über
 einen unscharfen ID-Abgleich (`--fuzzy-id`). Nach Behörde oder Gebiet filtert die
 CLI nicht; filtern Sie dafür die JSON-Ausgabe (z. B. mit `jq` auf `agency`,
 `latitude`, `longitude`). Die API liest einen leeren Parameter als „kein Filter“,

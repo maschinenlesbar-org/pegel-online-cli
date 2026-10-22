@@ -101,8 +101,13 @@ CLI rejects an empty selector and the path segments
 `.` / `..` for both `<station>` and `[timeseries]` before building the request
 URL (URL parsing would otherwise resolve them and query a different resource), and a
 selector with a `/` (sent as `%2F`, a server that decodes it would read more path
-segments; give the station's number or uuid); the client library refuses them too,
-with a `PegelValidationError` before any request.
+segments; give the station's number or uuid), and a station with a `,` (its name lookup
+would read it as a list); the client library refuses them too,
+with a `PegelValidationError` before any request. Every id and filter value is also refused
+when it is only invisible characters (a zero-width space, combining marks), holds a control
+or format character (a zero-width space, a soft hyphen, a bidi control; in `--fuzzy-id`
+ZWJ/ZWNJ and an inner tab or line break are allowed) or half a character (a lone surrogate);
+the refusal shows the character escaped (`\u200b`).
 Station and timeseries names, `--ids`, `--waters` and `--fuzzy-id` are sent trimmed
 and in composed Unicode form (NFC), so a pasted trailing space or a decomposed umlaut
 (`KÖLN` typed as `KO` + U+0308 + `LN`, common in text pasted from macOS file names or
@@ -227,11 +232,12 @@ type.
 ## Filtering, includes and the time window
 
 **`ids`.** A list of station identifiers (uuid/number/shortname/longname) to
-restrict a listing to. Sent to the API comma-separated. CLI: repeatable
-`--ids <id>`.
+restrict a listing to. Sent to the API comma-separated. CLI: `--ids <ids>`, a
+comma-separated list, repeatable; an empty item is refused, and in the client an entry with a
+comma.
 
 **`ids` / `waters` / `fuzzyId` filters.** Narrow a `stations list` by station
-id (`--ids`, repeatable), by water shortname (`--waters`) or by a fuzzy id match
+id (`--ids`, comma-separated, repeatable), by water shortname (`--waters`) or by a fuzzy id match
 (`--fuzzy-id`). The CLI has no filter by agency or by area; filter the JSON
 output instead (e.g. with `jq` on `agency`, `latitude`, `longitude`). The API
 reads an empty parameter as no filter, so a blank value (and, in the client, an

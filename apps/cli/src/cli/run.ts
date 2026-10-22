@@ -57,7 +57,10 @@ function writeCommanderErr(command: Command, deps: CliDeps, state: { errorLogged
   if (text.trim() === "") return;
   if (text.startsWith("error: ")) {
     state.errorLogged = true;
-    log.error("cli", text.slice("error: ".length).replace(/\n(\(Did you mean .*\?\))$/, " $1"));
+    const message = text.slice("error: ".length);
+    const hint = /\n(\(Did you mean [^\n]*\?\))$/.exec(message);
+    const said = hint === null ? message : message.slice(0, hint.index);
+    log.error("cli", escapeTerminalText(said) + (hint === null ? "" : ` ${hint[1]}`));
     return;
   }
   if (!state.errorLogged) {
@@ -65,6 +68,25 @@ function writeCommanderErr(command: Command, deps: CliDeps, state: { errorLogged
     log.error("cli", `missing command: \`${commandPath(command)} <subcommand>\``);
   }
   for (const line of text.split("\n")) if (line.trim() !== "") log.info("cli", line.trimEnd());
+}
+
+/**
+ * Escape the characters a terminal acts on, or no one sees, in one commander error message:
+ * CR and LF become `\r` and `\n` (as a log record writes them, `escapeForRecord`), the other
+ * C0 controls (tab excepted), DEL, C1 and Unicode format characters (bidi overrides, zero-width
+ * characters, the soft hyphen) `\uXXXX`. Commander repeats a rejected value raw ("argument
+ * '<value>' is invalid"): a zero-width space in it was invisible in the refusal, which the
+ * library's own reason quotes escaped (`quoteValue`). The `(Did you mean …?)` hint commander
+ * appends is built from this CLI's own names and is kept as it is.
+ */
+function escapeTerminalText(text: string): string {
+  return text.replace(/[\u0000-\u0008\u000a-\u001f\u007f-\u009f]|\p{Cf}/gu, (ch) =>
+    ch === "\n"
+      ? "\\n"
+      : ch === "\r"
+        ? "\\r"
+        : Array.from({ length: ch.length }, (_, i) => `\\u${ch.charCodeAt(i).toString(16).padStart(4, "0")}`).join(""),
+  );
 }
 
 /**
@@ -172,6 +194,8 @@ export function redactionFor(argv: readonly string[]): Redaction {
     for (const secret of credentialsIn(source)) {
       secrets.add(secret);
       secrets.add(JSON.stringify(secret).slice(1, -1));
+      // As commander's echo of it reaches the log (format characters escaped).
+      secrets.add(escapeTerminalText(secret));
       // What a server echoes back: the Basic value and the decoded user:password on
       // stdout and stderr, the password alone (it may well occur in the data) on stderr.
       const [basic, pair, password] = echoedCredentialForms(secret);
