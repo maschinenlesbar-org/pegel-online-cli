@@ -335,7 +335,10 @@ export function stationListNotes(params: StationListParams, stations: readonly S
     const byName = new Map<string, Station[]>();
     for (const s of stations) {
       const key = normalizeInput(s.shortname).toUpperCase();
-      byName.set(key, [...(byName.get(key) ?? []), s]);
+      // Appended in place: a copy per insertion is quadratic in a group the server sizes.
+      const same = byName.get(key);
+      if (same === undefined) byName.set(key, [s]);
+      else same.push(s);
     }
     for (const same of byName.values()) {
       if (same.length < 2) continue;

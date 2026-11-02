@@ -318,6 +318,21 @@ test("the client-side name comparison puts both sides in the same canonical form
   await assert.rejects(client.stations.assertUnique("NEUSTADT"), PegelAmbiguousStationError);
 });
 
+test("stationListNotes groups stations that share a name in linear time, however many there are", () => {
+  // A hostile answer of many stations under one shortname: the grouping copied the group on
+  // every insertion (quadratic, 64 000 stations kept the CLI busy for 5 s after the deadline).
+  const many = Array.from({ length: 100_000 }, (_, i) => ({ uuid: `u-${i}`, number: String(i), shortname: "SAME", longname: "SAME" }));
+  const started = performance.now();
+  const notes = stationListNotes({ fuzzyId: "SAME" }, many);
+  const elapsed = performance.now() - started;
+  assert.equal(notes.length, 1);
+  const [note] = notes;
+  assert.equal(note?.kind, "ambiguous");
+  assert.equal(note?.kind === "ambiguous" ? note.stations.length : 0, 100_000);
+  assert.equal(note?.kind === "ambiguous" ? note.stations[99_999]?.uuid : undefined, "u-99999");
+  assert.ok(elapsed < 1000, `grouping took ${Math.round(elapsed)} ms`);
+});
+
 test("includeForecastTimeseries lists the WV series on stations and implies includeTimeseries", async () => {
   // Trimmed from the live KÖLN (2730010) station with forecasts, 2026-10-06.
   const wv = {
