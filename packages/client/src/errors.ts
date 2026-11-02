@@ -71,10 +71,15 @@ export function isBidiControl(code: number): boolean {
   );
 }
 
-/** True for a character server text in a message never carries: C0, DEL, C1, U+2028/2029 and the bidi controls. */
-function droppedFromServerText(n: number): boolean {
-  return n < 0x20 || (n >= 0x7f && n <= 0x9f) || n === 0x2028 || n === 0x2029 || isBidiControl(n);
-}
+/**
+ * The most server text (in UTF-16 units) the sanitisers read (`serverTextForMessage` and the
+ * engine's `sanitizeServerText`); a longer text is cut first. Every message keeps far less of it,
+ * and cleaning all of an 8 MB field, one string node per character, exhausted the heap.
+ */
+export const MAX_SERVER_TEXT = 16 * 1024;
+
+/** What server text in a message never carries: C0, DEL, C1, U+2028/2029 and the bidi controls (isBidiControl). */
+const DROPPED_FROM_SERVER_TEXT = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
 
 /**
  * Server text that one of the library's own messages quotes — a station's shortname,
@@ -82,15 +87,42 @@ function droppedFromServerText(n: number): boolean {
  * space (line breaks, tabs, U+2028/U+2029 included) folded to one space, so it stays on
  * one line and cannot forge a log record; the other control characters (C0, DEL, C1: ESC
  * and the 8-bit CSI would steer a terminal) and the bidi controls dropped; trimmed and cut
- * at `max` characters (`MAX_QUOTED_LENGTH`, 200). The data the text came from is kept
- * as the server sent it.
+ * at `max` characters (`MAX_QUOTED_LENGTH`, 200). Only the first `MAX_SERVER_TEXT` (16 384)
+ * units are read, and every step is a linear regex replace, so a hostile station field costs
+ * neither seconds nor the heap. The data the text came from is kept as the server sent it.
  */
 export function serverTextForMessage(text: string, max = MAX_QUOTED_LENGTH): string {
-  let clean = "";
-  for (const ch of text.replace(/\s+/g, " ")) {
-    if (!droppedFromServerText(ch.codePointAt(0) ?? 0)) clean += ch;
-  }
+  const clean = cutText(text, MAX_SERVER_TEXT).replace(/\s+/g, " ").replace(DROPPED_FROM_SERVER_TEXT, "");
   return cutForMessage(clean.trim(), max);
+}
+
+/** How many pieces a TextBuilder joins at a time. */
+const BUILDER_BATCH = 16_384;
+
+/**
+ * A text put together from many pieces (slices of a server answer and their replacements),
+ * joined in batches of BUILDER_BATCH into flat strings, so memory stays proportional to the text,
+ * not to the number of pieces. One `+=` per piece made a rope node each, and one array of every
+ * piece a slot each: millions of lone-surrogate repairs in a large answer exhausted a small heap
+ * either way.
+ */
+export class TextBuilder {
+  readonly #done: string[] = [];
+  #batch: string[] = [];
+
+  push(...pieces: string[]): void {
+    for (const piece of pieces) this.#batch.push(piece);
+    if (this.#batch.length >= BUILDER_BATCH) {
+      this.#done.push(this.#batch.join(""));
+      this.#batch = [];
+    }
+  }
+
+  toString(): string {
+    this.#done.push(this.#batch.join(""));
+    this.#batch = [];
+    return this.#done.join("");
+  }
 }
 
 function isHighSurrogate(c: number): boolean {

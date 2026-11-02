@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { execFileSync } from "node:child_process";
 import { TextDecoder } from "node:util";
 import assert from "node:assert/strict";
 import {
@@ -8,6 +9,7 @@ import {
   firstInexactNumber,
   MAX_RETRY_AFTER_MS,
   parseRetryAfter,
+  sanitizeServerText,
   scanNumbers,
   validateBaseUrl,
 } from "../src/engine.js";
@@ -18,6 +20,7 @@ import {
   PegelParseError,
   PegelValidationError,
   cutText,
+  TextBuilder,
   toWellFormed,
 } from "../src/errors.js";
 import { PegelOnlineClient } from "../src/client.js";
@@ -234,8 +237,8 @@ test("error detail is stripped of terminal control characters (PEGEL-01)", async
       // human-readable message that run.ts prints to stderr...
       assert.ok(!hasControlChars(err.detail ?? ""));
       assert.ok(!hasControlChars(err.message));
-      // ...while the printable characters are preserved.
-      assert.equal(err.detail, "boom[31mred2J");
+      // ...and so are whole escape sequences, while the printable text is preserved.
+      assert.equal(err.detail, "boomred");
       return true;
     },
   );
@@ -685,4 +688,114 @@ test("an answer longer than V8's longest string is a PegelParseError naming the 
   // An error status with such a body is still the API error, without the unreadable body.
   const failing = new RequestEngine({ maxResponseBytes: 0, transport: makeMockTransport(() => rawResponse(huge, "text/plain", 500)).transport });
   await assert.rejects(failing.getJson("/waters.json"), (err: unknown) => err instanceof PegelApiError && err.status === 500 && err.body === "");
+});
+
+test("sanitizeServerText drops whole escape sequences, not just their control bytes", () => {
+  const CSI8 = String.fromCharCode(0x9b);
+  const OSC8 = String.fromCharCode(0x9d);
+  const ST8 = String.fromCharCode(0x9c);
+  for (const [input, expected] of [
+    [`line1 ${ESC}]0;title${BEL}rest`, "line1 rest"],
+    [`${ESC}]8;;https://evil.example${ESC}\\click${ESC}]8;;${ESC}\\`, "click"],
+    [`${ESC}[31mred${ESC}[0m plain`, "red plain"],
+    [`${ESC}[1;31;4mbold`, "bold"],
+    [`${CSI8}2Jcleared`, "cleared"],
+    [`${OSC8}0;t${ST8}ok`, "ok"],
+    [`a${ESC}7b${ESC}(Bc`, "abc"],
+    // Unterminated: only ESC and its introducer go, the text stays.
+    [`keep ${ESC}]0;no terminator here`, "keep 0;no terminator here"],
+  ] as const) {
+    assert.equal(sanitizeServerText(input), expected, JSON.stringify(input));
+  }
+});
+
+test("sanitizeServerText reads a bounded prefix and drops what the per-character filter dropped", () => {
+  // The per-character filter, one character at a time: C0 but TAB to CR, DEL, C1 and Cf go.
+  const perCharacter = (text: string): string =>
+    [...text]
+      .filter((ch) => {
+        const n = ch.codePointAt(0) ?? 0;
+        return (n >= 0x09 && n <= 0x0d) || !(n <= 0x1f || (n >= 0x7f && n <= 0x9f) || /\p{Cf}/u.test(ch));
+      })
+      .join("")
+      .replace(/\s+/g, " ")
+      .trim();
+  const every = Array.from({ length: 0x3000 }, (_, i) => String.fromCharCode(i)).join("") + "\u{1f600}\u{e0001}\ud800x";
+  for (let at = 0; at < every.length; at += 512) {
+    const piece = every.slice(at, at + 512).replace(/[\u001b\u0090\u0098\u009b-\u009f]/g, "");
+    assert.equal(sanitizeServerText(piece), perCharacter(piece), `from U+${at.toString(16)}`);
+  }
+  // At most 16 384 units of the text are read, never half a surrogate pair.
+  assert.equal(sanitizeServerText("x".repeat(100_000)).length, 16_384);
+  assert.equal(sanitizeServerText(`${"x".repeat(16_383)}\u{1f600}`), "x".repeat(16_383));
+  // A control string ends at another introducer: the first is dropped by the filter, the second
+  // string as a whole.
+  const OSC8 = String.fromCharCode(0x9d);
+  const ST8 = String.fromCharCode(0x9c);
+  assert.equal(sanitizeServerText(`a${OSC8}0;x${OSC8}0;t${ST8}b`), "a0;xb");
+  assert.equal(sanitizeServerText(`a${ESC}]0;x${ESC}]0;t${BEL}b`), "a0;xb");
+});
+
+test("an error answer of unterminated control-string introducers is cleaned in linear time", async () => {
+  for (const introducer of ["\u009d", "\u0090", "\u0098", "\u009e", "\u009f", `${ESC}]`]) {
+    const e = new RequestEngine({ maxRetries: 0, transport: makeMockTransport(() => jsonResponse({ detail: introducer.repeat(100_000) }, 500)).transport });
+    const started = performance.now();
+    await assert.rejects(e.getJson("/x"), PegelApiError);
+    const elapsed = performance.now() - started;
+    assert.ok(elapsed < 1000, `${JSON.stringify(introducer)}: ${Math.round(elapsed)} ms`);
+  }
+});
+
+test("a TextBuilder joins its pieces in order across batches", () => {
+  const b = new TextBuilder();
+  const expected: string[] = [];
+  for (let i = 0; i < 40_000; i++) {
+    b.push(String(i), ",");
+    expected.push(String(i), ",");
+  }
+  assert.equal(b.toString(), expected.join(""));
+  assert.equal(new TextBuilder().toString(), "");
+});
+
+// These tests start a process with a small heap: 30 s instead of the suite's 5 s.
+const STARTS_A_PROCESS = { timeout: 30_000 };
+
+/** Run `script` (an ES module that imports the built engine as `engine`) under a 128 MB heap; its stdout. */
+function inSmallHeap(script: string): string {
+  const engine = new URL("../src/engine.js", import.meta.url).href;
+  return execFileSync(
+    process.execPath,
+    ["--max-old-space-size=128", "--input-type=module", "-e", `const engine = await import(${JSON.stringify(engine)});${script}`],
+    { encoding: "utf8" },
+  );
+}
+
+test("a 16 MB error detail ends as an API error within a small heap", STARTS_A_PROCESS, () => {
+  // One `+=` per character of the uncut detail made a rope node each: 8 MB aborted a 256 MB heap.
+  const out = inSmallHeap(
+    `const body = Buffer.from(JSON.stringify({ detail: "a\u00e4".repeat(8 * 1024 * 1024) }));` +
+      `const e = new engine.RequestEngine({ maxRetries: 0, transport: async () => ({ status: 404, headers: { "content-type": "application/json" }, body }) });` +
+      `try { await e.getJson("/x"); } catch (err) { process.stdout.write(err.constructor.name + " " + err.detail.length); }`,
+  );
+  assert.equal(out, "PegelApiError 501");
+});
+
+test("an answer of millions of lone surrogate escapes is repaired within a small heap", STARTS_A_PROCESS, () => {
+  // One `+=` per repair made a rope node each: 6 million of them exhausted a 128 MB heap.
+  const out = inSmallHeap(
+    `const body = Buffer.from('["' + "\\\\ud800".repeat(6_000_000) + '"]');` +
+      `const e = new engine.RequestEngine({ transport: async () => ({ status: 200, headers: { "content-type": "application/json" }, body }) });` +
+      `const [text] = await e.getJson("/x"); process.stdout.write(String(text.length));`,
+  );
+  assert.equal(out, "6000000");
+});
+
+test("scanNumbers quotes millions of declared members within a small heap", STARTS_A_PROCESS, () => {
+  // One `+=` per quoted member made a rope node each: 3 million of them exhausted a 128 MB heap.
+  const n = 3_000_000;
+  const out = inSmallHeap(
+    `const json = "[" + '{"k":1},'.repeat(${n - 1}) + '{"k":1}]';` +
+      `process.stdout.write(String(engine.scanNumbers(json, new Set(["k"])).json.length));`,
+  );
+  assert.equal(out, String(n * 10 + 1));
 });

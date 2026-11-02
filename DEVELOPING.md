@@ -68,8 +68,11 @@ silently disable the timeout. A `transport` or `sleep` that is not a function, a
 way; so is a station or timeseries id that is not a non-blank string, is "." / "..", or
 holds a "/" (sent as `%2F`, a server that decodes it reads more path segments).
 Server text in a message (an error `detail`, a transport's error text, a redirect target)
-is cut at 500 characters, never inside a surrogate pair (`cutText`, exported), so the
-message stays well-formed; `PegelApiError.body` keeps it all. Any other value an own
+loses its terminal escape sequences, control and format characters, has its whitespace
+folded to single spaces, and is cut at 500 characters, never inside a surrogate pair
+(`cutText`, exported), so the message stays well-formed and on one line; `PegelApiError.body`
+keeps it all. The cleaning reads at most the first 16 384 characters of such a text and is
+linear, so a huge or hostile error body costs neither seconds nor the heap. Any other value an own
 message quotes from a server answer or the caller's input (a station name, an unknown key,
 a header name, a charset) is cut at `MAX_QUOTED_LENGTH` (200, `cutForMessage`, both
 exported), so `err.message` stays bounded for a library caller. A value of the caller's that a

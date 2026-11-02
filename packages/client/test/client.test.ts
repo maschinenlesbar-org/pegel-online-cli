@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { execFileSync } from "node:child_process";
 import assert from "node:assert/strict";
 import { PegelOnlineClient, isUnambiguousStationId, stationListNotes } from "../src/client.js";
 import { PegelAmbiguousStationError, PegelApiError, PegelError, PegelValidationError, describeStationChoice, describeStationChoices, MAX_LISTED_STATIONS, serverTextForMessage } from "../src/errors.js";
@@ -452,4 +453,19 @@ test("library: a lone surrogate, an invisible character or a comma in an id or f
     await assert.rejects(call, (err: unknown) => err instanceof PegelValidationError, label);
   }
   assert.equal(mt.calls.length, 0);
+});
+
+test("serverTextForMessage reads a bounded prefix, so huge station fields cost neither seconds nor the heap", { timeout: 30_000 }, () => {
+  // This test starts a process with a small heap: 30 s instead of the suite's 5 s. One `+=` per
+  // character of the uncut field made a rope node each: an 8 MB shortname aborted the process.
+  assert.equal(serverTextForMessage("x".repeat(100_000), Infinity).length, 16_384);
+  assert.equal(serverTextForMessage(` a\n${"\u0001".repeat(20_000)}b`), "a");
+  const errors = new URL("../src/errors.js", import.meta.url).href;
+  const script =
+    `const { PegelAmbiguousStationError } = await import(${JSON.stringify(errors)});` +
+    `const big = "N\u00e4".repeat(8 * 1024 * 1024);` +
+    `const err = new PegelAmbiguousStationError("N", [{ uuid: big, number: big, shortname: big, longname: big, water: big }, { uuid: big, number: big, shortname: big, longname: big }]);` +
+    `process.stdout.write(String(err.message.length < 2000));`;
+  const out = execFileSync(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", script], { encoding: "utf8" });
+  assert.equal(out, "true");
 });
