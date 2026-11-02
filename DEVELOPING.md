@@ -380,7 +380,13 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   transport error text and the `cause` chain it attaches — and with it the forms a server
   echoes it back in (`echoedCredentialForms`, exported): the `Authorization: Basic` value,
   the decoded `user:password`, and the password alone from 4 characters on
-  (`redactSecrets`, exported). The CLI replaces the Basic value and the pair on stdout and
+  (`redactSecrets`, exported), each also as it is spelled in a URL (percent-encoded) and for
+  the userinfo both as typed and as WHATWG sends it. An error's `detail` is scrubbed again
+  after it is decoded from the JSON body, so a server that echoes the credential with JSON
+  escapes (`\"`, `\/`, `\u00e4`) cannot slip it into `.detail` or `.message`; for the same
+  reason `PegelApiError.body`, a JSON body with an escape that hides a credential, is kept as
+  its decoded JSON written again (`JSON.stringify`) with the credential scrubbed, and as `""`
+  when it is nested too deeply to write again. The CLI replaces the Basic value and the pair on stdout and
   stderr, the bare password on stderr only (on stdout a short password may well occur in
   the data).
 - **Cleartext base URL** (`cleartextProblem(baseUrl, secrets = [])`, exported): returns

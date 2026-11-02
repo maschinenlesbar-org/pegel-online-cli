@@ -799,3 +799,82 @@ test("scanNumbers quotes millions of declared members within a small heap", STAR
   );
   assert.equal(out, String(n * 10 + 1));
 });
+
+test("a credential echoed with JSON escapes is scrubbed from the message, the detail and the decoded body", async () => {
+  // A JSON writer escapes some characters of an echoed password (a quote always, "/" with PHP's
+  // json_encode, a non-ASCII letter with Python's json.dumps): the scrub of the text as sent
+  // missed that spelling, and JSON.parse put the plain password into .detail and .message.
+  const password = 'p"w/ä-secret';
+  const baseUrl = `https://alice:${encodeURIComponent(password)}@mirror.example`;
+  const escapings = [
+    JSON.stringify(password), // the quote escaped
+    JSON.stringify(password).replace(/\//g, "\\/").replace(/ä/g, "\\u00e4"), // PHP / Python style
+    `"${[...password].map((c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`).join("")}"`, // every character
+  ];
+  for (const status of [401, 500]) {
+    for (const quoted of escapings) {
+      for (const key of ["detail", "message"]) {
+        const body = `{"${key}":"wrong password ${quoted.slice(1)}}`;
+        const e = new RequestEngine({ baseUrl, maxRetries: 0, transport: async () => rawResponse(body, "application/json", status) });
+        const err = await e.getJson("/x").catch((caught: unknown) => caught);
+        assert.ok(err instanceof PegelApiError, `${body}: ${String(err)}`);
+        assert.ok(err.detail?.startsWith("wrong password"), `${body}: ${err.detail}`);
+        for (const text of [err.message, err.detail ?? "", JSON.stringify(JSON.parse(err.body))]) {
+          assert.ok(!text.includes("secret"), `${status} ${body}: ${text}`);
+        }
+      }
+    }
+  }
+});
+
+test("an error body keeps its spelling unless a credential hides behind an escape", async () => {
+  const base = "https://alice:s3cret-pw@mirror.example";
+  const bodyOf = async (body: string): Promise<string> => {
+    const e = new RequestEngine({ baseUrl: base, maxRetries: 0, transport: async () => rawResponse(body, "application/json", 500) });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof PegelApiError, String(err));
+    return err.body;
+  };
+  // No credential, or one spelled as sent: the body as sent (scrubbed), escapes kept.
+  assert.equal(await bodyOf('{"m":"caf\\u00e9 \\"x\\""}'), '{"m":"caf\\u00e9 \\"x\\""}');
+  assert.equal(await bodyOf('{"m":"pw s3cret-pw \\u00e9"}'), '{"m":"pw *** \\u00e9"}');
+  // Escaped: written again decoded, scrubbed in that spelling.
+  assert.equal(await bodyOf('{"m":"pw s3cret\\u002dpw \\u00e9"}'), '{"m":"pw *** é"}');
+  // Not JSON: nobody decodes it, it stays as sent.
+  assert.equal(await bodyOf("pw s3cret\\u002dpw"), "pw s3cret\\u002dpw");
+  // Deeply nested: written again where this runtime can, else left out (probed, not assumed:
+  // whether JSON.stringify recurses depends on the Node version).
+  const deep = `${"[".repeat(200_000)}"s3cret\\u002dpw"${"]".repeat(200_000)}`;
+  let parses = true;
+  let writes = true;
+  try {
+    const value: unknown = JSON.parse(deep);
+    try {
+      JSON.stringify(value);
+    } catch {
+      writes = false;
+    }
+  } catch {
+    parses = false;
+  }
+  if (parses) {
+    const body = await bodyOf(deep);
+    assert.ok(!body.includes("s3cret"), body.slice(199_990, 200_030));
+    assert.equal(body === "", !writes);
+  }
+});
+
+test("an echo of the request URL as sent is scrubbed, a short password too", async () => {
+  // Typed raw; WHATWG spells it `p%22%C3%A4` in the URL (as Node's http reads it), which a
+  // server or a transport echoes.
+  const e = new RequestEngine({
+    baseUrl: 'https://alice:p"ä@mirror.example',
+    maxRetries: 0,
+    transport: async (req) => rawResponse(JSON.stringify({ message: `no access: ${new URL(req.url).href}` }), "application/json", 403),
+  });
+  const err = await e.getJson("/x").catch((caught: unknown) => caught);
+  assert.ok(err instanceof PegelApiError, String(err));
+  for (const text of [err.message, err.detail ?? "", err.body]) {
+    assert.ok(!text.includes("p%22%C3%A4@") && !text.includes('p"ä@'), text);
+  }
+});
