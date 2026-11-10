@@ -235,7 +235,10 @@ seconds, ms under 1 s). Tests: `apps/cli/test/retry-log.test.ts`.
 a missing or malformed `Location` and a hop past the limit surface as a `PegelApiError`
 whose `location` field and message name the target (`redirect to <url> not followed`,
 plus `(stopped after N redirects)` at the limit; resolved, userinfo redacted,
-sanitised). When a hop
+sanitised). A Location is scrubbed of the base URL's credentials as sent, before it is
+resolved (resolving re-spells it: `'` becomes `%27` in a query), and so is the URL every later
+message names after a followed redirect (the API error's `url`, a network failure, `onRetry`):
+a server's Location may echo the password in its path or query. When a hop
 crosses to a different **origin** (scheme + host + port) — including a same-host
 `https:` -> `http:` downgrade — credential-bearing headers (`Authorization`, `Cookie`,
 `X-API-Key`, `Proxy-Authorization`) are stripped, case-insensitively, before the next

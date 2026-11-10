@@ -760,6 +760,10 @@ export class RequestEngine {
     options: { query?: QueryParams | undefined; accept: string } = { accept: "application/json" },
   ): Promise<RawResponse> {
     let url = this.buildUrl(path, options.query);
+    // The URL as every message names it. After a followed redirect `url` is a server's Location,
+    // which may echo the base URL's credentials in its path or query: `shown` is that Location
+    // scrubbed as sent (before resolving re-spells it) and resolved against the previous `shown`.
+    let shown = redactUrl(url);
     const headers: Record<string, string> = {
       ...this.#extraHeaders,
       Accept: options.accept,
@@ -792,7 +796,7 @@ export class RequestEngine {
         // — a slow upstream should not be asked again at once.
         if (idempotent && hasTransientCode(cause) && attempt < this.maxRetries) {
           attempt += 1;
-          await this.backOff(attempt, this.retryDelayMs * attempt, url);
+          await this.backOff(attempt, this.retryDelayMs * attempt, shown);
           continue;
         }
         // The default transport rejects with PegelNetworkError only; an injected one may
@@ -804,7 +808,7 @@ export class RequestEngine {
         const reason = cause instanceof Error ? cause.message : String(cause);
         const retried = attempt > 0 ? ` (after ${attempt} ${attempt === 1 ? "retry" : "retries"})` : "";
         throw new PegelNetworkError(
-          `${method} ${redactUrl(url)} failed: ${cleanDetail(this.scrub(reason))}${retried}`,
+          `${method} ${shown} failed: ${cleanDetail(this.scrub(reason))}${retried}`,
           { cause: this.scrubCause(cause) },
         );
       }
@@ -814,7 +818,7 @@ export class RequestEngine {
       const invalid = responseProblem(response);
       if (invalid !== undefined) {
         throw new PegelNetworkError(
-          `${method} ${redactUrl(url)} failed: the transport returned an invalid response (${invalid}).`,
+          `${method} ${shown} failed: the transport returned an invalid response (${invalid}).`,
         );
       }
       // Transports must not follow redirects (HttpRequest.redirect is "manual"); fetch does
@@ -824,8 +828,8 @@ export class RequestEngine {
       const finalUrl = (response as { url?: unknown }).url;
       if (typeof finalUrl === "string" && finalUrl !== "" && !sameOrigin(finalUrl, url)) {
         throw new PegelNetworkError(
-          `${method} ${redactUrl(url)} failed: the transport followed a redirect to another origin ` +
-            `(${cleanDetail(redactUrl(finalUrl))}); a transport must not follow redirects (HttpRequest.redirect is "manual").`,
+          `${method} ${shown} failed: the transport followed a redirect to another origin ` +
+            `(${cleanDetail(redactUrl(this.scrub(finalUrl)))}); a transport must not follow redirects (HttpRequest.redirect is "manual").`,
         );
       }
       const status = response.status;
@@ -834,7 +838,7 @@ export class RequestEngine {
       // The size cap holds whatever the transport did: the default one aborts early, a
       // custom one may have read everything.
       if (this.maxResponseBytes > 0 && body.byteLength > this.maxResponseBytes) {
-        throw new PegelNetworkError(`${method} ${redactUrl(url)} failed: ${sizeLimitMessage(this.maxResponseBytes)}`);
+        throw new PegelNetworkError(`${method} ${shown} failed: ${sizeLimitMessage(this.maxResponseBytes)}`);
       }
 
       const retryable = status === 429 || status === 503;
@@ -849,7 +853,7 @@ export class RequestEngine {
         if (retryAfter === undefined || retryAfter <= MAX_RETRY_AFTER_MS) {
           attempt += 1;
           const backoff = this.retryDelayMs * attempt;
-          await this.backOff(attempt, retryAfter === undefined ? backoff : Math.max(retryAfter, backoff), url, status);
+          await this.backOff(attempt, retryAfter === undefined ? backoff : Math.max(retryAfter, backoff), shown, status);
           continue;
         }
         refusedWaitMs = retryAfter;
@@ -861,7 +865,7 @@ export class RequestEngine {
       if (next !== undefined && redirects >= this.maxRedirects) {
         // A loop (or a long chain): say how far it got rather than a bare 3xx.
         // (With maxRedirects 0 nothing was followed; the plain text says enough.)
-        throw this.toApiError(method, url, status, body, location, redirects || undefined);
+        throw this.toApiError(method, shown, status, body, location, redirects || undefined);
       }
       if (next !== undefined) {
         const current = new URL(url);
@@ -882,6 +886,7 @@ export class RequestEngine {
           next.password = current.password;
         }
         url = next.toString();
+        shown = shownTarget(shown, location ?? "", (text) => this.scrub(text)) ?? redactUrl(this.scrub(url));
         redirects += 1;
         continue;
       }
@@ -894,7 +899,7 @@ export class RequestEngine {
           (status === 401 || status === 403) && droppedCredentialsAt !== undefined
             ? credentialsDroppedHint(droppedCredentialsAt.from, droppedCredentialsAt.to)
             : undefined;
-        throw this.toApiError(method, url, status, body, location, undefined, refusedWaitMs, hint);
+        throw this.toApiError(method, shown, status, body, location, undefined, refusedWaitMs, hint);
       }
 
       const contentEncoding = String(headerValue(responseHeaders["content-encoding"]) ?? "").trim();
@@ -958,6 +963,7 @@ export class RequestEngine {
     return parsed;
   }
 
+  /** `url` is the request URL as messages show it (`shown` in `request`), not as sent. */
   private toApiError(
     method: string,
     url: string,
@@ -990,7 +996,7 @@ export class RequestEngine {
     if (detail !== undefined) detail = cleanDetail(this.scrub(detail));
     // Name the target of a redirect that was not followed.
     const location =
-      status >= 300 && status < 400 && locationHeader ? redirectTarget(url, locationHeader) : undefined;
+      status >= 300 && status < 400 && locationHeader ? redirectTarget(url, locationHeader, (t) => this.scrub(t)) : undefined;
     return new PegelApiError({
       status,
       url,
@@ -1286,12 +1292,23 @@ function resolveLocation(location: string | undefined, base: string): URL | unde
 }
 
 /**
- * The absolute, printable form of a `Location` header: resolved against the request
- * URL, userinfo redacted, control characters stripped (it is server text bound for
- * stderr). An unparseable value is shown sanitised as it came.
+ * A `Location` header as a message names it, uncut: scrubbed of the base URL's credentials as
+ * sent (`scrub`, the engine's), then resolved against `shownUrl` (the request URL as messages show
+ * it), userinfo redacted. The scrub comes first: resolving percent-encodes what is left in a new
+ * spelling (`'` as `%27` in a query), which no exact-string scrub finds. Undefined when the
+ * scrubbed value is no http(s) URL.
  */
-function redirectTarget(requestUrl: string, location: string): string | undefined {
-  const resolved = resolveLocation(location, requestUrl);
-  const clean = cleanDetail(resolved ? redactUrl(resolved.href) : location).trim();
+function shownTarget(shownUrl: string, location: string, scrub: (text: string) => string): string | undefined {
+  const resolved = resolveLocation(scrub(location), shownUrl);
+  return resolved === undefined ? undefined : redactUrl(resolved.href);
+}
+
+/**
+ * The absolute, printable form of a `Location` header: scrubbed and resolved against the
+ * request URL as messages show it (`shownTarget`), control characters stripped (it is server
+ * text bound for stderr). An unparseable value is shown scrubbed and sanitised as it came.
+ */
+function redirectTarget(shownUrl: string, location: string, scrub: (text: string) => string): string | undefined {
+  const clean = cleanDetail(shownTarget(shownUrl, location, scrub) ?? scrub(location)).trim();
   return clean === "" ? undefined : clean;
 }

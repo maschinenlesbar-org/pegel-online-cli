@@ -902,3 +902,65 @@ test("a number with a long run of zeros is refused in linear time (security audi
   assert.equal(firstInexactNumber(`[1${"0".repeat(400)}]`), `1${"0".repeat(400)}`);
   assert.equal(firstInexactNumber(`[1e300, 1000e297, 0.001e303, 0e0, 0.000]`), undefined);
 });
+
+test("a credential in a redirect's Location is named in no message, followed or not (security audit 2026-10-27, D2)", async () => {
+  // The engine follows redirects, so a Location's text becomes the URL every later message names
+  // (the API error, a network failure, onRetry) as well as the target of the last one. The
+  // Location was resolved and only its own userinfo redacted: the base URL's password in its
+  // path or query reached every message.
+  const PW = "pä\"s's-W0rd";
+  const base = `https://alice:${encodeURIComponent(PW)}@mirror.example`;
+  const basic = Buffer.from(`alice:${PW}`, "utf8").toString("base64");
+  const secrets = [PW, `alice:${PW}`, basic];
+  const decoded = (text: string): string => {
+    try {
+      return decodeURIComponent(text);
+    } catch {
+      return text;
+    }
+  };
+  const seen = (err: unknown, retried: string[] = []): string => {
+    const e = err as { message?: unknown; location?: unknown; url?: unknown };
+    return decoded([e.message, e.location, e.url, ...retried].map(String).join("\n"));
+  };
+  const locations = [
+    `https://elsewhere.example/login?user=alice&pw=${encodeURIComponent(PW)}`,
+    `https://elsewhere.example/login?pw=${PW}`,
+    `https://elsewhere.example/${encodeURIComponent(`alice:${PW}`)}/x`,
+    `https://elsewhere.example/auth?basic=${basic}`,
+    `/relative/${PW}`,
+    `relative/${encodeURIComponent(PW)}/`,
+  ];
+  for (const location of locations) {
+    // Answered with this 302 forever: the limit names the last URL and its target.
+    const loop = new RequestEngine({ baseUrl: base, maxRetries: 0, transport: async () => ({ status: 302, headers: { location }, body: Buffer.alloc(0) }) });
+    const err = await loop.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof PegelApiError && /stopped after 5 redirects/.test(err.message), String(err));
+    for (const secret of secrets) assert.ok(!seen(err).includes(secret), `${location}: ${seen(err)}`);
+    // Followed once, then a 500, a 503 retried, or a failed connection: each names the URL followed.
+    for (const after of ["500", "503", "reset"] as const) {
+      const retried: string[] = [];
+      let calls = 0;
+      const once = new RequestEngine({
+        baseUrl: base,
+        maxRetries: 1,
+        sleep: async () => {},
+        onRetry: (event) => retried.push(event.url),
+        transport: async () => {
+          calls += 1;
+          if (calls === 1) return { status: 302, headers: { location }, body: Buffer.alloc(0) };
+          if (after === "reset") throw Object.assign(new Error("socket hang up"), { code: "ECONNRESET" });
+          return { status: Number(after), headers: {}, body: Buffer.alloc(0) };
+        },
+      });
+      const failed = await once.getJson("/x").catch((caught: unknown) => caught);
+      assert.ok(failed instanceof PegelError, String(failed));
+      for (const secret of secrets) assert.ok(!seen(failed, retried).includes(secret), `${location} ${after}: ${seen(failed, retried)}`);
+    }
+  }
+  // A 3xx not followed names its target scrubbed too.
+  const refused = new RequestEngine({ baseUrl: base, transport: async () => ({ status: 300, headers: { location: `/choose?pw=${PW}` }, body: Buffer.alloc(0) }) });
+  const err = await refused.getJson("/x").catch((caught: unknown) => caught);
+  assert.ok(err instanceof PegelApiError && /redirect to .* not followed$/.test(err.message), String(err));
+  for (const secret of secrets) assert.ok(!seen(err).includes(secret), seen(err));
+});
