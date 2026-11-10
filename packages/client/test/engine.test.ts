@@ -20,6 +20,7 @@ import {
   PegelParseError,
   PegelValidationError,
   cutText,
+  echoedCredentialForms,
   TextBuilder,
   toWellFormed,
 } from "../src/errors.js";
@@ -963,4 +964,25 @@ test("a credential in a redirect's Location is named in no message, followed or 
   const err = await refused.getJson("/x").catch((caught: unknown) => caught);
   assert.ok(err instanceof PegelApiError && /redirect to .* not followed$/.test(err.message), String(err));
   for (const secret of secrets) assert.ok(!seen(err).includes(secret), seen(err));
+});
+
+test("echoedCredentialForms treats a userinfo without a password as a token (Basic `TOKEN:`) (security audit 2026-10-27, E)", async () => {
+  const basic = (pair: string): string => Buffer.from(pair, "utf8").toString("base64");
+  assert.deepEqual(echoedCredentialForms("alice:s3cret"), [basic("alice:s3cret"), "alice:s3cret", "s3cret"]);
+  assert.deepEqual(echoedCredentialForms("T0ken"), [basic("T0ken:"), "T0ken:", "T0ken"]);
+  assert.deepEqual(echoedCredentialForms("T0ken:"), [basic("T0ken:"), "T0ken:", "T0ken"]);
+  assert.deepEqual(echoedCredentialForms("T%C3%B6k"), [basic("Tök:"), "Tök:"]); // short: not alone
+  assert.deepEqual(echoedCredentialForms(":pw12"), [basic(":pw12"), ":pw12", "pw12"]);
+  assert.deepEqual(echoedCredentialForms(""), []);
+  assert.deepEqual(echoedCredentialForms(":"), []);
+  // Through the engine: every echoed form of a token is scrubbed from the error.
+  const TOKEN = "T0kenS3cret";
+  for (const base of [`https://${TOKEN}@mirror.example`, `https://${TOKEN}:@mirror.example`]) {
+    for (const echo of [`bad token ${TOKEN}`, `Authorization: Basic ${basic(`${TOKEN}:`)}`, `user ${TOKEN}: unknown`]) {
+      const e = new RequestEngine({ baseUrl: base, maxRetries: 0, transport: makeMockTransport(() => jsonResponse({ message: echo }, 401)).transport });
+      const err = await e.getJson("/x").catch((caught: unknown) => caught);
+      assert.ok(err instanceof PegelApiError, String(err));
+      for (const text of [err.message, err.detail ?? "", err.body]) assert.ok(!text.includes(TOKEN) && !text.includes(basic(`${TOKEN}:`)), `${base} ${echo}: ${text}`);
+    }
+  }
 });

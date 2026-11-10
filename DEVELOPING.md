@@ -382,7 +382,9 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   scrubs the base URL's userinfo (raw and percent-decoded) from error bodies, details,
   transport error text and the `cause` chain it attaches — and with it the forms a server
   echoes it back in (`echoedCredentialForms`, exported): the `Authorization: Basic` value,
-  the decoded `user:password`, and the password alone from 4 characters on
+  the decoded `user:password`, and the password alone from 4 characters on (for a userinfo
+  without a password, `https://TOKEN@host`, the user name is the secret: Basic `TOKEN:`,
+  `TOKEN:` and the token)
   (`redactSecrets`, exported), each also as it is spelled in a URL (percent-encoded) and for
   the userinfo both as typed and as WHATWG sends it. An error's `detail` is scrubbed again
   after it is decoded from the JSON body, so a server that echoes the credential with JSON

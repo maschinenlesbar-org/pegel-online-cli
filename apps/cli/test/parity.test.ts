@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { PegelOnlineClient } from "@maschinenlesbar.org/pegel-online-client/internal/client";
 import { PegelNetworkError, PegelValidationError } from "@maschinenlesbar.org/pegel-online-client/internal/errors";
 import type { Transport } from "@maschinenlesbar.org/pegel-online-client/internal/http";
-import { parity } from "./helpers.js";
+import { jsonResponse, parity } from "./helpers.js";
 
 const client = (transport: Transport) => new PegelOnlineClient({ transport });
 
@@ -175,4 +175,20 @@ test("parity: a valid User-Agent (tab and Latin-1 allowed) is sent the same by C
     assert.equal(cli.requests[0]?.headers?.["User-Agent"], userAgent);
     assert.equal(lib.requests[0]?.headers?.["User-Agent"], userAgent);
   }
+});
+
+test("a token in --base-url (a userinfo without a password) is redacted from stderr and stdout (security audit 2026-10-27, E)", async () => {
+  const TOKEN = "T0kenS3cret";
+  const basic = Buffer.from(`${TOKEN}:`, "utf8").toString("base64");
+  const base = `https://${TOKEN}@mirror.example`;
+  const failed = await parity(["--base-url", base, "--max-retries", "0", "waters"], (t) => new PegelOnlineClient({ baseUrl: base, transport: t, maxRetries: 0 }).waters(), () =>
+    jsonResponse({ message: `bad token ${TOKEN}` }, 401),
+  );
+  assert.equal(failed.cli.code, 1, failed.cli.err);
+  assert.ok(!failed.cli.err.includes(TOKEN), failed.cli.err);
+  const echoed = await parity(["--base-url", base, "--compact", "waters"], (t) => new PegelOnlineClient({ baseUrl: base, transport: t }).waters(), () =>
+    jsonResponse([{ shortname: `Basic ${basic} for ${TOKEN}:x`, longname: "L" }]),
+  );
+  assert.equal(echoed.cli.code, 0, echoed.cli.err);
+  assert.ok(!echoed.cli.out.includes(basic) && !echoed.cli.out.includes(`${TOKEN}:`), echoed.cli.out);
 });
