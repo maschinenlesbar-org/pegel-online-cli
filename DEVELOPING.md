@@ -255,7 +255,9 @@ a `PegelNetworkError`.
 **maxResponseBytes.** A hard cap on response body size to defend against memory exhaustion
 (default 100 MiB; `0` = unlimited). CLI: `--max-response-bytes`. The default transport aborts
 as soon as the cap is passed; the engine also checks the body any transport returns, so the
-cap holds for custom transports too. The message names both the option and the flag.
+cap holds for custom transports too. The message names both the option and the flag. Small
+chunks are joined as they arrive (at most 1024 of them or 64 KiB), so the memory an answer
+holds follows its bytes, not the number of chunks a server sends it in.
 
 **timeoutMs.** A deadline for the whole request, response body included (default 30 s;
 `0` disables). The engine enforces it itself, for every transport: the transport gets an
@@ -517,7 +519,8 @@ everything that drives the CLI is in `apps/cli/test/`.
   (`conformance-p27-big-and-odd-answers`: the built bin under a small heap prints a large flat
   answer with `--compact`, an answer full of DEL characters escaped or, past V8's longest
   string, as one ERROR record; a lone surrogate or invalid bytes are replaced with U+FFFD and
-  reported in a WARN record, on the CLI and in the library). They use `kitParity` (`apps/cli/test/helpers.ts`), `parity` with
+  reported in a WARN record, on the CLI and in the library; an answer in two million one-byte
+  chunks is read within a 256 MB heap). They use `kitParity` (`apps/cli/test/helpers.ts`), `parity` with
   the library's error named by its class. `validFor()` in
   `packages/client/test/helpers.ts` answers any endpoint with a body of its documented shape.
 
