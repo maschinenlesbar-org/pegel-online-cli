@@ -386,7 +386,10 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   escapes (`\"`, `\/`, `\u00e4`) cannot slip it into `.detail` or `.message`; for the same
   reason `PegelApiError.body`, a JSON body with an escape that hides a credential, is kept as
   its decoded JSON written again (`JSON.stringify`) with the credential scrubbed, and as `""`
-  when it is nested too deeply to write again. The CLI replaces the Basic value and the pair on stdout and
+  when it is nested too deeply to write again. A value of an answer that a message quotes (the
+  stations of `PegelAmbiguousStationError`, a Content-Type, Content-Encoding or charset) is
+  scrubbed before it is cleaned or cut (`RequestEngine.scrubServerValue`, public, for API code):
+  a cut first could split a password and leave its prefix. The CLI replaces the Basic value and the pair on stdout and
   stderr, the bare password on stderr only (on stdout a short password may well occur in
   the data).
 - **Cleartext base URL** (`cleartextProblem(baseUrl, secrets = [])`, exported): returns
@@ -431,7 +434,8 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   `stations.list({ ids: [name] })`, and when two or more returned stations carry it (by
   uuid, number, shortname or longname, ignoring case) it rejects with
   `PegelAmbiguousStationError` (a `PegelValidationError`; `.station`, and `.stations` as
-  `StationChoice` objects with water, number and uuid). The CLI calls it before
+  `StationChoice` objects with water, number and uuid, the base URL's credentials scrubbed from
+  each field). The CLI calls it before
   `stations get`, `timeseries`, `current` and `measurements`, so a name costs one extra
   request and an ambiguous one exits 2 without the per-station request. The message
   quotes each station's shortname, water, number and uuid — the server's text — through

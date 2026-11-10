@@ -209,7 +209,10 @@ class StationsResource {
     const named = (await this.list({ ids: [id] })).filter((s) =>
       [s.uuid, s.number, s.shortname, s.longname].some((f) => typeof f === "string" && sameId(f, id)),
     );
-    if (named.length > 1) throw new PegelAmbiguousStationError(id, named.map(choiceOf));
+    // The choices are the server's text, quoted into the message: the base URL's credentials go
+    // before the message cuts each field (scrubServerValue), and from `.stations` too.
+    const scrub = (text: string): string => this.e.scrubServerValue(text);
+    if (named.length > 1) throw new PegelAmbiguousStationError(id, named.map((s) => scrubbedChoice(choiceOf(s), scrub)));
   }
 
   async get(station: string, params: StationIncludeParams = {}): Promise<Station> {
@@ -243,6 +246,18 @@ function choiceOf(s: Station): StationChoice {
     longname: s.longname,
     // A water shortname that is no string (an object from a broken mirror) is no water.
     ...(typeof s.water?.shortname === "string" ? { water: s.water.shortname } : {}),
+  };
+}
+
+/** `choice` with every string field passed through `scrub`; a field that is no string is kept. */
+function scrubbedChoice(choice: StationChoice, scrub: (text: string) => string): StationChoice {
+  const text = <T>(value: T): T => (typeof value === "string" ? (scrub(value) as T) : value);
+  return {
+    uuid: text(choice.uuid),
+    number: text(choice.number),
+    shortname: text(choice.shortname),
+    longname: text(choice.longname),
+    ...(choice.water !== undefined ? { water: text(choice.water) } : {}),
   };
 }
 

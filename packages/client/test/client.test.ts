@@ -469,3 +469,51 @@ test("serverTextForMessage reads a bounded prefix, so huge station fields cost n
   const out = execFileSync(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", script], { encoding: "utf8" });
   assert.equal(out, "true");
 });
+
+test("the ambiguous-station error quotes no credential of the base URL from the answer, scrubbed before the cut (security audit 2026-10-27, D)", async () => {
+  // The station fields come from a 2xx answer: a hostile mirror can echo the base URL's
+  // credentials there. They were cut at 200 characters unscrubbed, so even the CLI's exact-match
+  // redaction missed the prefix of a password the cut had split.
+  const pw = "s3cret-Passw0rd";
+  const basic = Buffer.from(`alice:${pw}`, "utf8").toString("base64");
+  const a = { uuid: "u-1", number: "1", shortname: "NEUSTADT", longname: "NEUSTADT", water: { shortname: `${"x".repeat(190)}${pw}`, longname: "W" } };
+  const b = { uuid: `u-2 ${basic}`, number: `alice:${pw}`, shortname: "NEUSTADT", longname: `asked as https://alice:${pw}@mirror.example` };
+  const client = new PegelOnlineClient({ baseUrl: `https://alice:${pw}@mirror.example`, transport: makeMockTransport(() => jsonResponse([a, b])).transport });
+  await assert.rejects(client.stations.assertUnique("NEUSTADT"), (err: unknown) => {
+    assert.ok(err instanceof PegelAmbiguousStationError);
+    const seen = `${err.message}\n${JSON.stringify(err.stations)}`;
+    for (const secret of [pw, pw.slice(0, 10), basic]) assert.ok(!seen.includes(secret), seen);
+    assert.match(err.message, /\*\*\*/);
+    return true;
+  });
+});
+
+test("a Content-Type, Content-Encoding or charset the client quotes carries no credential of the base URL (security audit 2026-10-27, D)", async () => {
+  const pw = "s3cret-Passw0rd";
+  const answers: Record<string, string>[] = [
+    { "content-type": `text/html; x=${pw}` },
+    { "content-type": "application/json", "content-encoding": `gzip-${pw}` },
+    { "content-type": `application/json; charset=x-${pw}` },
+  ];
+  for (const headers of answers) {
+    const body = headers["content-type"]?.startsWith("text/html") ? "<html>" : "{}";
+    const client = new PegelOnlineClient({ baseUrl: `https://alice:${pw}@mirror.example`, transport: async () => ({ status: 200, headers, body: Buffer.from(body) }) });
+    const err = await client.waters().catch((caught: unknown) => caught);
+    assert.ok(err instanceof PegelError, String(err));
+    assert.ok(!err.message.includes(pw) && !err.message.includes(pw.slice(0, 6)), err.message);
+  }
+});
+
+test("a password with an inner space is scrubbed whole, not word by word (security audit 2026-10-27, D detail)", async () => {
+  // `my%20s3cret pw` decodes to a password with spaces; every echo of it goes, the first word too.
+  const pw = "my s3cret pass";
+  const base = `https://alice:${encodeURIComponent(pw)}@mirror.example`;
+  for (const echo of [`password ${pw} refused`, `user alice:${pw}`, `Basic ${Buffer.from(`alice:${pw}`, "utf8").toString("base64")}`, `asked ${base}/x`]) {
+    const client = new PegelOnlineClient({ baseUrl: base, maxRetries: 0, transport: makeMockTransport(() => jsonResponse({ message: echo }, 401)).transport });
+    const err = await client.waters().catch((caught: unknown) => caught);
+    assert.ok(err instanceof PegelApiError, String(err));
+    for (const text of [err.message, err.detail ?? "", err.body]) {
+      assert.ok(!text.includes(pw) && !text.includes(encodeURIComponent(pw)) && !text.includes("my s3cret"), text);
+    }
+  }
+});

@@ -344,7 +344,8 @@ export class PegelValidationError extends PegelError {}
  * A station name that more than one station carries (`NEUSTADT` names a gauge on the
  * LEINE and one on the OSTSEE), raised by `stations.assertUnique` before the request
  * that would have silently picked one of them. `stations` lists them, to choose one by
- * its uuid or number. A PegelValidationError, so the CLI exits 2 (usage error).
+ * its uuid or number (as the server sent them, the base URL's credentials scrubbed by
+ * `stations.assertUnique`). A PegelValidationError, so the CLI exits 2 (usage error).
  */
 export class PegelAmbiguousStationError extends PegelValidationError {
   readonly station: string;

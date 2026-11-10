@@ -671,6 +671,16 @@ export class RequestEngine {
   }
 
   /**
+   * A value from an answer (a station field, a header) as a message may quote it: the base URL's
+   * credentials replaced by `***`, in every form a server echoes them in. API code scrubs a server
+   * value with this **before** it cleans or cuts it (`serverTextForMessage`, `cleanDetail`): a cut
+   * first could split a password and leave its prefix, which no exact-string scrub finds again.
+   */
+  scrubServerValue(text: string): string {
+    return this.scrub(text);
+  }
+
+  /**
    * An error body, already scrubbed as sent, as `PegelApiError.body` keeps it: when it is JSON
    * with an escape in it, checked decoded too. An escape (`\"`, `\u00e4`) hides an echoed
    * credential from the scrub of the text as sent, while a caller who parses the body sees it.
@@ -911,10 +921,10 @@ export class RequestEngine {
     const codings = res.contentEncoding.split(",").map((c) => c.trim()).filter((c) => c !== "");
     if (codings.some((c) => !/^identity$/i.test(c))) {
       throw new PegelParseError(
-        `${request}: unsupported Content-Encoding "${cleanDetail(res.contentEncoding)}" (the client does not decompress responses).`,
+        `${request}: unsupported Content-Encoding "${cleanDetail(this.scrub(res.contentEncoding))}" (the client does not decompress responses).`,
       );
     }
-    const decoded = decodeBody(res.data, res.contentType, request);
+    const decoded = decodeBody(res.data, res.contentType, request, (text) => this.scrub(text));
     if (decoded.text.trim() === "") {
       // A broken answer, not "no results": printed as nothing with exit 0, it would let a
       // script carry on as if the API had found nothing.
@@ -930,7 +940,7 @@ export class RequestEngine {
       // An HTML maintenance or proxy page is the usual non-JSON answer: name its type, so it
       // reads as an upstream problem rather than a client bug.
       const type = res.contentType.split(";")[0]?.trim() ?? "";
-      const hint = type !== "" && !/json/i.test(type) ? ` (expected JSON, got Content-Type "${cleanDetail(type)}")` : "";
+      const hint = type !== "" && !/json/i.test(type) ? ` (expected JSON, got Content-Type "${cleanDetail(this.scrub(type))}")` : "";
       throw new PegelParseError(`${request}: the answer is not valid JSON${hint}.`, { cause });
     }
     // JSON.parse rounds and overflows numbers silently: refuse the answer rather than print a
@@ -1000,17 +1010,17 @@ export class RequestEngine {
  * none). A proxy or mirror that answers in ISO-8859-1 used to come out as "K\uFFFDLN"
  * with exit 0. TextDecoder also drops a leading byte order mark, which
  * Buffer#toString keeps and JSON.parse then rejects. An unknown charset label is a
- * PegelParseError naming `request`. Bytes that are not valid in the charset become U+FFFD, and
+ * PegelParseError naming `request` (the label scrubbed with `scrub`, the engine's). Bytes that are not valid in the charset become U+FFFD, and
  * `replaced` counts them: exactly for UTF-8 and the single-byte charsets; for UTF-16 a U+FFFD
  * the server sent counts too.
  */
-function decodeBody(body: Buffer, contentType: string, request: string): { text: string; replaced: number } {
+function decodeBody(body: Buffer, contentType: string, request: string, scrub: (text: string) => string): { text: string; replaced: number } {
   const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(charset, { fatal: true });
   } catch {
-    throw new PegelParseError(`${request}: unsupported response charset "${cutForMessage(sanitizeServerText(charset))}".`);
+    throw new PegelParseError(`${request}: unsupported response charset "${cutForMessage(sanitizeServerText(scrub(charset)))}".`);
   }
   try {
     return { text: decoder.decode(body), replaced: 0 };
