@@ -373,7 +373,9 @@ nothing: it throws (from a constructor) or rejects (from a method) with
   `PegelValidationError`, not a `PegelNetworkError`; the CLI's `--base-url` parser
   uses the same rule and messages. The reasons never repeat the value. The CLI also
   redacts on output: `run.ts` (`redactionFor`, `withRedactedOutput`) takes the exact
-  userinfo of every URL in every argument (`credentialsIn`, exported, on the argument and on
+  userinfo of every URL in every argument (`credentialsIn`, exported; a base URL is read as a URL however its scheme is typed,
+`typedUrlCredentials`: missing, `alice:pw@host`, or mistyped, `http//alice:pw@host` with the
+colon left out, whose userinfo is everything between the first slashes and the last `@`, on the argument and on
   the rest of it from wherever a scheme starts inside it, `urlsWithin`: a padded value, one
   after a dash, inside a `--fuzzy-id` phrase or an `--ids` item; and its percent-encoded form
   with the `@`, as a request URL in an error record carries it) and replaces it with `***` in
