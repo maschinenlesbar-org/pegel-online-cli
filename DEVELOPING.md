@@ -524,6 +524,19 @@ everything that drives the CLI is in `apps/cli/test/`.
   the library's error named by its class. `validFor()` in
   `packages/client/test/helpers.ts` answers any endpoint with a body of its documented shape.
 
+From the security audit 2026-10-27 (reference `create-cli-template`): P28 hostile error answers
+(a number with a long run of zeros and an error of unterminated control-string introducers are
+handled in linear time; a 16 MB error message and millions of lone surrogate escapes stay within
+a small heap, run with the built bin; the base URL's credentials are scrubbed from decoded server
+text and from a redirect's Location, which this client follows: `REDIRECT_ERROR` is its
+redirect-limit message; the 2xx-quote case is skipped, `quotedBody` undefined, since its call,
+`waters`, quotes no server value — the ambiguous-station error's scrub is a client test), P29
+base-URL credentials (a token userinfo is scrubbed, a backslash or a scheme without `//` and the
+host is refused, requests go to the parsed host, the redaction of stdout is linear; the glued-URL
+case is skipped, since stdout is redacted by exact match only), P30 output links (all skipped,
+`HAS_OUTPUT_OPTION = false`) and P31 the release pipeline (`release.yml` and `tools/sbom/` read as
+text). P28's bin runs start a process (30 s).
+
 ## Continuous integration
 
 GitHub Actions workflows under `.github/workflows/`:
