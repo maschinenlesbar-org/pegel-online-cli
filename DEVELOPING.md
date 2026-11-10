@@ -353,13 +353,21 @@ nothing: it throws (from a constructor) or rejects (from a method) with
 - **Base URL** (`baseUrlProblem`, applied by the exported `validateBaseUrl`): the
   constructor rejects, in this order, a `baseUrl` with surrounding whitespace or any
   whitespace/control character inside (`baseUrlWhitespaceProblem`), one that is not
-  an absolute URL, a scheme other than `http:`/`https:`, a query or fragment, and a
-  `%` in the user name or password that doesn't start a valid escape (Node would fail
-  to decode it for the Authorization header at request time; write a literal `%` as
-  `%25`).
+  an absolute URL, a scheme other than `http:`/`https:`, a query or fragment, a backslash
+  (WHATWG ends an http(s) host at one, so `https://u:pw@a.example\@b.example` would be read as
+  two different hosts), a `%` in the user name or password that doesn't start a valid escape
+  (Node would fail to decode it for the Authorization header at request time; write a literal
+  `%` as `%25`), and a scheme not followed by exactly `//` and the host (`http:host`,
+  `http:/host`, `http:///host`: `Expected an absolute http(s) URL ("https://" and the
+  host).`; WHATWG repairs them silently into another host than the one typed).
   It checks the raw value, before trailing slashes are stripped: `new URL()` would
-  trim or strip whitespace silently, but the engine glues request paths onto the raw
-  string (`"https://h/ "` requests `/%20/webservices/...`). A bad base URL is a
+  trim or strip whitespace silently (`"https://h/ "` must not pass as `https://h`). Requests
+  then go to the base URL as WHATWG parses it (`new URL(baseUrl).href` without trailing
+  slashes: the host lower-cased, a default port dropped, the path percent-encoded where WHATWG
+  does it), the reading every check makes, so a transport that reads the URL as text reaches
+  the same host; messages show that spelling. `credentialsIn` reads a userinfo as WHATWG
+  does: after any slashes and backslashes a special scheme skips (`http:///u:pw@h`,
+  `https:\\u:pw@h`), and up to a backslash. A bad base URL is a
   `PegelValidationError`, not a `PegelNetworkError`; the CLI's `--base-url` parser
   uses the same rule and messages. The reasons never repeat the value. The CLI also
   redacts on output: `run.ts` (`redactionFor`, `withRedactedOutput`) takes the exact

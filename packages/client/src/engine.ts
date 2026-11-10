@@ -555,12 +555,16 @@ export class RequestEngine {
     options = options ?? {};
     // A typo (`timeout` for `timeoutMs`) used to be ignored and the default applied.
     assertValid("options", options, knownKeysProblem(OPTION_NAMES));
-    // The raw value, before the slash strip: the engine glues it into every URL, so
-    // "https://h/ " must not lose its slash first and slip past the check.
-    this.#baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
+    // Checked on the raw value, before the slash strip, so "https://h/ " can't slip past.
+    // Requests go to the base URL as WHATWG parses it, the reading every check of it makes (the
+    // host, the cleartext warning, the Authorization header Node derives), not to a text-based
+    // reading of the string: a transport that reads the URL as text reaches the same host.
+    const typed = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
+    const href = new URL(typed).href;
+    this.#baseUrl = href.replace(/\/+$/, "");
     // The userinfo as typed and as sent (WHATWG percent-encodes some of its characters, and a
     // server or transport that echoes the request URL echoes that spelling).
-    const userinfos = [...new Set([...credentialsIn(this.#baseUrl), ...credentialsIn(new URL(this.#baseUrl).href)])];
+    const userinfos = [...new Set([...credentialsIn(typed), ...credentialsIn(href)])];
     this.#credentials = userinfos.flatMap((raw) => {
       try {
         return [raw, decodeURIComponent(raw)];

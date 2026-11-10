@@ -192,3 +192,24 @@ test("a token in --base-url (a userinfo without a password) is redacted from std
   assert.equal(echoed.cli.code, 0, echoed.cli.err);
   assert.ok(!echoed.cli.out.includes(basic) && !echoed.cli.out.includes(`${TOKEN}:`), echoed.cli.out);
 });
+
+test("parity: a base URL with a backslash, or a scheme not followed by // and the host, is refused by CLI and library, never echoing the password (security audit 2026-10-27, F, F3, F4)", async () => {
+  const pw = "s3cret-Pw";
+  for (const base of [
+    `https://alice:${pw}@api.example\\@evil.example`,
+    `http:alice:${pw}@127.0.0.1:9`,
+    `http:/alice:${pw}@127.0.0.1:9`,
+    `http:///alice:${pw}@127.0.0.1:9`,
+    `HTTPS:alice:${pw}@mirror.example`,
+    `https:\\\\alice:${pw}@mirror.example`,
+    `http:///alice:${pw}@mirror.example/?q=1`,
+  ]) {
+    const { cli, lib } = await parity(["--base-url", base, "waters"], (t) => new PegelOnlineClient({ transport: t, baseUrl: base }).waters());
+    assert.equal(cli.code, 2, `${base}: ${cli.err}`);
+    assert.equal(cli.requests.length, 0, base);
+    assert.ok(lib.error instanceof PegelValidationError, `${base}: ${String(lib.error)}`);
+    assert.equal(lib.requests.length, 0, base);
+    assert.ok(!cli.err.includes(pw) && !cli.out.includes(pw), `${base}: ${cli.err}`);
+    assert.ok(!String(lib.error).includes(pw), base);
+  }
+});

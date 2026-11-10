@@ -109,6 +109,18 @@ test("baseUrlProblem checks whitespace, parse, scheme and query/fragment, in tha
   for (const ok of ["https://www.pegelonline.wsv.de", "http://h.example/proxy/", "https://u:p@h.example"]) {
     assert.equal(baseUrlProblem(ok), undefined, ok);
   }
+  // WHATWG ends an http(s) authority at "\\" and skips any slashes and backslashes after the
+  // scheme: such a value is refused, so every reader of the base URL agrees on its host (F, F4).
+  const backslash = 'A base URL cannot contain a backslash (\\); write "/" instead.';
+  assert.equal(baseUrlProblem("https://u:s3cret@api.example\\@evil.example"), backslash);
+  assert.equal(baseUrlProblem("https://api.example\\evil"), backslash);
+  assert.equal(baseUrlProblem("https:\\\\h.example"), backslash);
+  const form = 'Expected an absolute http(s) URL ("https://" and the host).';
+  for (const v of ["http:h.example", "http:/h.example", "http:///h.example", "HTTPS:h.example", "http:alice:pw@h.example"]) {
+    assert.equal(baseUrlProblem(v), form, v);
+  }
+  assert.equal(baseUrlProblem("http:///h.example/?q=1"), "A base URL cannot have a query (?) or fragment (#).");
+  assert.equal(baseUrlProblem("HTTPS://H.example"), undefined);
 });
 
 test("headerValueProblem: not blank, no controls but tab, nothing above U+00FF", () => {

@@ -215,12 +215,16 @@ export const baseUrlWhitespaceProblem: Problem<unknown> = (value) => {
 /**
  * The full base-URL rule set, in order: no whitespace or control characters
  * (baseUrlWhitespaceProblem), an absolute URL, an `http:`/`https:` scheme, no
- * query or fragment, and no `%` in the userinfo that doesn't start a valid escape
- * (`%25` for a literal one). Request paths are appended to the base URL as a string, so a
- * `?` or `#` in it would swallow every path: `http://h/?x=1` requests
- * `/?x=1/webservices/...` and `http://h/#f` requests `/`. A path prefix is fine, and
- * userinfo is allowed (Node sends it as Basic auth). The reasons name no URL, so a
- * credential in it never reaches a message.
+ * query or fragment, no backslash, no `%` in the userinfo that doesn't start a valid escape
+ * (`%25` for a literal one), and the scheme followed by exactly `//` and the host. Request
+ * paths are appended to the base URL as a string, so a `?` or `#` in it would swallow every
+ * path: `http://h/?x=1` requests `/?x=1/webservices/...` and `http://h/#f` requests `/`.
+ * WHATWG ends an http(s) host at a backslash, as at a `/`, while text-based code reads on, so
+ * `https://u:pw@a.example\@b.example` was checked as one host and could send its credentials
+ * to another; and it skips any slashes after `http:` and repairs `http:host`, `http:/host`
+ * and `http:///host` silently, so the host requested would not be the one typed. A path
+ * prefix is fine, and userinfo is allowed (Node sends it as Basic auth). The reasons name no
+ * URL, nor a part of it, so a credential in it never reaches a message.
  */
 export const baseUrlProblem: Problem<unknown> = (value) => {
   const whitespace = baseUrlWhitespaceProblem(value);
@@ -233,6 +237,9 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return "Only http and https URLs are supported.";
   if (/[?#]/.test(value as string)) return "A base URL cannot have a query (?) or fragment (#).";
+  // WHATWG reads a "\" in an http(s) URL as "/", so it ends the host: in
+  // `https://u:pw@a.example\@b.example` every reader of the base URL has to agree where.
+  if ((value as string).includes("\\")) return 'A base URL cannot contain a backslash (\\); write "/" instead.';
   // Node decodes the userinfo into the Authorization header and throws "URI malformed"
   // for a "%" that isn't an escape — at request time, as a network error. Reject it here.
   for (const part of [url.username, url.password]) {
@@ -242,6 +249,9 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
       return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
     }
   }
+  // WHATWG skips any slashes after "http:" and repairs `http:host`, `http:/host` and
+  // `http:///host` into `http://host` silently: the host requested would not be the one typed.
+  if (!/^https?:\/\/[^/]/i.test(value as string)) return 'Expected an absolute http(s) URL ("https://" and the host).';
   return undefined;
 };
 
