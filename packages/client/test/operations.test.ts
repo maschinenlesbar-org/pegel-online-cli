@@ -291,3 +291,21 @@ test("getMeasurements: the raw points with the unit, placeholders as null and co
   const forecast = await getMeasurements(client, { station: "KÖLN", timeseries: "WV" });
   assert.equal(forecast.status, "ok", "a forecast series is found though the station lists it only when asked");
 });
+
+test("a forecast series' comment says where the forecast comes from: it is no gauge fault", async () => {
+  const api = pegelApi({ measurements: { "a6ee8177-107b-47dd-bcfd-30960ccc6e9c/WV": [{ timestamp: stamp(now, 0), value: 230, initialized: stamp(now, 60), type: "forecast" }, { timestamp: stamp(now, -120), value: 240, initialized: stamp(now, 60), type: "estimate" }] } });
+  const { client } = clientOf(api);
+  const points = await getMeasurements(client, { station: "KÖLN", timeseries: "WV" });
+  assert.equal(points.status, "ok");
+  const notes = points.status === "ok" ? points.notes.join(" ") : "";
+  assert.doesNotMatch(notes, /fault/);
+  assert.match(notes, /About the forecast: nwv-bfg: Vorhersagen und Abschätzungen/);
+  assert.match(notes, /forecasts first, then rougher estimates/);
+  const trend = await getLevelTrend(client, { station: "KÖLN", timeseries: "WV", now });
+  assert.equal(trend.status, "ok", "the forecast series is found for a trend too");
+  assert.equal(trend.status === "ok" && trend.unreliable, false);
+  assert.doesNotMatch(trend.status === "ok" ? trend.verdict + trend.notes.join(" ") : "", /fault/);
+  const detail = await getStationDetail(client, { station: "KÖLN", forecast: true, now });
+  const wv = detail.status === "ok" ? detail.series.find((s) => s.shortname === "WV") : undefined;
+  assert.match(wv?.comment ?? "", /^nwv-bfg/);
+});

@@ -162,6 +162,21 @@ function commentOf(series: TimeseriesInfo | undefined): string | undefined {
   return long === "" ? c.shortDescription.trim() : `${c.shortDescription.trim()}: ${long}`;
 }
 
+/** True for a forecast series (WV): it has a window and no current reading; its comment names the forecast's source, no fault. */
+function isForecast(series: TimeseriesInfo): boolean {
+  return typeof series.start === "string" || /^WV$/i.test(series.shortname);
+}
+
+/**
+ * The series `name` of `station`; a forecast series (WV), which the station lists only when asked
+ * for, with one more request.
+ */
+async function seriesWithForecast(client: PegelOnlineClient, station: Station, name: string): Promise<TimeseriesInfo | undefined> {
+  const listed = seriesOf(station, name);
+  if (listed !== undefined || !/^WV$/i.test(name)) return listed;
+  return seriesOf(await client.stations.get(station.uuid, { includeForecastTimeseries: true }), name);
+}
+
 /** The reading of `station`'s series `name`, as the station list embeds it. */
 export function readingOf(station: Station, name: string, now: Date): GaugeReading {
   const series = seriesOf(station, name);
@@ -499,7 +514,7 @@ export async function getLevelTrend(client: PegelOnlineClient, input: LevelTrend
     return { status: "empty", searched, reason: unmatchedReason([station]) };
   }
   const summary = summaryOf(hit.station);
-  const series = seriesOf(hit.station, timeseries);
+  const series = await seriesWithForecast(client, hit.station, timeseries);
   if (series === undefined) {
     const has = (hit.station.timeseries ?? []).map((t) => t.shortname).join(", ");
     return { status: "empty", searched, station: summary, reason: `${hit.station.shortname} has no ${timeseries} series${has === "" ? "" : `; it has ${has}`}.` };
@@ -531,19 +546,22 @@ export async function getLevelTrend(client: PegelOnlineClient, input: LevelTrend
   const stale = ageMinutes !== undefined && ageMinutes > STALE_AFTER_MINUTES;
   const unit = typeof series.unit === "string" ? series.unit : "";
   const comment = commentOf(series);
+  const forecast = isForecast(series);
+  const fault = comment !== undefined && !forecast;
   const notes: string[] = [];
-  if (comment !== undefined) notes.push(`The gauge reports a fault: ${comment}. The values may be wrong; present the trend as unreliable.`);
+  if (fault) notes.push(`The gauge reports a fault: ${comment}. The values may be wrong; present the trend as unreliable.`);
+  if (forecast && comment !== undefined) notes.push(`About the forecast: ${comment}`);
   if (missing > 0) notes.push(`${missing} of ${all.length} points had no value (the gauge's placeholder) and were left out.`);
-  if (stale && ageMinutes !== undefined) notes.push(`The last reading is ${hoursText(ageMinutes)} old: the gauge is lagging; this is not the level now.`);
+  if (stale && ageMinutes !== undefined && !forecast) notes.push(`The last reading is ${hoursText(ageMinutes)} old: the gauge is lagging; this is not the level now.`);
   if (unit !== "" && unit !== "cm") notes.push(`The unit is ${unit}, not cm: a change of 0.02 is 2 cm.`);
-  if (/^WV$/i.test(series.shortname)) notes.push("WV is a forecast series: its points are forecasts and estimates, not measurements.");
+  if (forecast) notes.push("WV is a forecast series: its points are forecasts and estimates, not measurements.");
   const by = `${Math.abs(delta)}${unit === "" ? "" : ` ${unit}`}`;
   const verdict =
     `${hit.station.shortname}${summary.water === undefined ? "" : ` (${summary.water})`} ${series.shortname}: ` +
     (direction === "steady" ? `steady (${delta >= 0 ? "+" : "-"}${by})` : `${direction} ${by}`) +
     ` from ${first.timestamp} to ${lastPoint.timestamp}` +
     `${ratePerDay === null || direction === "steady" ? "" : ` (${Math.abs(ratePerDay)}${unit === "" ? "" : ` ${unit}`}/day)`}; range ${min.value}–${max.value}${unit === "" ? "" : ` ${unit}`}` +
-    `${stale && ageMinutes !== undefined ? `; last reading ${hoursText(ageMinutes)} old` : ""}${comment === undefined ? "" : "; gauge fault, unreliable"}.`;
+    `${stale && ageMinutes !== undefined && !forecast ? `; last reading ${hoursText(ageMinutes)} old` : ""}${fault ? "; gauge fault, unreliable" : ""}.`;
   return {
     status: "ok",
     searched,
@@ -559,7 +577,7 @@ export async function getLevelTrend(client: PegelOnlineClient, input: LevelTrend
     max: { timestamp: max.timestamp, value: max.value },
     range,
     window: { from: (all[0] as Measurement).timestamp, to: (all[all.length - 1] as Measurement).timestamp, points: all.length, missing },
-    unreliable: comment !== undefined,
+    unreliable: fault,
     ...(points > 0 ? { sample: sampleOf(valued, points) } : {}),
     notes,
   };
@@ -944,6 +962,8 @@ export interface SeriesDetail {
   shortname: string;
   longname?: string;
   unit?: string;
+  /** The operator's note: on a measured series while it is disturbed, on a forecast where it comes from. */
+  comment?: string;
   /** The datum a water level is measured from (Pegelnullpunkt). */
   gaugeZero?: JsonObject;
   reading?: GaugeReading;
@@ -982,10 +1002,12 @@ export async function getStationDetail(client: PegelOnlineClient, input: Station
   });
   const series = (full.timeseries ?? []).map((t): SeriesDetail => {
     const forecast = typeof t.start === "string" && t.currentMeasurement === undefined;
+    const comment = commentOf(t);
     return {
       shortname: t.shortname,
       ...(typeof t.longname === "string" ? { longname: t.longname } : {}),
       ...(typeof t.unit === "string" ? { unit: t.unit } : {}),
+      ...(comment === undefined ? {} : { comment }),
       ...(t.gaugeZero === undefined ? {} : { gaugeZero: t.gaugeZero as unknown as JsonObject }),
       ...(forecast ? { start: t.start as string, ...(typeof t.end === "string" ? { end: t.end } : {}) } : { reading: readingOf(full, t.shortname, now) }),
       ...(input.marks === true && Array.isArray(t.characteristicValues) ? { marks: t.characteristicValues } : {}),
@@ -1040,11 +1062,7 @@ export async function getMeasurements(client: PegelOnlineClient, input: Measurem
     if (many !== undefined) return { status: "ambiguous", searched, total: many.total, candidates: many.candidates };
     return { status: "empty", searched, reason: unmatchedReason([station]) };
   }
-  let series = seriesOf(hit.station, timeseries);
-  if (series === undefined && /^WV$/i.test(timeseries)) {
-    // Forecast series are listed only when asked for.
-    series = seriesOf(await client.stations.get(hit.station.uuid, { includeForecastTimeseries: true }), timeseries);
-  }
+  const series = await seriesWithForecast(client, hit.station, timeseries);
   if (series === undefined) {
     const has = (hit.station.timeseries ?? []).map((t) => t.shortname).join(", ");
     return { status: "empty", searched, reason: `${hit.station.shortname} has no ${timeseries} series${has === "" ? "" : `; it has ${has}`}.` };
@@ -1062,7 +1080,10 @@ export async function getMeasurements(client: PegelOnlineClient, input: Measurem
   const comment = commentOf(series);
   const missing = measurements.filter((m) => m.value === null).length;
   const notes: string[] = [];
-  if (comment !== undefined) notes.push(`The gauge reports a fault: ${comment}. The values may be wrong.`);
+  if (isForecast(series)) {
+    notes.push("A forecast series: forecasts first, then rougher estimates (type); no measurements.");
+    if (comment !== undefined) notes.push(`About the forecast: ${comment}`);
+  } else if (comment !== undefined) notes.push(`The gauge reports a fault: ${comment}. The values may be wrong.`);
   if (missing > 0) notes.push(`${missing} points have no value (null: the gauge's placeholder); leave them out of a minimum, maximum or trend.`);
   return {
     status: "ok",
