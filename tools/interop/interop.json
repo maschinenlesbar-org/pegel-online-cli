@@ -1,0 +1,231 @@
+{
+  "comment": "What tools/interop/interop.mjs needs that is particular to this repo: the mock upstream's answer per path (under --base-url http://127.0.0.1:<port>; the live answers of 2026-11-19, cut down), how many tools the server lists, and the calls to make with what each must answer.",
+  "answers": {
+    "/webservices/rest-api/v2/waters.json": [
+      {
+        "shortname": "DONAU",
+        "longname": "DONAU"
+      },
+      {
+        "shortname": "ELBE",
+        "longname": "ELBE"
+      },
+      {
+        "shortname": "MOSEL",
+        "longname": "MOSEL"
+      },
+      {
+        "shortname": "RHEIN",
+        "longname": "RHEIN"
+      },
+      {
+        "shortname": "WESER",
+        "longname": "WESER"
+      }
+    ],
+    "/webservices/rest-api/v2/stations.json": [
+      {
+        "uuid": "593647aa-9fea-43ec-a7d6-6476a76ae868",
+        "number": "2710080",
+        "shortname": "BONN",
+        "longname": "BONN",
+        "km": 654.8,
+        "agency": "STANDORT KÖLN",
+        "longitude": 7.108045,
+        "latitude": 50.736398,
+        "voiceServiceNumber": "+49 228 286527 566",
+        "water": {
+          "shortname": "RHEIN",
+          "longname": "RHEIN"
+        },
+        "timeseries": [
+          {
+            "shortname": "Q",
+            "longname": "ABFLUSS_ROHDATEN",
+            "unit": "m³/s",
+            "equidistance": 15,
+            "currentMeasurement": {
+              "timestamp": "2026-11-19T19:30:00+01:00",
+              "value": 1500
+            }
+          },
+          {
+            "shortname": "W",
+            "longname": "WASSERSTAND ROHDATEN",
+            "unit": "cm",
+            "equidistance": 15,
+            "currentMeasurement": {
+              "timestamp": "2026-11-19T19:45:00+01:00",
+              "value": 243,
+              "stateMnwMhw": "normal",
+              "stateNswHsw": "unknown"
+            },
+            "gaugeZero": {
+              "unit": "m. ü. NHN",
+              "value": 42.713,
+              "validFrom": "2019-11-01"
+            }
+          }
+        ]
+      },
+      {
+        "uuid": "a6ee8177-107b-47dd-bcfd-30960ccc6e9c",
+        "number": "2730010",
+        "shortname": "KÖLN",
+        "longname": "KÖLN",
+        "km": 688,
+        "agency": "STANDORT KÖLN",
+        "longitude": 6.9633,
+        "latitude": 50.936949,
+        "voiceServiceNumber": "+49 228 286527 567",
+        "water": {
+          "shortname": "RHEIN",
+          "longname": "RHEIN"
+        },
+        "timeseries": [
+          {
+            "shortname": "Q",
+            "longname": "ABFLUSS_ROHDATEN",
+            "unit": "m³/s",
+            "equidistance": 15,
+            "currentMeasurement": {
+              "timestamp": "2026-11-19T19:30:00+01:00",
+              "value": 1450
+            }
+          },
+          {
+            "shortname": "W",
+            "longname": "WASSERSTAND ROHDATEN",
+            "unit": "cm",
+            "equidistance": 15,
+            "currentMeasurement": {
+              "timestamp": "2026-11-19T19:45:00+01:00",
+              "value": 232,
+              "stateMnwMhw": "normal",
+              "stateNswHsw": "normal"
+            },
+            "gaugeZero": {
+              "unit": "m. ü. NHN",
+              "value": 35.038,
+              "validFrom": "2019-11-01"
+            }
+          }
+        ]
+      }
+    ],
+    "/webservices/rest-api/v2/stations/593647aa-9fea-43ec-a7d6-6476a76ae868/W/measurements.json": [
+      {
+        "timestamp": "2026-11-19T17:00:00+01:00",
+        "value": 232
+      },
+      {
+        "timestamp": "2026-11-19T17:15:00+01:00",
+        "value": 233
+      },
+      {
+        "timestamp": "2026-11-19T17:30:00+01:00",
+        "value": 234
+      },
+      {
+        "timestamp": "2026-11-19T17:45:00+01:00",
+        "value": 235
+      },
+      {
+        "timestamp": "2026-11-19T18:00:00+01:00",
+        "value": 236
+      },
+      {
+        "timestamp": "2026-11-19T18:15:00+01:00",
+        "value": 237
+      },
+      {
+        "timestamp": "2026-11-19T18:30:00+01:00",
+        "value": 239
+      },
+      {
+        "timestamp": "2026-11-19T18:45:00+01:00",
+        "value": 239
+      },
+      {
+        "timestamp": "2026-11-19T19:00:00+01:00",
+        "value": 241
+      },
+      {
+        "timestamp": "2026-11-19T19:15:00+01:00",
+        "value": 242
+      },
+      {
+        "timestamp": "2026-11-19T19:30:00+01:00",
+        "value": 243
+      },
+      {
+        "timestamp": "2026-11-19T19:45:00+01:00",
+        "value": 243
+      }
+    ]
+  },
+  "tools": 8,
+  "calls": [
+    {
+      "name": "getWaterLevels",
+      "arguments": {
+        "stations": [
+          "BONN"
+        ]
+      },
+      "expect": {
+        "status": "ok",
+        "readings.0.station.shortname": "BONN",
+        "readings.0.reading.unit": "cm"
+      }
+    },
+    {
+      "name": "getRiverOverview",
+      "arguments": {
+        "water": "Rhine"
+      },
+      "expect": {
+        "status": "ok",
+        "water.shortname": "RHEIN",
+        "gauges.0.station.shortname": "BONN"
+      }
+    },
+    {
+      "name": "getLevelTrend",
+      "arguments": {
+        "station": "BONN",
+        "start": "PT3H"
+      },
+      "expect": {
+        "status": "ok",
+        "series.unit": "cm",
+        "window.points": 12
+      }
+    },
+    {
+      "name": "getStationsMap",
+      "arguments": {
+        "water": "RHEIN"
+      },
+      "expect": {
+        "type": "FeatureCollection",
+        "features.0.type": "Feature"
+      }
+    },
+    {
+      "name": "listWaters",
+      "arguments": {},
+      "expect": {
+        "status": "ok",
+        "total": 5
+      }
+    },
+    {
+      "name": "getWaterLevels",
+      "arguments": {
+        "stations": []
+      },
+      "error": true
+    }
+  ]
+}

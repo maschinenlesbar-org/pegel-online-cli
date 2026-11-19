@@ -856,6 +856,8 @@ export type StationsMap =
       status: "ok";
       type: "FeatureCollection";
       searched: StationSearch & { bbox?: number[]; levels: boolean };
+      /** The water the filter named, as resolved. */
+      water?: Water;
       features: GaugeFeature[];
       /** Gauges left off the map: no coordinates. */
       leftOff: { shortname: string; number?: string; reason: string }[];
@@ -922,7 +924,7 @@ export async function getStationsMap(client: PegelOnlineClient, input: StationsM
   if (features.length === 0) {
     return { status: "empty", searched, reason: bbox === undefined ? "None of the gauges has coordinates." : `None of the ${selection.stations.length} gauges lies inside the bbox [west, south, east, north] = [${bbox.join(", ")}]. Check the order of the numbers.` };
   }
-  return { status: "ok", type: "FeatureCollection", searched, features, leftOff, ...(units === undefined ? {} : { units }), notes };
+  return { status: "ok", type: "FeatureCollection", searched, ...(selection.water === undefined ? {} : { water: selection.water }), features, leftOff, ...(units === undefined ? {} : { units }), notes };
 }
 
 // ---- one station, its measurements ------------------------------------------------------------

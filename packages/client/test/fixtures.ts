@@ -195,10 +195,15 @@ export interface PegelApiOptions {
  * window). Anything else is a 404.
  */
 export function pegelApi(options: PegelApiOptions = {}): MockTransport {
+  return makeMockTransport(pegelResponder(options));
+}
+
+/** The answers of {@link pegelApi}, as a function of the request. */
+export function pegelResponder(options: PegelApiOptions = {}): (request: HttpRequest) => HttpResponse {
   const all = options.gauges ?? gauges();
   const now = options.now ?? NOW;
   const windows = options.measurements ?? { "593647aa-9fea-43ec-a7d6-6476a76ae868/W": hourly(now, 72, 196, 182, [10]) };
-  return makeMockTransport((request: HttpRequest): HttpResponse => {
+  return (request: HttpRequest): HttpResponse => {
     const url = new URL(request.url);
     const path = url.pathname.replace(/^.*\/webservices\/rest-api\/v2/, "");
     const query = url.searchParams;
@@ -232,5 +237,5 @@ export function pegelApi(options: PegelApiOptions = {}): MockTransport {
       return jsonResponse(windows[`${gauge.uuid}/${series.shortname}`] ?? hourly(now, 24, series.value ?? 100, series.value ?? 100));
     }
     return jsonResponse({ status: 404, message: "Not found" }, 404);
-  });
+  };
 }
