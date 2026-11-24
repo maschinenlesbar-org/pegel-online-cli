@@ -8,7 +8,7 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
-import { PegelAmbiguousStationError, PegelParseError } from "./errors.js";
+import { PegelAmbiguousStationError, PegelParseError, quoteValue } from "./errors.js";
 import {
   assertValid,
   idListProblem,
@@ -189,7 +189,14 @@ class StationsResource {
     });
     const path = `${API}/stations.json`;
     const body = await this.e.getJson(path, query);
-    return expectShape<Station[]>(this.e.describeUrl(path, query), body, arrayOf(isStation), "an array of stations").map(stationOf);
+    const stations = expectShape<Station[]>(this.e.describeUrl(path, query), body, arrayOf(isStation), "an array of stations");
+    const outside = outsideFilter(query, stations);
+    if (outside !== undefined) {
+      throw new PegelParseError(
+        `GET ${this.e.describeUrl(path, query)}: the answer lists ${outside.count} of ${stations.length} stations outside the filter ${outside.filter}=${quoteValue(outside.value)}: PEGELONLINE did not apply the filter, so the list is not used.`,
+      );
+    }
+    return stations.map(stationOf);
   }
 
   /**
@@ -315,6 +322,44 @@ function sameId(a: string, b: string): boolean {
   a = normalizeInput(a);
   b = normalizeInput(b);
   return a.toLowerCase() === b.toLowerCase() || a.toUpperCase() === b.toUpperCase();
+}
+
+/** True when `part` (folded as {@link sameId} compares) is in `text`. */
+function containsId(text: string, part: string): boolean {
+  text = normalizeInput(text);
+  part = normalizeInput(part);
+  return text.toUpperCase().includes(part.toUpperCase()) || text.toLowerCase().includes(part.toLowerCase());
+}
+
+/**
+ * The first filter of a `stations.list` query (`waters`, `fuzzyId`, as sent) that some of
+ * `stations` don't match, with how many: an upstream that ignores a filter answers with the whole
+ * network, which used to be taken as the stations of the water or name asked for (the "MOSEL"
+ * with the Rhine's gauges). Checked as leniently as the API matches (checked live 2026-11-24):
+ * `waters` by the water's shortname or long name, any case (a comma-separated list: any of them);
+ * `fuzzyId` as a part of the uuid, number, shortname or longname, any case. A station without a
+ * water is not held against it. `ids` is not checked here: a caller keeps the stations an id
+ * names (stationListNotes, assertUnique, the operations), so extra ones are dropped there.
+ */
+function outsideFilter(query: QueryParams, stations: readonly Station[]): { filter: string; value: string; count: number } | undefined {
+  const fields = (s: Station): string[] => [s.uuid, s.number, s.shortname, s.longname].filter((f): f is string => typeof f === "string");
+  const checks: { filter: string; value: unknown; matches: (s: Station, value: string) => boolean }[] = [
+    {
+      filter: "waters",
+      value: query["waters"],
+      matches: (s, v) => {
+        const names = [s.water?.shortname, s.water?.longname].filter((f): f is string => typeof f === "string");
+        return names.length === 0 || v.split(",").some((w) => names.some((n) => sameId(n, w)));
+      },
+    },
+    { filter: "fuzzyId", value: query["fuzzyId"], matches: (s, v) => fields(s).some((f) => containsId(f, v)) },
+  ];
+  for (const { filter, value, matches } of checks) {
+    if (typeof value !== "string") continue;
+    const count = stations.filter((s) => !matches(s, value)).length;
+    if (count > 0) return { filter, value, count };
+  }
+  return undefined;
 }
 
 /**

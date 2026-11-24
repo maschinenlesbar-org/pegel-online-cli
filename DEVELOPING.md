@@ -318,7 +318,10 @@ answer without the documented shape: every method checks it — an array of wate
 stations with string `shortname`/`longname`/`uuid`, a station or timeseries object, a
 measurement with a string `timestamp` and a numeric or `null` `value` — so `null`, `{}`, an
 error envelope or a proxy page is never returned as data; an empty body is one too, and so is
-a compressed one, named by its Content-Encoding, since the client does not decompress). Every
+a compressed one, named by its Content-Encoding, since the client does not decompress; and a
+station list with stations outside its `waters` or `fuzzyId` filter, which an upstream that
+ignored the filter sends: `GET <url>: the answer lists 18 of 20 stations outside the filter
+waters="MOSEL": PEGELONLINE did not apply the filter, so the list is not used.`). Every
 error about an answer names the request, method and URL (`describeUrl`: absolute, userinfo
 redacted, cut at 500 characters): `GET <url>: the answer is not valid JSON (expected JSON, got
 Content-Type "text/html").`, `GET <url>: empty response body.`, `GET <url>: unsupported response

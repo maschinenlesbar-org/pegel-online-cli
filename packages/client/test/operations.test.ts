@@ -20,7 +20,8 @@ import {
   listWaters,
   resolveWater,
 } from "../src/operations.js";
-import { hourly, NOW, pegelApi, stamp } from "./fixtures.js";
+import { hourly, NOW, pegelApi, pegelResponder, stamp } from "./fixtures.js";
+import { makeMockTransport } from "./helpers.js";
 
 const clientOf = (api = pegelApi()) => ({ api, client: new PegelOnlineClient({ transport: api.transport }) });
 const now = NOW;
@@ -308,4 +309,24 @@ test("a forecast series' comment says where the forecast comes from: it is no ga
   const detail = await getStationDetail(client, { station: "KÖLN", forecast: true, now });
   const wv = detail.status === "ok" ? detail.series.find((s) => s.shortname === "WV") : undefined;
   assert.match(wv?.comment ?? "", /^nwv-bfg/);
+});
+
+/** The mock, with the given station-list filters ignored (the whole network for any value). */
+function ignoring(...filters: string[]) {
+  const answer = pegelResponder();
+  return makeMockTransport((req) => {
+    const url = new URL(req.url);
+    for (const f of filters) url.searchParams.delete(f);
+    return answer({ ...req, url: url.toString() });
+  });
+}
+
+test("a station-list filter PEGELONLINE ignores is an error, never the network taken for the water or name asked for", async () => {
+  const waters = clientOf(ignoring("waters")).client;
+  await assert.rejects(() => getRiverOverview(waters, { water: "MOSEL", now }), (err: unknown) => err instanceof Error && err.name === "PegelParseError" && /outside the filter waters="MOSEL"/.test(err.message));
+  await assert.rejects(() => listStations(waters, { water: "DEK" }), /outside the filter waters="DEK"/);
+  await assert.rejects(() => listStations(clientOf(ignoring("fuzzyId")).client, { name: "DARCHAU" }), /outside the filter fuzzyId="DARCHAU"/);
+  // An ignored ids filter: the stations the ids name are kept, the rest dropped.
+  const ids = await listStations(clientOf(ignoring("ids")).client, { stations: ["BONN", "2790020"] });
+  assert.deepEqual(ids.status === "ok" ? ids.stations.map((s) => s.shortname) : [], ["BONN", "EMMERICH"]);
 });

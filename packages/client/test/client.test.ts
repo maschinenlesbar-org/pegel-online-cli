@@ -517,3 +517,17 @@ test("a password with an inner space is scrubbed whole, not word by word (securi
     }
   }
 });
+
+test("stations.list: an answer with stations the filter excludes is an error, not data (the filter ignored upstream)", async () => {
+  const station = (shortname: string, water: string, number = "1") => ({ uuid: `u-${shortname}`, number, shortname, longname: shortname, water: { shortname: water, longname: water } });
+  const network = [station("BONN", "RHEIN", "2710080"), station("TRIER UP", "MOSEL"), station("NEU DARCHAU", "ELBE")];
+  const c = clientWith(constantJson(network));
+  await assert.rejects(() => c.stations.list({ waters: "MOSEL" }), (err: unknown) =>
+    err instanceof PegelError && err.name === "PegelParseError" && /2 of 3 stations .*outside the filter waters="MOSEL".*did not apply the filter/.test(err.message));
+  await assert.rejects(() => c.stations.list({ fuzzyId: "DARCH" }), /2 of 3 stations .*outside the filter fuzzyId="DARCH"/);
+  // What the API sends for a filter it applied passes: any case, a part of the name or the number, the water's long name.
+  assert.equal((await clientWith(constantJson([network[1]])).stations.list({ waters: "mosel" })).length, 1);
+  assert.equal((await clientWith(constantJson([network[0]])).stations.list({ fuzzyId: "onn" })).length, 1);
+  assert.equal((await clientWith(constantJson([network[0]])).stations.list({ fuzzyId: "27100" })).length, 1);
+  assert.equal((await clientWith(constantJson([network[2]])).stations.list({ waters: "RHEIN,ELBE" })).length, 1);
+});

@@ -792,7 +792,8 @@ async function selectStations(client: PegelOnlineClient, filter: StationFilter, 
     if (!Array.isArray(filter.stations) || filter.stations.length === 0 || filter.stations.length > 50) throw new PegelValidationError("Invalid stations: expected 1 to 50 gauge names, numbers or uuids.");
     const ids = [...new Set(filter.stations.map(stationName))];
     const searched = { stations: ids };
-    const stations = await client.stations.list({ ids, ...includes });
+    // Only the stations an id names: an upstream that ignored the filter sent the whole network.
+    const stations = (await client.stations.list({ ids, ...includes })).filter((s) => ids.some((id) => named([s], id).length > 0));
     const notes: string[] = [];
     const unmatched = ids.filter((id) => named(stations, id).length === 0);
     if (unmatched.length > 0) notes.push(`No gauge has the id or name ${unmatched.map((n) => JSON.stringify(n)).join(", ")} (left out; a part of a name works with name).`);
