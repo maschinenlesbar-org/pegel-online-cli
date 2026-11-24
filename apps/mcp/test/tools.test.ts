@@ -9,6 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
+import { DEADLINE_HINT, SIZE_HINT, TOOLS } from "../src/mcp/tools.js";
 import { connect } from "./harness.js";
 import { limitTransport } from "../src/mcp/limiter.js";
 import { makeMockTransport, pegelApi, pegelResponder, stamp } from "./helpers.js";
@@ -189,4 +190,32 @@ test("getWaterLevels at the call deadline answers with the gauges it has read an
   assert.deepEqual((content["readings"] as { station: { shortname: string } }[]).map((r) => r.station.shortname), ["BONN"]);
   assert.deepEqual(content["notRead"], ["DARCH"]);
   assert.match(String(content["verdict"]), /"DARCH" not looked up: the call's time ran out \(or it was cancelled\) first; ask for it again/);
+});
+
+test("the deadline's and the size cap's advice name each option with the tools that take it", async () => {
+  const schemas = new Map(TOOLS.map((tool) => [tool.name, Object.keys((tool.inputSchema as { properties: Record<string, unknown> }).properties)]));
+  const options = new Set([...schemas.values()].flat());
+  for (const text of [DEADLINE_HINT, SIZE_HINT]) {
+    const pairs = [...text.matchAll(/(\w+(?: or \w+)*) \((\w+(?:, \w+)*)\)/g)];
+    assert.ok(pairs.length >= 3, text);
+    const named = new Set<string>();
+    for (const [, names, tools] of pairs) {
+      for (const tool of (tools as string).split(", ")) {
+        assert.ok(schemas.has(tool), `${tool} is no tool: ${text}`);
+        for (const option of (names as string).split(" or ")) {
+          assert.ok(schemas.get(tool)?.includes(option), `${tool} takes no ${option}: ${text}`);
+          named.add(option);
+        }
+      }
+    }
+    for (const word of text.match(/\w+/g) ?? []) assert.ok(!options.has(word) || named.has(word), `${word} named without its tools: ${text}`);
+  }
+  // Both reach the caller.
+  const hanging = { transport: (): Promise<never> => new Promise<never>(() => {}) };
+  const slow = await connect({ transport: hanging, config: { callTimeoutMs: 30 } });
+  assert.match((await slow.call("getWaterLevels", { stations: ["BONN"] })).content[0]?.text ?? "", /fewer gauges with stations \(getWaterLevels/);
+  await slow.close();
+  const small = await connect({ transport: pegelApi({ now: new Date() }), config: { maxResultChars: 1500 } });
+  assert.match((await small.call("getStation", { station: "KÖLN", marks: true, forecast: true })).content[0]?.text ?? "", /marks or forecast \(getStation\)/);
+  await small.close();
 });
