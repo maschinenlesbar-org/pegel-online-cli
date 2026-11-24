@@ -470,3 +470,14 @@ test("an empty list from PEGELONLINE says so: no waters, no gauges, never 'conta
   const list = await listStations(empty("/stations.json"), { water: "DEK" });
   assert.match(list.status === "empty" ? list.reason : "", /^PEGELONLINE lists no gauge on DEK/);
 });
+
+test("a forecast issued more than a day ago says how old it is", async () => {
+  const issued = new Date(now.getTime() - 2 * 86_400_000);
+  const { client } = clientOf(pegelApi({ now: issued }));
+  const old = await getMeasurements(client, { station: "KÖLN", timeseries: "WV", now });
+  assert.match(old.status === "ok" ? old.notes.join(" ") : "", /The forecast was issued at \S+, 61 h ago: say how old it is/);
+  const detail = await getStationDetail(client, { station: "KÖLN", forecast: true, now });
+  assert.match(detail.status === "ok" ? detail.notes.join(" ") : "", /The forecast WV was issued at \S+, 61 h ago/);
+  const fresh = await getMeasurements(clientOf().client, { station: "KÖLN", timeseries: "WV", now });
+  assert.doesNotMatch(fresh.status === "ok" ? fresh.notes.join(" ") : "", /issued at/);
+});

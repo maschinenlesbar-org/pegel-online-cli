@@ -189,6 +189,19 @@ function commentOf(series: TimeseriesInfo | undefined): string | undefined {
   return long === "" ? c.shortDescription.trim() : `${c.shortDescription.trim()}: ${long}`;
 }
 
+/** A forecast issued longer ago than this says how old it is (BfG issues one a day). */
+const FORECAST_OLD_AFTER_HOURS = 24;
+
+/**
+ * A note on a forecast series issued more than a day before `now` (its `start` is the issue
+ * time), or undefined: a forecast 2.7 days old read like a current one.
+ */
+function forecastAge(series: TimeseriesInfo, now: Date, what: string): string | undefined {
+  const minutes = minutesSince(series.start, now);
+  if (minutes === undefined || minutes <= FORECAST_OLD_AFTER_HOURS * 60) return undefined;
+  return `${what} was issued at ${series.start}, ${Math.round(minutes / 60)} h ago: say how old it is.`;
+}
+
 /** True for a forecast series (WV): it has a window and no current reading; its comment names the forecast's source, no fault. */
 function isForecast(series: TimeseriesInfo): boolean {
   return typeof series.start === "string" || /^WV$/i.test(series.shortname);
@@ -1234,6 +1247,10 @@ export async function getStationDetail(client: PegelOnlineClient, input: Station
   const notes: string[] = [];
   if (input.marks === true) notes.push("Which marks a gauge publishes differs from gauge to gauge; present those there, verbatim, and invent none. The flood verdict is the reading's state, not a mark.");
   if (series.some((s) => s.start !== undefined)) notes.push("Forecast series (WV): their points come from getMeasurements with that series; forecasts first, then rougher estimates (type).");
+  for (const t of full.timeseries ?? []) {
+    const old = typeof t.start === "string" && t.currentMeasurement === undefined ? forecastAge(t, now, `The forecast ${t.shortname}`) : undefined;
+    if (old !== undefined) notes.push(old);
+  }
   return { status: "ok", searched, matchedBy: hit.matchedBy, station: summaryOf(full), series, notes };
 }
 
@@ -1252,7 +1269,7 @@ async function windowOf(client: PegelOnlineClient, station: Station, series: str
 }
 
 /** The input of {@link getMeasurements}. */
-export interface MeasurementsInput {
+export interface MeasurementsInput extends ClockInput {
   station: string;
   timeseries?: string | undefined;
   /** An ISO-8601 period back from now (P1D) or an instant; default P1D. */
@@ -1310,6 +1327,8 @@ export async function getMeasurements(client: PegelOnlineClient, input: Measurem
   if (isForecast(series)) {
     notes.push("A forecast series: forecasts first, then rougher estimates (type); no measurements.");
     if (comment !== undefined) notes.push(`About the forecast: ${comment}`);
+    const old = forecastAge(series, input.now ?? new Date(), "The forecast");
+    if (old !== undefined) notes.push(old);
   } else if (comment !== undefined) notes.push(`The gauge reports a fault: ${comment}. The values may be wrong.`);
   if (missing > 0) notes.push(`${missing} points have no value (null: the gauge's placeholder); leave them out of a minimum, maximum or trend.`);
   return {
