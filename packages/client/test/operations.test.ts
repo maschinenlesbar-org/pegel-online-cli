@@ -21,7 +21,7 @@ import {
   resolveWater,
 } from "../src/operations.js";
 import { gauges, hourly, NOW, pegelApi, pegelResponder, stamp } from "./fixtures.js";
-import { makeMockTransport } from "./helpers.js";
+import { jsonResponse, makeMockTransport } from "./helpers.js";
 
 const clientOf = (api = pegelApi()) => ({ api, client: new PegelOnlineClient({ transport: api.transport }) });
 const now = NOW;
@@ -442,4 +442,15 @@ test("getLevelTrend at a tide gauge: the level swings up and down, first against
   assert.ok((trend.swings?.highs.last.value ?? 0) < (trend.swings?.highs.first.value ?? 0));
   assert.match(trend.verdict, /^BONN \(RHEIN\) W: swings up and down, \d+ turns from \S+ to \S+ \(a tide, or a regulated water\): high waters from \d+ to \d+ cm, low waters from \d+ to \d+ cm; first against last says nothing about a trend; range \d+–\d+ cm\.$/);
   assert.match(trend.notes.join(" "), /compare the high waters with each other, and the low waters/);
+});
+
+test("measurements answered 404 read the same in getLevelTrend as in getMeasurements: empty, with the reason", async () => {
+  const answer = pegelResponder();
+  const api = makeMockTransport((req) => (new URL(req.url).pathname.endsWith("/measurements.json") ? jsonResponse({ status: 404, message: "Not Found" }, 404) : answer(req)));
+  const { client } = clientOf(api);
+  const points = await getMeasurements(client, { station: "BONN" });
+  const trend = await getLevelTrend(client, { station: "BONN", now });
+  assert.equal(trend.status, "empty");
+  assert.equal(trend.status === "empty" ? trend.reason : "", points.status === "empty" ? points.reason : "-");
+  assert.match(trend.status === "empty" ? trend.reason : "", /BONN W has no measurements at the moment \(HTTP 404\)/);
 });

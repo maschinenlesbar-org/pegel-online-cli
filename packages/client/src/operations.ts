@@ -658,7 +658,8 @@ export async function getLevelTrend(client: PegelOnlineClient, input: LevelTrend
     const has = (hit.station.timeseries ?? []).map((t) => t.shortname).join(", ");
     return { status: "empty", searched, station: summary, reason: `${hit.station.shortname} has no ${timeseries} series${has === "" ? "" : `; it has ${has}`}.` };
   }
-  const all = await client.timeseries.measurements(hit.station.uuid, series.shortname, { start, ...(end === undefined ? {} : { end }) });
+  const all = await windowOf(client, hit.station, series.shortname, start, end);
+  if (typeof all === "string") return { status: "empty", searched, station: summary, reason: all };
   const valued = all.filter((m): m is Measurement & { value: number } => typeof m.value === "number");
   const missing = all.length - valued.length;
   if (valued.length === 0) {
@@ -1197,6 +1198,20 @@ export async function getStationDetail(client: PegelOnlineClient, input: Station
   return { status: "ok", searched, matchedBy: hit.matchedBy, station: summaryOf(full), series, notes };
 }
 
+/**
+ * The measurements of `station`'s series in a window, or why there are none: the API answers 404
+ * for a series without measurements at the moment, which getMeasurements and getLevelTrend read
+ * the same way.
+ */
+async function windowOf(client: PegelOnlineClient, station: Station, series: string, start: string, end: string | undefined): Promise<Measurement[] | string> {
+  try {
+    return await client.timeseries.measurements(station.uuid, series, { start, ...(end === undefined ? {} : { end }) });
+  } catch (err) {
+    if (err instanceof PegelApiError && err.status === 404) return `${station.shortname} ${series} has no measurements at the moment (HTTP 404).`;
+    throw err;
+  }
+}
+
 /** The input of {@link getMeasurements}. */
 export interface MeasurementsInput {
   station: string;
@@ -1245,13 +1260,8 @@ export async function getMeasurements(client: PegelOnlineClient, input: Measurem
     const has = (hit.station.timeseries ?? []).map((t) => t.shortname).join(", ");
     return { status: "empty", searched, reason: `${hit.station.shortname} has no ${timeseries} series${has === "" ? "" : `; it has ${has}`}.` };
   }
-  let measurements: Measurement[];
-  try {
-    measurements = await client.timeseries.measurements(hit.station.uuid, series.shortname, { start, ...(end === undefined ? {} : { end }) });
-  } catch (err) {
-    if (err instanceof PegelApiError && err.status === 404) return { status: "empty", searched, reason: `${hit.station.shortname} ${series.shortname} has no measurements at the moment (HTTP 404).` };
-    throw err;
-  }
+  const measurements = await windowOf(client, hit.station, series.shortname, start, end);
+  if (typeof measurements === "string") return { status: "empty", searched, reason: measurements };
   if (measurements.length === 0) {
     return { status: "empty", searched, reason: `No measurement of ${hit.station.shortname} ${series.shortname} in the window from ${start}${end === undefined ? "" : ` to ${end}`}. PEGELONLINE keeps only about the last 31 days.` };
   }
