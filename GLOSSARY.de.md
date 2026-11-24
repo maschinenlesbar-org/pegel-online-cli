@@ -236,7 +236,8 @@ statt als geratenen Typ.
 **`ids`.** Eine Liste von Pegelkennungen (uuid/number/shortname/longname), auf die eine
 Liste eingeschränkt wird. Wird kommagetrennt an die API gesendet. CLI: `--ids <ids>`, eine
 kommagetrennte Liste, wiederholbar; ein leerer Eintrag wird abgelehnt, im Client auch ein
-Eintrag mit Komma.
+Eintrag mit Komma. Die IDs dürfen gesendet höchstens 4000 Zeichen ergeben
+(`MAX_IDS_QUERY_CHARS`; eine längere Anfrage bleibt unbeantwortet).
 
 **Filter `ids` / `waters` / `fuzzyId`.** Schränken `stations list` ein: nach
 Pegel-ID (`--ids`, kommagetrennt, wiederholbar), nach Gewässer-shortname (`--waters`) oder über
@@ -244,7 +245,10 @@ einen unscharfen ID-Abgleich (`--fuzzy-id`). Nach Behörde oder Gebiet filtert d
 CLI nicht; filtern Sie dafür die JSON-Ausgabe (z. B. mit `jq` auf `agency`,
 `latitude`, `longitude`). Die API liest einen leeren Parameter als „kein Filter“,
 daher wird ein leerer Wert (und im Client eine leere `ids`-Liste) vor jeder Anfrage
-abgelehnt: in der CLI als Bedienfehler, im Client mit `PegelValidationError`.
+abgelehnt: in der CLI als Bedienfehler, im Client mit `PegelValidationError`. Eine Antwort mit
+Pegeln außerhalb ihres `waters`- oder `fuzzyId`-Filters (eine Gegenstelle, die ihn übergeht,
+schickt das ganze Netz) ist ein Fehler, `PegelParseError` (Exit `1`), und wird nie als die Pegel
+des Gewässers oder Namens genommen.
 
 **Einbettungs-Flags.** Optionale Erweiterungen, die zusätzliche Daten in eine Pegel- bzw.
 Zeitreihen-Antwort einbetten; standardmäßig aus:

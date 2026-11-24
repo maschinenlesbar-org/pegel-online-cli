@@ -234,7 +234,8 @@ type.
 **`ids`.** A list of station identifiers (uuid/number/shortname/longname) to
 restrict a listing to. Sent to the API comma-separated. CLI: `--ids <ids>`, a
 comma-separated list, repeatable; an empty item is refused, and in the client an entry with a
-comma.
+comma. The ids may come to at most 4000 characters as sent (`MAX_IDS_QUERY_CHARS`; a longer
+request goes unanswered).
 
 **`ids` / `waters` / `fuzzyId` filters.** Narrow a `stations list` by station
 id (`--ids`, comma-separated, repeatable), by water shortname (`--waters`) or by a fuzzy id match
@@ -242,7 +243,9 @@ id (`--ids`, comma-separated, repeatable), by water shortname (`--waters`) or by
 output instead (e.g. with `jq` on `agency`, `latitude`, `longitude`). The API
 reads an empty parameter as no filter, so a blank value (and, in the client, an
 empty `ids` list) is rejected before any request: a usage error in the CLI,
-`PegelValidationError` in the client.
+`PegelValidationError` in the client. An answer with stations outside its `waters` or `fuzzyId`
+filter (an upstream that ignored it sends the whole network) is an error, `PegelParseError`
+(exit `1`), never taken as the water's or the name's stations.
 
 **Include flags.** Optional expansions that embed extra data in a station /
 timeseries response, off by default:
