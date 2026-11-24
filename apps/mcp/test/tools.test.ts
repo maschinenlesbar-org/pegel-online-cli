@@ -155,3 +155,19 @@ test("a stations list too long for one request is refused with the reason; a nam
   assert.equal(upstream.calls.length, 0);
   await connection.close();
 });
+
+test("getStationsMap: many gauges without coordinates don't crowd out the features: counted, a sample on the first page only", async () => {
+  const w = (i: number) => [{ shortname: "W", unit: "cm", value: 100 + i, state: "normal" }];
+  const located = Array.from({ length: 20 }, (_, i) => ({ uuid: `aaaaaaaa-0000-4000-8000-${String(i).padStart(12, "0")}`, number: `1${i}`, shortname: `LOCATED GAUGE ${i}`, km: i, agency: "STANDORT TEST", coordinates: [7 + i / 100, 50] as [number, number], water: "RHEIN", series: w(i) }));
+  const bare = Array.from({ length: 400 }, (_, i) => ({ uuid: `bbbbbbbb-0000-4000-8000-${String(i).padStart(12, "0")}`, number: `2${i}`, shortname: `GAUGE WITHOUT COORDINATES ${i}`, km: 100 + i, agency: "STANDORT TEST", water: "RHEIN", series: w(i) }));
+  const connection = await connect({ transport: pegelApi({ now: new Date(), gauges: [...located, ...bare] }) });
+  const first = (await connection.call("getStationsMap", { water: "RHEIN", levels: true })).structuredContent ?? {};
+  assert.equal((first["features"] as unknown[]).length, 20, JSON.stringify(first).slice(0, 300));
+  assert.equal(first["truncated"], undefined);
+  assert.equal((first["leftOff"] as unknown[]).length, 25);
+  assert.equal(first["leftOffTotal"], 400);
+  assert.match((first["notes"] as string[]).join(" "), /400 gauges have no coordinates .*the first 25 on the first page/);
+  const second = (await connection.call("getStationsMap", { water: "RHEIN", offset: 10, limit: 5 })).structuredContent ?? {};
+  assert.deepEqual([(second["features"] as unknown[]).length, (second["leftOff"] as unknown[]).length, second["leftOffTotal"]], [5, 0, 400]);
+  await connection.close();
+});

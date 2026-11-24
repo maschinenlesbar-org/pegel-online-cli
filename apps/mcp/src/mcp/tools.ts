@@ -101,6 +101,9 @@ const sourceFor = (fallback: (args: Record<string, unknown>) => string) => (args
 
 const LIVE = { includeTimeseries: "true", includeCurrentMeasurement: "true" };
 
+/** How many gauges without coordinates a map's first page names (the rest are counted). */
+const LEFT_OFF_SAMPLE = 25;
+
 /** A page of `items`, and where the next one starts. */
 function page<T>(items: readonly T[], args: Record<string, unknown>, fallback: number): { items: T[]; total: number; nextOffset?: number } {
   const from = num(args, "offset") ?? 0;
@@ -193,7 +196,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "Gauges as GeoJSON, with live levels",
     description: [
       'Gauges as a GeoJSON FeatureCollection of points ([longitude, latitude]) for a map, optionally with each one\'s live level. Use it for "Pegel am Rhein als Karte", "Pegelstationen als GeoJSON", "map the Rhine gauges", "export Elbe stations as GeoJSON", "plot water-level stations near Cologne" (bbox), "show gauges with current levels on a map".',
-      "Narrow by one of water, stations or name, and/or a bbox [west, south, east, north] (the API has none; it is applied here). levels: true adds level, unit, state, verdict, comment, measuredAt and stale to each point. leftOff names the gauges without coordinates (about 7 % of the network, a third of the Danube's): tell the user. Colour by verdict, never by level across units (units lists them: cm, m+NN). A level null is no reading: keep the point, don't colour it as a level. The whole network is about 790 points, paged (nextOffset): for a file, join the pages' features.",
+      "Narrow by one of water, stations or name, and/or a bbox [west, south, east, north] (the API has none; it is applied here). levels: true adds level, unit, state, verdict, comment, measuredAt and stale to each point. leftOffTotal counts the gauges without coordinates (about 7 % of the network, a third of the Danube's), leftOff names up to 25 of them on the first page: tell the user. Colour by verdict, never by level across units (units lists them: cm, m+NN). A level null is no reading: keep the point, don't colour it as a level. The whole network is about 790 points, paged (nextOffset): for a file, join the pages' features.",
       RULES,
     ].join("\n\n"),
     inputSchema: input({
@@ -206,7 +209,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       offset: offset(1000),
       limit: limit(500, 100, "features"),
     }),
-    outputSchema: output({ type: str_, water: obj, features: arr, leftOff: arr, units: arr, nextOffset: int }),
+    outputSchema: output({ type: str_, water: obj, features: arr, leftOff: arr, leftOffTotal: int, units: arr, nextOffset: int }),
     source: sourceFor((args) => listPath(args, {}, args["levels"] === true)),
     paged: (args) => ({ list: "features", offset: num(args, "offset") ?? 0 }),
     async run(args, context) {
@@ -214,7 +217,16 @@ export const TOOLS: readonly ToolDefinition[] = [
       if (map.status !== "ok") return { ...map };
       requested.set(args, listPath(args, map, args["levels"] === true));
       const { items, total, nextOffset } = page(map.features, args, 100);
-      return { ...map, features: items, total, ...(nextOffset === undefined ? {} : { nextOffset }) };
+      // The gauges without coordinates are counted on every page and named on the first, at most
+      // LEFT_OFF_SAMPLE of them: 400 named on every page took the size cap from the features (one a page).
+      const first = (num(args, "offset") ?? 0) === 0;
+      const leftOff = first ? map.leftOff.slice(0, LEFT_OFF_SAMPLE) : [];
+      const notes = map.notes.map((note) =>
+        /no coordinates and (is|are) left off \(leftOff\)/.test(note) && map.leftOff.length > leftOff.length
+          ? `${map.leftOff.length} gauge${map.leftOff.length === 1 ? " has" : "s have"} no coordinates and ${map.leftOff.length === 1 ? "is" : "are"} left off (leftOffTotal); leftOff names ${map.leftOff.length <= LEFT_OFF_SAMPLE ? "them" : `the first ${LEFT_OFF_SAMPLE}`} on the first page (offset 0) only.`
+          : note,
+      );
+      return { ...map, features: items, leftOff, leftOffTotal: map.leftOff.length, notes, total, ...(nextOffset === undefined ? {} : { nextOffset }) };
     },
   },
   {
