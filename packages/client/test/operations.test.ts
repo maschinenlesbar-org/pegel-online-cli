@@ -454,3 +454,19 @@ test("measurements answered 404 read the same in getLevelTrend as in getMeasurem
   assert.equal(trend.status === "empty" ? trend.reason : "", points.status === "empty" ? points.reason : "-");
   assert.match(trend.status === "empty" ? trend.reason : "", /BONN W has no measurements at the moment \(HTTP 404\)/);
 });
+
+test("an empty list from PEGELONLINE says so: no waters, no gauges, never 'contains undefined' or 'no coordinates'", async () => {
+  const answer = pegelResponder();
+  const empty = (path: string) =>
+    clientOf(makeMockTransport((req) => (new URL(req.url).pathname.endsWith(path) ? jsonResponse([]) : answer(req)))).client;
+  const waters = await listWaters(empty("/waters.json"));
+  assert.match(waters.status === "empty" ? waters.reason : "", /^PEGELONLINE listed no waters at all/);
+  const river = await getRiverOverview(empty("/waters.json"), { water: "RHEIN", now });
+  assert.match(river.status === "empty" ? river.reason : "", /^PEGELONLINE listed no waters at all/);
+  const map = await getStationsMap(empty("/stations.json"), { water: "RHEIN" });
+  assert.match(map.status === "empty" ? map.reason : "", /^PEGELONLINE lists no gauge on RHEIN \(RHEIN\)\./);
+  const all = await getStationsMap(empty("/stations.json"));
+  assert.match(all.status === "empty" ? all.reason : "", /^PEGELONLINE listed no gauges at all/);
+  const list = await listStations(empty("/stations.json"), { water: "DEK" });
+  assert.match(list.status === "empty" ? list.reason : "", /^PEGELONLINE lists no gauge on DEK/);
+});

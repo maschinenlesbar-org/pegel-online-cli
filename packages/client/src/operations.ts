@@ -359,6 +359,7 @@ export type WaterLookup =
 export async function resolveWater(client: PegelOnlineClient, name: string): Promise<WaterLookup> {
   const wanted = fold(assertValid("water", name, textProblem));
   const waters = await client.waters();
+  if (waters.length === 0) return { status: "empty", reason: NO_WATERS };
   const by = (pick: (w: Water) => string): Water | undefined => waters.find((w) => fold(pick(w)) === wanted);
   const short = by((w) => w.shortname);
   if (short !== undefined) return { status: "ok", water: short, matchedBy: "shortname" };
@@ -376,6 +377,9 @@ export async function resolveWater(client: PegelOnlineClient, name: string): Pro
   };
 }
 
+/** The reason when waters.json is an empty list. */
+const NO_WATERS = "PEGELONLINE listed no waters at all: the service may be in trouble; try again later.";
+
 /** The input of {@link listWaters}. */
 export interface ListWatersInput {
   /** A part of the shortname or longname; unset, every water. */
@@ -392,6 +396,7 @@ export async function listWaters(client: PegelOnlineClient, input: ListWatersInp
   const name = input.name === undefined ? undefined : normalizeInput(assertValid("name", input.name, textProblem));
   const searched = name === undefined ? {} : { name };
   const all = await client.waters();
+  if (all.length === 0) return { status: "empty", searched, reason: NO_WATERS };
   const waters = name === undefined ? all : all.filter((w) => fold(w.shortname).includes(fold(name)) || fold(w.longname).includes(fold(name)));
   if (waters.length === 0) return { status: "empty", searched, reason: `No water's name contains ${JSON.stringify(name)}. Waters go by their German names (RHEIN, not Rhine); list them all without a name.` };
   return { status: "ok", searched, total: waters.length, waters };
@@ -961,6 +966,7 @@ async function selectStations(client: PegelOnlineClient, filter: StationFilter, 
     if (found.status === "ambiguous") return { status: "ambiguous", searched, total: found.total, candidates: found.candidates };
     if (found.status === "empty") return { status: "empty", searched, reason: found.reason };
     const stations = await client.stations.list({ waters: found.water.shortname, ...includes });
+    if (stations.length === 0) return { status: "empty", searched, reason: `PEGELONLINE lists no gauge on ${found.water.shortname} (${found.water.longname}).` };
     const notes = found.matchedBy === "shortname" ? [] : [`${JSON.stringify(searched.water)} is the water ${found.water.shortname} (${found.water.longname}).`];
     return { status: "ok", searched, water: found.water, stations, notes };
   }
@@ -986,7 +992,9 @@ async function selectStations(client: PegelOnlineClient, filter: StationFilter, 
     if (stations.length === 0) return { status: "empty", searched, reason: unmatchedReason([searched.name]) };
     return { status: "ok", searched, stations, notes: [] };
   }
-  return { status: "ok", searched: {}, stations: await client.stations.list(includes), notes: [] };
+  const stations = await client.stations.list(includes);
+  if (stations.length === 0) return { status: "empty", searched: {}, reason: "PEGELONLINE listed no gauges at all: the service may be in trouble; try again later." };
+  return { status: "ok", searched: {}, stations, notes: [] };
 }
 
 /** The input of {@link listStations}. */
