@@ -315,7 +315,8 @@ then delivered as its exact literal, a string (`"1858054135406919680"`), whateve
 every other number keeps the rule; `scanNumbers` does both in one linear pass that skips strings,
 with no reviver; pegel declares none — or a 2xx
 answer without the documented shape: every method checks it — an array of waters or
-stations with string `shortname`/`longname`/`uuid`, a station or timeseries object, a
+stations with string `shortname`/`longname`/`uuid` (asked for with their series, each with its
+`timeseries` list: one without read as a gauge without a W series), a station or timeseries object, a
 measurement with a string `timestamp` and a numeric or `null` `value` — so `null`, `{}`, an
 error envelope or a proxy page is never returned as data; an empty body is one too, and so is
 a compressed one, named by its Content-Encoding, since the client does not decompress; and a

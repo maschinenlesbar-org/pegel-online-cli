@@ -531,3 +531,13 @@ test("stations.list: an answer with stations the filter excludes is an error, no
   assert.equal((await clientWith(constantJson([network[0]])).stations.list({ fuzzyId: "27100" })).length, 1);
   assert.equal((await clientWith(constantJson([network[2]])).stations.list({ waters: "RHEIN,ELBE" })).length, 1);
 });
+
+test("stations asked for with their series must carry them: an answer without is an error, not a gauge without series", async () => {
+  const bare = { uuid: "u-1", number: "2710080", shortname: "BONN", longname: "BONN", water: { shortname: "RHEIN", longname: "RHEIN" } };
+  const c = clientWith(constantJson([bare]));
+  await assert.rejects(() => c.stations.list({ includeCurrentMeasurement: true }), /unexpected response shape: expected an array of stations with their timeseries/);
+  await assert.rejects(() => clientWith(constantJson(bare)).stations.get("BONN", { includeTimeseries: true }), /unexpected response shape: expected a station object with its timeseries/);
+  // Not asked for: none needed.
+  assert.equal((await c.stations.list()).length, 1);
+  assert.equal((await clientWith(constantJson([{ ...bare, timeseries: [] }])).stations.list({ includeTimeseries: true })).length, 1);
+});

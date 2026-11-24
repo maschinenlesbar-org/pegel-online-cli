@@ -76,6 +76,18 @@ const arrayOf =
     Array.isArray(v) && v.every(item);
 const isWater = hasStrings("shortname", "longname");
 const isStation = hasStrings("uuid", "shortname");
+/**
+ * A station asked for with its series (`includeTimeseries`, implied by the other includes): it
+ * carries the list. One without it read as a gauge without a W series at every gauge ("no W
+ * series", a river with "no gauge at high or low water") when the upstream dropped the flag.
+ */
+const isStationWithSeries: Shape = (v) => isStation(v) && Array.isArray((v as { timeseries?: unknown }).timeseries);
+/** The station shape a query asks for, and its names in an error (one station, a list). */
+function stationShape(query: QueryParams): { shape: Shape; one: string; list: string } {
+  return query["includeTimeseries"] === true
+    ? { shape: isStationWithSeries, one: "a station object with its timeseries", list: "an array of stations with their timeseries" }
+    : { shape: isStation, one: "a station object", list: "an array of stations" };
+}
 const isTimeseries = hasStrings("shortname", "unit");
 const isMeasurement: Shape = (v) =>
   hasStrings("timestamp")(v) && (typeof (v as { value?: unknown }).value === "number" || (v as { value?: unknown }).value === null);
@@ -189,7 +201,8 @@ class StationsResource {
     });
     const path = `${API}/stations.json`;
     const body = await this.e.getJson(path, query);
-    const stations = expectShape<Station[]>(this.e.describeUrl(path, query), body, arrayOf(isStation), "an array of stations");
+    const { shape, list } = stationShape(query);
+    const stations = expectShape<Station[]>(this.e.describeUrl(path, query), body, arrayOf(shape), list);
     const outside = outsideFilter(query, stations);
     if (outside !== undefined) {
       throw new PegelParseError(
@@ -226,7 +239,8 @@ class StationsResource {
     params = checkParams("stations.get parameters", params, STATION_INCLUDE_KEYS);
     const path = `${API}/stations/${enc("station", station)}.json`;
     const query = stationIncludes(params);
-    return stationOf(expectShape(this.e.describeUrl(path, query), await this.e.getJson(path, query), isStation, "a station object"));
+    const { shape, one } = stationShape(query);
+    return stationOf(expectShape(this.e.describeUrl(path, query), await this.e.getJson(path, query), shape, one));
   }
 }
 

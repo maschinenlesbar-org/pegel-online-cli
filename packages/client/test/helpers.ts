@@ -72,5 +72,5 @@ export function validFor(req: HttpRequest): HttpResponse {
   if (path.endsWith("/currentmeasurement.json")) return jsonResponse({ timestamp: "2026-10-05T17:00:00+02:00", value: 1 });
   const parts = path.split("/").filter((p) => p !== "");
   if (parts.length === 3) return jsonResponse({ shortname: decodeURIComponent(parts[2]!.replace(/\.json$/, "")), longname: "X", unit: "cm" });
-  return jsonResponse({ uuid: "x", shortname: "X", longname: "X" });
+  return jsonResponse({ uuid: "x", shortname: "X", longname: "X", timeseries: [] });
 }
