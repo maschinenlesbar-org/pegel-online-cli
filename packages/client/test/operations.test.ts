@@ -400,3 +400,28 @@ test("the river verdict counts the gauges it can't judge: no flood reference, no
   const donau = await getRiverOverview(client, { water: "DONAU", now });
   assert.match(donau.status === "ok" ? donau.verdict : "", /0 high, 0 low, 2 without a verdict .*; no gauge at high or low water among the 2 judged\.$/);
 });
+
+/** Hourly points `hours` back from `now`, the value at each hour from `at(hour)`. */
+function window(hours: number, at: (hour: number) => number): { timestamp: string; value: number }[] {
+  return Array.from({ length: hours + 1 }, (_, i) => ({ timestamp: stamp(now, (hours - i) * 60), value: Math.round(at(i) * 100) / 100 }));
+}
+
+test("getLevelTrend after a crest: it peaked and is falling now, never 'rising' from first against last", async () => {
+  const crest = window(168, (h) => (h <= 120 ? 100 + (300 * h) / 120 : 400 - (100 * (h - 120)) / 48));
+  const { client } = clientOf(pegelApi({ measurements: { "593647aa-9fea-43ec-a7d6-6476a76ae868/W": crest } }));
+  const trend = await getLevelTrend(client, { station: "BONN", now });
+  assert.equal(trend.status, "ok");
+  if (trend.status !== "ok") return;
+  assert.equal(trend.direction, "peaked");
+  assert.deepEqual([trend.since?.direction, trend.since?.delta, trend.since?.from.value, trend.since?.ratePerDay], ["falling", -100, 400, -50]);
+  assert.match(trend.verdict, /^BONN \(RHEIN\) W: falling 100 cm since its peak of 400 cm at \S+ \(50 cm\/day\); over the window from \S+ to \S+ up 200 cm; range 100–400 cm\.$/);
+  // The other way round: it bottomed out and is rising now.
+  const trough = window(168, (h) => (h <= 120 ? 400 - (300 * h) / 120 : 100 + (100 * (h - 120)) / 48));
+  const low = await getLevelTrend(clientOf(pegelApi({ measurements: { "593647aa-9fea-43ec-a7d6-6476a76ae868/W": trough } })).client, { station: "BONN", now });
+  assert.equal(low.status === "ok" ? low.direction : "", "bottomed");
+  assert.match(low.status === "ok" ? low.verdict : "", /rising 100 cm since its low of 100 cm/);
+  // A small dip at the end is no turn: still rising.
+  const dip = window(168, (h) => (h <= 160 ? 100 + (300 * h) / 160 : 400 - (h - 160)));
+  const rising = await getLevelTrend(clientOf(pegelApi({ measurements: { "593647aa-9fea-43ec-a7d6-6476a76ae868/W": dip } })).client, { station: "BONN", now });
+  assert.deepEqual(rising.status === "ok" ? [rising.direction, rising.since] : [], ["rising", undefined]);
+});

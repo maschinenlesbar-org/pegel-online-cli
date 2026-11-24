@@ -100,6 +100,10 @@ window):
 - **rate** = `delta` over the window length (e.g. cm/day) — divide by the span
   between `pts[0].timestamp` and `pts[last].timestamp`.
 - **min / max** with their timestamps; the **range** = max − min.
+- **A turn:** when the max (or min) comes after the start and the last value has moved
+  back from it by a quarter of the range or more, the level **peaked** (or bottomed):
+  `last − start` still says "rising" after a crest. Report the move since the turn first
+  ("falling 100 cm since its peak of 400 cm on Monday"), then the window.
 
 ```bash
 pegel --compact measurements BONN W --start P7D \

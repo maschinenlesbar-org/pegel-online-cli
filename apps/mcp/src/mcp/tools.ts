@@ -145,7 +145,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "Water-level trend at one gauge",
     description: [
       'Whether the level at one gauge is rising or falling over a window, by how much, how fast, and its extremes. Use it for "steigt der Rhein in Köln?", "Pegelverlauf Dresden letzte 7 Tage", "fällt die Elbe?", "is the Rhine at Bonn rising or falling?", "level trend over the last 3 days at Köln", "min/max this week", "plot the last days" (points gives a chart series).',
-      "Lead with direction and delta (falling 14 cm over 3 days), then rate and range; say the window actually returned (window.from/to: the API keeps about 31 days and clamps a longer one). For \"right now\" use start P1D, for \"this week\" P7D. A period is ISO-8601 (P7D, not 7d: that is the API's HTTP 400). last.stale: the gauge lags; never call the trend current. unreliable: the gauge reports a fault (the comment); say so first. The unit is the series' (m+NN on canals: 0.02 is 2 cm). Points without a value are left out and counted. For how serious a level is, pair with getWaterLevels. Ambiguous: ask which gauge, call again with its number.",
+      "Lead with direction and delta (falling 14 cm over 3 days), then rate and range; peaked (rose, then fell clearly since its peak) or bottomed (the other way): lead with since (falling 100 cm since the peak), then the window; say the window actually returned (window.from/to: the API keeps about 31 days and clamps a longer one). For \"right now\" use start P1D, for \"this week\" P7D. A period is ISO-8601 (P7D, not 7d: that is the API's HTTP 400). last.stale: the gauge lags; never call the trend current. unreliable: the gauge reports a fault (the comment); say so first. The unit is the series' (m+NN on canals: 0.02 is 2 cm). Points without a value are left out and counted. For how serious a level is, pair with getWaterLevels. Ambiguous: ask which gauge, call again with its number.",
       RULES,
     ].join("\n\n"),
     inputSchema: input(
@@ -158,7 +158,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       },
       ["station"],
     ),
-    outputSchema: output({ station: obj, series: obj, direction: str_, delta: { type: "number" }, ratePerDay: { type: ["number", "null"] }, first: obj, last: obj, min: obj, max: obj, range: { type: "number" }, window: obj, unreliable: bool, sample: arr }),
+    outputSchema: output({ station: obj, series: obj, direction: str_, delta: { type: "number" }, ratePerDay: { type: ["number", "null"] }, since: obj, first: obj, last: obj, min: obj, max: obj, range: { type: "number" }, window: obj, unreliable: bool, sample: arr }),
     source: sourceFor((args) => pathOf(`stations/${encodeURIComponent(str(args, "station") ?? "")}/${str(args, "timeseries") ?? "W"}/measurements.json`, { start: str(args, "start") ?? "P7D", end: str(args, "end") })),
     async run(args, context) {
       const trend = await getLevelTrend(context.client, { station: str(args, "station") ?? "", timeseries: str(args, "timeseries"), start: str(args, "start"), end: str(args, "end"), points: num(args, "points") });

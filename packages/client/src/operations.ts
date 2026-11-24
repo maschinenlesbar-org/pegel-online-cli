@@ -512,9 +512,16 @@ export type LevelTrend =
       station: StationSummary;
       series: { shortname: string; longname?: string; unit?: string; comment?: string };
       verdict: string;
-      direction: "rising" | "falling" | "steady";
+      /**
+       * last against first: rising, falling or steady; `peaked` when the level rose to its maximum
+       * and has fallen clearly since, `bottomed` when it fell to its minimum and has risen clearly
+       * since (`since` says by how much): first against last alone said "rising" after a crest.
+       */
+      direction: "rising" | "falling" | "steady" | "peaked" | "bottomed";
       /** last − first, in the unit. */
       delta: number;
+      /** After a turn (direction peaked or bottomed): the move since the peak or low. */
+      since?: { direction: "rising" | "falling"; from: Point; delta: number; ratePerDay: number | null };
       /** delta per day over the span of the points; null for a single point. */
       ratePerDay: number | null;
       first: Point;
@@ -535,6 +542,41 @@ export type LevelTrend =
 
 /** A window that rose or fell by less than a tenth of its range is steady. */
 const STEADY_SHARE = 0.1;
+
+/** A move back from the window's latest extreme of at least this share of the range is a turn. */
+const TURN_SHARE = 0.25;
+
+/** The smallest move that counts as one at a level gauge, in its unit (cm, or metres: m+NN, m+PNP); 0 for other units. */
+function levelFloor(unit: string, cm: number): number {
+  if (unit === "cm") return cm;
+  return /^m(\+|$)/.test(unit) ? cm / 100 : 0;
+}
+
+/**
+ * The turn in `points` (oldest first) since the window's latest extreme: the last time it was at
+ * its maximum or minimum, when that is not the last point and the level has moved back from it by
+ * at least TURN_SHARE of the range (and a few cm at a level gauge: noise on a flat river is no
+ * turn). Undefined without one.
+ */
+function turnOf(points: readonly Point[], range: number, unit: string): { extreme: "peak" | "low"; at: Point } | undefined {
+  if (points.length < 3 || range === 0) return undefined;
+  let hi = 0;
+  let lo = 0;
+  points.forEach((p, i) => {
+    if (p.value >= (points[hi] as Point).value) hi = i;
+    if (p.value <= (points[lo] as Point).value) lo = i;
+  });
+  const at = Math.max(hi, lo);
+  if (at === points.length - 1) return undefined;
+  const moved = Math.abs((points[points.length - 1] as Point).value - (points[at] as Point).value);
+  if (moved < Math.max(TURN_SHARE * range, levelFloor(unit, 5))) return undefined;
+  return { extreme: at === hi ? "peak" : "low", at: points[at] as Point };
+}
+
+/** Days between two times, or NaN. */
+function daysBetween(from: string, to: string): number {
+  return (Date.parse(to) - Date.parse(from)) / 86_400_000;
+}
 
 /**
  * The trend at one gauge over a window: direction, delta, rate per day, extremes, the last
@@ -584,12 +626,25 @@ export async function getLevelTrend(client: PegelOnlineClient, input: LevelTrend
   }
   const delta = round(lastPoint.value - first.value);
   const range = round(max.value - min.value);
-  const direction = delta === 0 || Math.abs(delta) <= STEADY_SHARE * range ? "steady" : delta > 0 ? "rising" : "falling";
-  const days = (Date.parse(lastPoint.timestamp) - Date.parse(first.timestamp)) / 86_400_000;
+  const overall = delta === 0 || Math.abs(delta) <= STEADY_SHARE * range ? "steady" : delta > 0 ? "rising" : "falling";
+  const days = daysBetween(first.timestamp, lastPoint.timestamp);
   const ratePerDay = Number.isFinite(days) && days > 0 ? round(delta / days) : null;
+  const unit = typeof series.unit === "string" ? series.unit : "";
+  // A turn against the overall direction (a crest after a rise, a low after a fall, or either in a
+  // window that came back to where it began) is what the level does now.
+  const turn = turnOf(valued, range, unit);
+  const turned = turn !== undefined && (turn.extreme === "peak" ? overall !== "falling" : overall !== "rising") ? turn : undefined;
+  const direction = turned === undefined ? overall : turned.extreme === "peak" ? "peaked" : "bottomed";
+  const since =
+    turned === undefined
+      ? undefined
+      : (() => {
+          const moved = round(lastPoint.value - turned.at.value);
+          const span = daysBetween(turned.at.timestamp, lastPoint.timestamp);
+          return { direction: moved > 0 ? ("rising" as const) : ("falling" as const), from: { timestamp: turned.at.timestamp, value: turned.at.value }, delta: moved, ratePerDay: Number.isFinite(span) && span > 0 ? round(moved / span) : null };
+        })();
   const { ageMinutes, aheadMinutes } = ageOf(lastPoint.timestamp, now);
   const stale = ageMinutes !== undefined && ageMinutes > STALE_AFTER_MINUTES;
-  const unit = typeof series.unit === "string" ? series.unit : "";
   const comment = commentOf(series);
   const forecast = isForecast(series);
   const fault = comment !== undefined && !forecast;
@@ -601,12 +656,20 @@ export async function getLevelTrend(client: PegelOnlineClient, input: LevelTrend
   if (aheadMinutes !== undefined && !forecast) notes.push(`The last reading is stamped ${hoursText(aheadMinutes)} ahead of now: a wrong clock at the gauge or here; the window's times are not to be trusted.`);
   if (unit !== "" && unit !== "cm") notes.push(`The unit is ${unit}, not cm: a change of 0.02 is 2 cm.`);
   if (forecast) notes.push("WV is a forecast series: its points are forecasts and estimates, not measurements.");
-  const by = `${Math.abs(delta)}${unit === "" ? "" : ` ${unit}`}`;
+  const u = unit === "" ? "" : ` ${unit}`;
+  const by = `${Math.abs(delta)}${u}`;
+  const head =
+    since !== undefined
+      ? `${since.direction} ${Math.abs(since.delta)}${u} since its ${direction === "peaked" ? "peak" : "low"} of ${since.from.value}${u} at ${since.from.timestamp}` +
+        `${since.ratePerDay === null ? "" : ` (${Math.abs(since.ratePerDay)}${u}/day)`}; over the window from ${first.timestamp} to ${lastPoint.timestamp} ` +
+        (overall === "steady" ? `back where it began (${delta >= 0 ? "+" : "-"}${by})` : `${overall === "rising" ? "up" : "down"} ${by}`)
+      : (direction === "steady" ? `steady (${delta >= 0 ? "+" : "-"}${by})` : `${direction} ${by}`) +
+        ` from ${first.timestamp} to ${lastPoint.timestamp}` +
+        `${ratePerDay === null || direction === "steady" ? "" : ` (${Math.abs(ratePerDay)}${u}/day)`}`;
   const verdict =
     `${hit.station.shortname}${summary.water === undefined ? "" : ` (${summary.water})`} ${series.shortname}: ` +
-    (direction === "steady" ? `steady (${delta >= 0 ? "+" : "-"}${by})` : `${direction} ${by}`) +
-    ` from ${first.timestamp} to ${lastPoint.timestamp}` +
-    `${ratePerDay === null || direction === "steady" ? "" : ` (${Math.abs(ratePerDay)}${unit === "" ? "" : ` ${unit}`}/day)`}; range ${min.value}–${max.value}${unit === "" ? "" : ` ${unit}`}` +
+    head +
+    `; range ${min.value}–${max.value}${u}` +
     `${stale && ageMinutes !== undefined && !forecast ? `; last reading ${hoursText(ageMinutes)} old` : ""}${fault ? "; gauge fault, unreliable" : ""}.`;
   return {
     status: "ok",
@@ -617,6 +680,7 @@ export async function getLevelTrend(client: PegelOnlineClient, input: LevelTrend
     direction,
     delta,
     ratePerDay,
+    ...(since === undefined ? {} : { since }),
     first: { timestamp: first.timestamp, value: first.value },
     last: { timestamp: lastPoint.timestamp, value: lastPoint.value, ageMinutes, stale, ...(aheadMinutes === undefined || forecast ? {} : { aheadMinutes }) },
     min: { timestamp: min.timestamp, value: min.value },

@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
 import { connect } from "./harness.js";
-import { pegelApi } from "./helpers.js";
+import { pegelApi, stamp } from "./helpers.js";
 
 /** The mock, its readings timed against the real clock (the tools read it). */
 const api = () => pegelApi({ now: new Date() });
@@ -104,5 +104,17 @@ test("listWaters, listStations, getStation and getMeasurements: lists, the marks
   assert.match(String(koeln["source"]), /\/stations\/a6ee8177-107b-47dd-bcfd-30960ccc6e9c\.json\?includeTimeseries=true&includeCurrentMeasurement=true&includeCharacteristicValues=true$/);
   const points = (await connection.call("getMeasurements", { station: "BONN", start: "P3D", offset: 5, limit: 10 })).structuredContent ?? {};
   assert.deepEqual([points["total"], points["missing"], points["nextOffset"], (points["measurements"] as { value: number | null }[])[5]?.value], [73, 1, 15, null]);
+  await connection.close();
+});
+
+test("getLevelTrend after a crest answers peaked, with the fall since the peak, through the protocol", async () => {
+  const now = new Date();
+  const at = (h: number) => (h <= 120 ? 100 + (300 * h) / 120 : 400 - (100 * (h - 120)) / 48);
+  const crest = Array.from({ length: 169 }, (_, i) => ({ timestamp: stamp(now, (168 - i) * 60), value: Math.round(at(i)) }));
+  const connection = await connect({ transport: pegelApi({ now, measurements: { "593647aa-9fea-43ec-a7d6-6476a76ae868/W": crest } }) });
+  const result = await connection.call("getLevelTrend", { station: "BONN" });
+  const content = result.structuredContent ?? {};
+  assert.equal(content["direction"], "peaked", result.content[0]?.text);
+  assert.equal((content["since"] as { delta: number }).delta, -100);
   await connection.close();
 });
