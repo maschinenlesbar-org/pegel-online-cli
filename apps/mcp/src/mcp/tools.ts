@@ -82,7 +82,9 @@ const start = (fallback: string): JsonSchema => ({ type: "string", minLength: 1,
 const end: JsonSchema = { type: "string", minLength: 1, maxLength: 40, description: "Window end: an ISO-8601 instant; default now." };
 const offset = (max: number): JsonSchema => ({ type: "integer", minimum: 0, maximum: max, description: "Where the page starts (default 0); nextOffset says where the next one does." });
 const limit = (max: number, fallback: number, what: string): JsonSchema => ({ type: "integer", minimum: 1, maximum: max, description: `How many ${what} per page (1-${max}, default ${fallback}).` });
-const stationList = (max: number): JsonSchema => ({ type: "array", items: station, minItems: 1, maxItems: max, description: `1-${max} gauges by German name, number or uuid: ["BONN", "KÖLN"], ["2710080"].` });
+// A name in a list at most 40 characters (every gauge name is 30 or less, a uuid 36): 50 of 100
+// made a 30 KB request the service didn't answer; the client also refuses a list too long to send.
+const stationList = (max: number): JsonSchema => ({ type: "array", items: { ...station, maxLength: 40 }, minItems: 1, maxItems: max, description: `1-${max} gauges by German name, number or uuid: ["BONN", "KÖLN"], ["2710080"].` });
 
 /** The request each call's answer comes from, recorded by run: `source` reads it back for the same arguments. */
 const requested = new WeakMap<object, string>();

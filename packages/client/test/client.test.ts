@@ -552,3 +552,14 @@ test("a current measurement embedded in a station or series must be a measuremen
   const ok = await clientWith(constantJson([station({ timestamp: "2026-11-19T19:45:00+01:00", value: 99999 })])).stations.list({ includeCurrentMeasurement: true });
   assert.equal(ok[0]?.timeseries?.[0]?.currentMeasurement?.value, null);
 });
+
+test("stations.list refuses ids that make a request too long for the service, saying so, before any request", async () => {
+  const mt = constantJson([]);
+  const long = Array.from({ length: 50 }, (_, i) => `${"Ä".repeat(98)}${i}`);
+  await assert.rejects(() => clientWith(mt).stations.list({ ids: long }), (err: unknown) =>
+    err instanceof PegelValidationError && /Invalid ids: the names come to \d+ characters in the request \(at most 4000\).*fewer stations at a time/.test(err.message));
+  assert.equal(mt.calls.length, 0);
+  // 50 uuids fit.
+  await clientWith(mt).stations.list({ ids: Array.from({ length: 50 }, () => "593647aa-9fea-43ec-a7d6-6476a76ae868") });
+  assert.equal(mt.calls.length, 1);
+});

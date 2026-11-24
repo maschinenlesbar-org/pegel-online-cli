@@ -520,7 +520,7 @@ test("measurements of WV print the forecast points with initialized and type", a
 
 test("a note quotes the value you typed at most 200 characters long (L3)", async () => {
   const cli = makeCli(() => jsonResponse([]));
-  const long = "K".repeat(5000);
+  const long = "K".repeat(3000);
   assert.equal(await run(["stations", "list", "--ids", long], cli.deps), 0);
   const note = cli.err.find((line) => line.includes("matched no station")) ?? "";
   assert.match(note, /--ids "K+"… matched no station/);

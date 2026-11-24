@@ -167,7 +167,8 @@ The API answers an unknown `--ids` entry by leaving it out, and an unknown `--wa
 station; …`) and still exits `0`. Every option but `--ids` takes one value; giving one
 twice is a usage error (exit `2`). `--ids` takes a comma-separated list, and may be repeated;
 each item is one id, and an empty item (`--ids ","`, `BONN,,KÖLN`) is a usage error, not
-"every station".
+"every station". The ids may come to at most 4000 characters as sent (a longer request goes
+unanswered): ask for fewer at a time.
 
 ### `measurements` options
 

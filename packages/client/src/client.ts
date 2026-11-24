@@ -8,7 +8,7 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
-import { PegelAmbiguousStationError, PegelParseError, quoteValue } from "./errors.js";
+import { PegelAmbiguousStationError, PegelParseError, PegelValidationError, quoteValue } from "./errors.js";
 import {
   assertValid,
   idListProblem,
@@ -192,6 +192,25 @@ function includeQuery(p: IncludeParams): QueryParams {
   });
 }
 
+/**
+ * The longest `ids` value sent, in characters as encoded in the URL. 50 names of 100 characters
+ * made a 30 KB request, which the service didn't answer at all (a network error, the reason lost);
+ * every real gauge name is 30 characters or less, a uuid 36, so 50 of them fit.
+ */
+export const MAX_IDS_QUERY_CHARS = 4000;
+
+/** The `ids` list as sent, checked (idListProblem) and not too long for one request. */
+function idsValue(ids: readonly string[]): string {
+  const joined = (assertValid("ids", ids, idListProblem) as string[]).map(normalizeToken).join(",");
+  const length = encodeURIComponent(joined).length;
+  if (length > MAX_IDS_QUERY_CHARS) {
+    throw new PegelValidationError(
+      `Invalid ids: the names come to ${length} characters in the request (at most ${MAX_IDS_QUERY_CHARS}); PEGELONLINE doesn't answer a request that long: ask for fewer stations at a time.`,
+    );
+  }
+  return joined;
+}
+
 /** Stations: list with filters, or fetch one by uuid/number/shortname/longname. */
 class StationsResource {
   constructor(private readonly e: RequestEngine) {}
@@ -206,8 +225,7 @@ class StationsResource {
   async list(params: StationListParams = {}): Promise<Station[]> {
     params = checkParams("stations.list parameters", params, LIST_KEYS);
     const query = prune({
-      ids:
-        params.ids === undefined ? undefined : (assertValid("ids", params.ids, idListProblem) as string[]).map(normalizeToken).join(","),
+      ids: params.ids === undefined ? undefined : idsValue(params.ids),
       waters: optionalValue("waters", params.waters),
       fuzzyId: optionalValue("fuzzyId", params.fuzzyId, textProblem),
       ...stationIncludes(params),

@@ -143,3 +143,15 @@ test("a station id with a comma is refused with what this server takes for sever
   }
   await connection.close();
 });
+
+test("a stations list too long for one request is refused with the reason; a name over 40 characters by the schema", async () => {
+  const upstream = pegelApi();
+  const connection = await connect({ transport: upstream });
+  const long = await connection.call("listStations", { stations: Array.from({ length: 50 }, (_, i) => `${"Ä".repeat(38)}${i}`) });
+  assert.equal(long.isError, true);
+  assert.match(long.content[0]?.text ?? "", /characters in the request \(at most 4000\)/);
+  const over = await connection.call("getStationsMap", { stations: ["X".repeat(41)] });
+  assert.equal(over.isError, true);
+  assert.equal(upstream.calls.length, 0);
+  await connection.close();
+});
