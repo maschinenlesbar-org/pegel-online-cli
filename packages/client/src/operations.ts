@@ -751,12 +751,18 @@ export async function getRiverOverview(client: PegelOnlineClient, input: RiverOv
   const units = [...new Set(gauges.map((g) => g.reading.unit).filter((u): u is string => u !== undefined))];
   if (units.length > 1) notes.push(`The readings come in ${units.join(", ")}: never compare values across units (m+NN is a height above sea level in metres, not a depth).`);
   const named_ = (verdict: LevelVerdict): string => gauges.filter((g) => g.reading.verdict === verdict).map((g) => g.station.shortname).join(", ");
+  // The gauges without a verdict are counted too: "no gauge at high or low water" for a river where
+  // a third have no flood reference (or a canal where none has) read as all normal.
+  const unjudged = counts["no-reference"] + counts["no-series"] + counts["no-value"] + counts["no-reading"];
+  const judged = counts.high + counts.low + counts.normal;
+  const none = counts.high + counts.low === 0 && counts["state-not-understood"] === 0;
   const verdict =
     `${water.shortname}: ${gauges.length} gauge${gauges.length === 1 ? "" : "s"}, ${counts.high} high${counts.high > 0 ? ` (${named_("high")})` : ""}, ${counts.low} low${counts.low > 0 ? ` (${named_("low")})` : ""}` +
+    `${unjudged > 0 ? `, ${unjudged} without a verdict (no flood reference, series or value: never call them normal)` : ""}` +
     `${counts["gauge-fault"] > 0 ? `, ${counts["gauge-fault"]} with a gauge fault` : ""}${counts["state-not-understood"] > 0 ? `, ${counts["state-not-understood"]} with a state not understood (no verdict)` : ""}` +
     `${counts["out-dated"] > 0 ? `, ${counts["out-dated"]} without a current reading` : ""}` +
     `${counts.stale > 0 ? `, ${counts.stale} stale (over two hours old)` : ""}${counts.future > 0 ? `, ${counts.future} stamped in the future (a wrong clock)` : ""}` +
-    `${counts.high + counts.low === 0 && counts["state-not-understood"] === 0 ? "; no gauge at high or low water" : ""}.`;
+    `${!none ? "" : judged === 0 ? "; none could be judged" : unjudged > 0 ? `; no gauge at high or low water among the ${judged} judged` : "; no gauge at high or low water"}.`;
   return { status: "ok", searched, water, verdict, order: flowNote(water.shortname), total: gauges.length, counts, ...(asOf === undefined ? {} : { asOf }), attention, gauges, notes };
 }
 

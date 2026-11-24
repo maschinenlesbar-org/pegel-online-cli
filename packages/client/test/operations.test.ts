@@ -186,7 +186,7 @@ test("getRiverOverview: the Rhine in flow order, high and low counted and named 
   assert.equal(rhein.counts.high, 1);
   assert.equal(rhein.counts["no-value"], 1);
   assert.deepEqual(rhein.attention.map((a) => a.shortname), ["EMMERICH"]);
-  assert.equal(rhein.verdict, "RHEIN: 5 gauges, 1 high (EMMERICH), 0 low.");
+  assert.equal(rhein.verdict, "RHEIN: 5 gauges, 1 high (EMMERICH), 0 low, 2 without a verdict (no flood reference, series or value: never call them normal).");
   assert.match(rhein.order, /km grow downstream/);
   assert.equal(rhein.asOf, "2026-11-19T19:45:00+01:00");
 });
@@ -206,7 +206,7 @@ test("getRiverOverview: the Danube's km count down, so the table runs from the l
     ["BRAKE", "lower"],
   ]);
   assert.deepEqual(weser.attention.map((a) => a.shortname), ["DREYE", "RINTELN"], "low first, then the gauge fault");
-  assert.match(weser.verdict, /1 low \(DREYE\), 1 with a gauge fault/);
+  assert.match(weser.verdict, /1 low \(DREYE\), 2 without a verdict \(.*\), 1 with a gauge fault/);
   assert.match(weser.order, /Two chainages/);
 });
 
@@ -387,4 +387,16 @@ test("one gauge named in several forms is read once", async () => {
   const levels = await getWaterLevels(client, { stations: ["2710080", "BONN", "bonn", "593647aa-9fea-43ec-a7d6-6476a76ae868", "KÖLN"], now });
   assert.deepEqual(levels.readings.map((r) => [r.station.shortname, r.asked]), [["BONN", "2710080"], ["KÖLN", "KÖLN"]]);
   assert.equal(levels.verdict.match(/BONN:/g)?.length, 1);
+});
+
+test("the river verdict counts the gauges it can't judge: no flood reference, no series, no value", async () => {
+  const { client } = clientOf();
+  const rhein = await getRiverOverview(client, { water: "RHEIN", now });
+  // KONSTANZ-RHEIN has no flood reference, PANNERDENSE KOP sent its placeholder.
+  assert.match(rhein.status === "ok" ? rhein.verdict : "", /^RHEIN: 5 gauges, 1 high \(EMMERICH\), 0 low, 2 without a verdict \(no flood reference, series or value: never call them normal\)\.$/);
+  const canal = gauges().filter((g) => g.water === "DEK");
+  const dek = await getRiverOverview(clientOf(pegelApi({ gauges: canal })).client, { water: "DEK", now });
+  assert.match(dek.status === "ok" ? dek.verdict : "", /^DEK: 1 gauge, 0 high, 0 low, 1 without a verdict \(.*\); none could be judged\.$/);
+  const donau = await getRiverOverview(client, { water: "DONAU", now });
+  assert.match(donau.status === "ok" ? donau.verdict : "", /0 high, 0 low, 2 without a verdict .*; no gauge at high or low water among the 2 judged\.$/);
 });
