@@ -294,10 +294,11 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "Raw measurements of one series",
     description: [
       'The raw points of one series at one gauge in a window, oldest first, with the unit: water level every 15 minutes, or a forecast (WV). Use it for "Messwerte Pegel Bonn der letzten 24 Stunden", "Wasserstandsvorhersage Köln", "export the readings at Dresden as CSV", "raw water levels at Kaub since Monday", "the forecast for the Rhine at Köln".',
-      "A value null is no reading (the gauge's placeholder): leave it out of a minimum, maximum or trend; missing counts them. Times carry the German offset. Forecast points (WV) carry type (forecast, then the rougher estimate) and initialized; they are no measurements. A day is about 96 points, a week about 670: paged (nextOffset); for direction and extremes use getLevelTrend instead. Only about the last 31 days are kept; a period is ISO-8601 (P1D, not 1d).",
+      "A value null is no reading (the gauge's placeholder): leave it out of a minimum, maximum or trend; missing counts them. Times carry the German offset. Forecast points (WV) carry type (forecast, then the rougher estimate) and initialized; they are no measurements. A day is 96 points at most gauges (every 15 minutes), 1440 a day at one-minute gauges (about 225, HAMBURG ST. PAULI among them): total says how many; paged (nextOffset, to the end of the ~31 days), or a later start skips ahead; for direction and extremes use getLevelTrend instead. Only about the last 31 days are kept; a period is ISO-8601 (P1D, not 1d).",
       RULES,
     ].join("\n\n"),
-    inputSchema: input({ station, timeseries, start: start("P1D"), end, offset: offset(5000), limit: limit(1000, 200, "points") }, ["station"]),
+    // offset reaches the last point of 31 days at a one-minute gauge (44 640).
+    inputSchema: input({ station, timeseries, start: start("P1D"), end, offset: offset(50000), limit: limit(1000, 200, "points") }, ["station"]),
     outputSchema: output({ station: obj, series: obj, missing: int, measurements: arr, nextOffset: int }),
     source: sourceFor((args) => pathOf(`stations/${encodeURIComponent(str(args, "station") ?? "")}/${str(args, "timeseries") ?? "W"}/measurements.json`, { start: str(args, "start") ?? "P1D", end: str(args, "end") })),
     paged: (args) => ({ list: "measurements", offset: num(args, "offset") ?? 0 }),

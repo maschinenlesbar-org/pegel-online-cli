@@ -118,3 +118,17 @@ test("getLevelTrend after a crest answers peaked, with the fall since the peak, 
   assert.equal((content["since"] as { delta: number }).delta, -100);
   await connection.close();
 });
+
+test("getMeasurements pages through a week of a one-minute gauge to its end; the description says such gauges exist", async () => {
+  const now = new Date();
+  const minutes = Array.from({ length: 7 * 1440 + 1 }, (_, i) => ({ timestamp: stamp(now, 7 * 1440 - i), value: 500 + (i % 7) }));
+  const connection = await connect({ transport: pegelApi({ now, measurements: { "593647aa-9fea-43ec-a7d6-6476a76ae868/W": minutes } }) });
+  const late = await connection.call("getMeasurements", { station: "BONN", start: "P7D", offset: 5340, limit: 100 });
+  assert.notEqual(late.isError, true, late.content[0]?.text);
+  assert.deepEqual([late.structuredContent?.["total"], late.structuredContent?.["nextOffset"]], [10081, 5440]);
+  const last = await connection.call("getMeasurements", { station: "BONN", start: "P7D", offset: 10000, limit: 100 });
+  assert.equal((last.structuredContent?.["measurements"] as unknown[]).length, 81);
+  await connection.close();
+  const description = listTools().find((t) => t.name === "getMeasurements")?.description ?? "";
+  assert.match(description, /1440 a day at one-minute gauges/);
+});

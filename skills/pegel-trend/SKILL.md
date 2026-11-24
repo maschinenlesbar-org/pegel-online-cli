@@ -71,8 +71,9 @@ with real readings, in October 2026). Drop the `null` points before reducing, an
 how many there were.
 `value` is in the series' `unit` (from the call above). `timestamp` carries a **local German
 offset** (`+02:00` in summer); even when you pass `Z` (UTC) bounds, the returned
-timestamps are local. Default series sampling is ~15 min, so a week is ~670 points
-— never enumerate them; reduce.
+timestamps are local. Most series are sampled every 15 min, so a week is ~670 points;
+about 225 gauges send one a minute (HAMBURG ST. PAULI: ~10 000 a week) — never
+enumerate them; reduce.
 
 > **Trap: a bad `--start` is an error, an empty window is not.** An unparseable
 > period/date (e.g. `7d`) makes the API return **HTTP 400**; the CLI prints
