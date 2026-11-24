@@ -132,3 +132,14 @@ test("getMeasurements pages through a week of a one-minute gauge to its end; the
   const description = listTools().find((t) => t.name === "getMeasurements")?.description ?? "";
   assert.match(description, /1440 a day at one-minute gauges/);
 });
+
+test("a station id with a comma is refused with what this server takes for several gauges, not a CLI command", async () => {
+  const connection = await connect({ transport: pegelApi() });
+  for (const [tool, args] of [["getStation", { station: "BONN,KÖLN" }], ["listStations", { stations: ["NEUSTADT,"] }], ["getWaterLevels", { stations: ["BONN,KÖLN"] }]] as const) {
+    const text = (await connection.call(tool, args)).content[0]?.text ?? "";
+    assert.match(text, /cannot contain ","/, tool);
+    assert.match(text, /several gauges as separate names in a list/, tool);
+    assert.doesNotMatch(text, /--ids/, tool);
+  }
+  await connection.close();
+});

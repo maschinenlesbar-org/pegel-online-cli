@@ -95,9 +95,12 @@ export const parseId = parserOf(idProblem);
 
 /**
  * commander value-parser for the `<station>` positional: the library's stationIdProblem (idProblem,
- * and no ",", which the name lookup would read as a list), as a usage error before any request.
+ * and no ",", which the name lookup would read as a list), as a usage error before any request;
+ * for a comma, the reason names this CLI's list command instead of the library's list.
  */
-export const parseStationId = parserOf(stationIdProblem);
+export const parseStationId = parserOf((value: string) =>
+  stationIdProblem(value)?.replace("give several gauges as separate names in a list.", "for several stations use stations list --ids."),
+);
 
 /**
  * commander value-parser for a comma-separated list (`--ids BONN,KÖLN`): split with the library's

@@ -203,6 +203,13 @@ test('"." / ".." <station> is a usage error (exit 2) before any request', async 
   }
 });
 
+test("a <station> with a comma is a usage error that names the CLI's list command", async () => {
+  const cli = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["current", "BONN,KÖLN"], cli.deps), 2);
+  assert.equal(cli.mt.calls.length, 0);
+  assert.match(cli.err.join("\n"), /cannot contain ","[^\n]*for several stations use stations list --ids/);
+});
+
 test("--start is sent and an omitted --end is not", async () => {
   const cli = makeCli(() => jsonResponse([]));
   await run(["measurements", "BONN", "W", "--start", "P3D"], cli.deps);

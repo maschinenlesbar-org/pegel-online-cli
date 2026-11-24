@@ -145,14 +145,15 @@ export function idProblem(value: string): string | undefined {
  * can: {@link idProblem}, with the hint that a station is always reachable by its number or uuid,
  * and no ",": a name is looked up first as `ids=<name>` (`stations.assertUnique`), where the API
  * splits at the comma — `"NEUSTADT,"` found both NEUSTADTs and `","` downloaded every station —
- * and no station's name holds one.
+ * and no station's name holds one. The reason says to give several gauges as separate names in
+ * a list (`stations.list({ ids })`, the operations' `stations`); the CLI names its own command.
  */
 export function stationIdProblem(value: string): string | undefined {
   const problem = tokenProblem(value);
   if (problem !== undefined) return problem;
   const id = value.trim();
   if (id.includes("/")) return `${quoteValue(id)}: an id cannot contain "/" (the API reads it as a path separator); use the station's number or uuid.`;
-  if (id.includes(",")) return `${quoteValue(id)}: a station id cannot contain "," (the API reads it as a list); for several stations use stations list --ids.`;
+  if (id.includes(",")) return `${quoteValue(id)}: a station id cannot contain "," (the API reads it as a list); give several gauges as separate names in a list.`;
   return idProblem(value);
 }
 
