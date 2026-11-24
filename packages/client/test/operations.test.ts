@@ -481,3 +481,9 @@ test("a forecast issued more than a day ago says how old it is", async () => {
   const fresh = await getMeasurements(clientOf().client, { station: "KÖLN", timeseries: "WV", now });
   assert.doesNotMatch(fresh.status === "ok" ? fresh.notes.join(" ") : "", /issued at/);
 });
+
+test("an operator's comment with line breaks is one line in a reading's text", async () => {
+  const broken = gauges().map((g) => (g.shortname === "RINTELN" ? { ...g, series: [{ ...g.series[0]!, comment: { shortDescription: "Störung", longDescription: "Pegel defekt.\nMesswerte\r\nfehlerhaft." } }] } : g));
+  const [r] = (await getWaterLevels(clientOf(pegelApi({ gauges: broken })).client, { stations: ["RINTELN"], now })).readings;
+  assert.equal(r?.reading.comment, "Störung: Pegel defekt. Messwerte fehlerhaft.");
+});

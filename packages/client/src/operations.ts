@@ -181,12 +181,17 @@ function verdictOf(current: CurrentMeasurement | undefined, series: string): Lev
   return "no-reference";
 }
 
-/** The comment of a disturbed series as one text, or undefined. */
+/**
+ * The comment of a disturbed series as one text on one line (a line break in the long description
+ * stayed inside the reading's text and the verdict), or undefined.
+ */
 function commentOf(series: TimeseriesInfo | undefined): string | undefined {
   const c = series?.comment;
   if (c === undefined || c === null || typeof c.shortDescription !== "string") return undefined;
-  const long = typeof c.longDescription === "string" && c.longDescription.trim() !== c.shortDescription.trim() ? c.longDescription.trim() : "";
-  return long === "" ? c.shortDescription.trim() : `${c.shortDescription.trim()}: ${long}`;
+  const line = (text: string): string => text.replace(/\s+/g, " ").trim();
+  const short = line(c.shortDescription);
+  const long = typeof c.longDescription === "string" && line(c.longDescription) !== short ? line(c.longDescription) : "";
+  return long === "" ? short : `${short}: ${long}`;
 }
 
 /** A forecast issued longer ago than this says how old it is (BfG issues one a day). */
