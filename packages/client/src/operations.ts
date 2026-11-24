@@ -515,13 +515,17 @@ export type LevelTrend =
       /**
        * last against first: rising, falling or steady; `peaked` when the level rose to its maximum
        * and has fallen clearly since, `bottomed` when it fell to its minimum and has risen clearly
-       * since (`since` says by how much): first against last alone said "rising" after a crest.
+       * since (`since` says by how much): first against last alone said "rising" after a crest;
+       * `oscillating` when it swings up and down again and again (a tide gauge, a regulated
+       * water): first against last is then wherever the tide was (`swings` has the highs and lows).
        */
-      direction: "rising" | "falling" | "steady" | "peaked" | "bottomed";
+      direction: "rising" | "falling" | "steady" | "peaked" | "bottomed" | "oscillating";
       /** last − first, in the unit. */
       delta: number;
       /** After a turn (direction peaked or bottomed): the move since the peak or low. */
       since?: { direction: "rising" | "falling"; from: Point; delta: number; ratePerDay: number | null };
+      /** When the level oscillates: how often it turned, and its first and last high and low waters. */
+      swings?: Swings;
       /** delta per day over the span of the points; null for a single point. */
       ratePerDay: number | null;
       first: Point;
@@ -571,6 +575,54 @@ function turnOf(points: readonly Point[], range: number, unit: string): { extrem
   const moved = Math.abs((points[points.length - 1] as Point).value - (points[at] as Point).value);
   if (moved < Math.max(TURN_SHARE * range, levelFloor(unit, 5))) return undefined;
   return { extreme: at === hi ? "peak" : "low", at: points[at] as Point };
+}
+
+/** The swings of an oscillating level: how often it turned, its first and last highs and lows. */
+export interface Swings {
+  turns: number;
+  highs: { first: Point; last: Point };
+  lows: { first: Point; last: Point };
+}
+
+/** A level that turns this often in a window, each swing a large share of the range, oscillates. */
+const MIN_TURNS = 4;
+/** A swing counts when it is at least this share of the range (and 20 cm at a level gauge). */
+const SWING_SHARE = 0.3;
+
+/**
+ * The swings of `points` (oldest first) when the level oscillates: a zigzag over the points that
+ * counts a high or a low once the level has moved back from it by SWING_SHARE of the range (and at
+ * least 20 cm at a level gauge, so noise on a flat river doesn't count); MIN_TURNS of them or more
+ * is a tide (the lower Elbe and Weser, the coasts: 300-400 cm twice a day) or a regulated water.
+ * One linear pass. Undefined when the level doesn't oscillate.
+ */
+function swingsOf(points: readonly Point[], range: number, unit: string): Swings | undefined {
+  const step = Math.max(SWING_SHARE * range, levelFloor(unit, 20));
+  if (points.length < 3 || range < step) return undefined;
+  const turns: { kind: "high" | "low"; at: Point }[] = [];
+  let dir = 0;
+  let hi = points[0] as Point;
+  let lo = points[0] as Point;
+  for (const p of points) {
+    if (dir >= 0 && p.value >= hi.value) hi = p;
+    if (dir <= 0 && p.value <= lo.value) lo = p;
+    if (dir === 0) {
+      if (hi.value - lo.value >= step) dir = Date.parse(hi.timestamp) > Date.parse(lo.timestamp) ? 1 : -1;
+    } else if (dir === 1 && hi.value - p.value >= step) {
+      turns.push({ kind: "high", at: hi });
+      dir = -1;
+      lo = p;
+    } else if (dir === -1 && p.value - lo.value >= step) {
+      turns.push({ kind: "low", at: lo });
+      dir = 1;
+      hi = p;
+    }
+  }
+  const highs = turns.filter((t) => t.kind === "high").map((t) => t.at);
+  const lows = turns.filter((t) => t.kind === "low").map((t) => t.at);
+  if (turns.length < MIN_TURNS || highs.length === 0 || lows.length === 0) return undefined;
+  const pick = (list: Point[]) => ({ first: { ...(list[0] as Point) }, last: { ...(list[list.length - 1] as Point) } });
+  return { turns: turns.length, highs: pick(highs), lows: pick(lows) };
 }
 
 /** Days between two times, or NaN. */
@@ -632,9 +684,10 @@ export async function getLevelTrend(client: PegelOnlineClient, input: LevelTrend
   const unit = typeof series.unit === "string" ? series.unit : "";
   // A turn against the overall direction (a crest after a rise, a low after a fall, or either in a
   // window that came back to where it began) is what the level does now.
-  const turn = turnOf(valued, range, unit);
+  const swings = swingsOf(valued, range, unit);
+  const turn = swings === undefined ? turnOf(valued, range, unit) : undefined;
   const turned = turn !== undefined && (turn.extreme === "peak" ? overall !== "falling" : overall !== "rising") ? turn : undefined;
-  const direction = turned === undefined ? overall : turned.extreme === "peak" ? "peaked" : "bottomed";
+  const direction = swings !== undefined ? "oscillating" : turned === undefined ? overall : turned.extreme === "peak" ? "peaked" : "bottomed";
   const since =
     turned === undefined
       ? undefined
@@ -656,10 +709,14 @@ export async function getLevelTrend(client: PegelOnlineClient, input: LevelTrend
   if (aheadMinutes !== undefined && !forecast) notes.push(`The last reading is stamped ${hoursText(aheadMinutes)} ahead of now: a wrong clock at the gauge or here; the window's times are not to be trusted.`);
   if (unit !== "" && unit !== "cm") notes.push(`The unit is ${unit}, not cm: a change of 0.02 is 2 cm.`);
   if (forecast) notes.push("WV is a forecast series: its points are forecasts and estimates, not measurements.");
+  if (swings !== undefined) notes.push(`The level turned ${swings.turns} times in the window (a tide, or a regulated water): the first and the last point are wherever it was in a swing. For a trend, compare the high waters with each other, and the low waters (swings), not first and last.`);
   const u = unit === "" ? "" : ` ${unit}`;
   const by = `${Math.abs(delta)}${u}`;
   const head =
-    since !== undefined
+    swings !== undefined
+      ? `swings up and down, ${swings.turns} turns from ${first.timestamp} to ${lastPoint.timestamp} (a tide, or a regulated water): ` +
+        `high waters from ${swings.highs.first.value} to ${swings.highs.last.value}${u}, low waters from ${swings.lows.first.value} to ${swings.lows.last.value}${u}; first against last says nothing about a trend`
+      : since !== undefined
       ? `${since.direction} ${Math.abs(since.delta)}${u} since its ${direction === "peaked" ? "peak" : "low"} of ${since.from.value}${u} at ${since.from.timestamp}` +
         `${since.ratePerDay === null ? "" : ` (${Math.abs(since.ratePerDay)}${u}/day)`}; over the window from ${first.timestamp} to ${lastPoint.timestamp} ` +
         (overall === "steady" ? `back where it began (${delta >= 0 ? "+" : "-"}${by})` : `${overall === "rising" ? "up" : "down"} ${by}`)
@@ -681,6 +738,7 @@ export async function getLevelTrend(client: PegelOnlineClient, input: LevelTrend
     delta,
     ratePerDay,
     ...(since === undefined ? {} : { since }),
+    ...(swings === undefined ? {} : { swings }),
     first: { timestamp: first.timestamp, value: first.value },
     last: { timestamp: lastPoint.timestamp, value: lastPoint.value, ageMinutes, stale, ...(aheadMinutes === undefined || forecast ? {} : { aheadMinutes }) },
     min: { timestamp: min.timestamp, value: min.value },

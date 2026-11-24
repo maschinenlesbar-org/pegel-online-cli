@@ -425,3 +425,21 @@ test("getLevelTrend after a crest: it peaked and is falling now, never 'rising' 
   const rising = await getLevelTrend(clientOf(pegelApi({ measurements: { "593647aa-9fea-43ec-a7d6-6476a76ae868/W": dip } })).client, { station: "BONN", now });
   assert.deepEqual(rising.status === "ok" ? [rising.direction, rising.since] : [], ["rising", undefined]);
 });
+
+test("getLevelTrend at a tide gauge: the level swings up and down, first against last is no trend", async () => {
+  // Three days every 15 minutes, a tide of 400 cm range every 12.42 hours, the highs and lows sinking 20 cm.
+  const points = Array.from({ length: 3 * 96 + 1 }, (_, i) => {
+    const h = i / 4;
+    return { timestamp: stamp(now, (72 - h) * 60), value: Math.round(530 + 200 * Math.sin((2 * Math.PI * h) / 12.42) - (20 * h) / 72) };
+  });
+  const { client } = clientOf(pegelApi({ measurements: { "593647aa-9fea-43ec-a7d6-6476a76ae868/W": points } }));
+  const trend = await getLevelTrend(client, { station: "BONN", start: "P3D", now });
+  assert.equal(trend.status, "ok");
+  if (trend.status !== "ok") return;
+  assert.equal(trend.direction, "oscillating");
+  assert.equal(trend.since, undefined);
+  assert.ok((trend.swings?.turns ?? 0) >= 10, JSON.stringify(trend.swings));
+  assert.ok((trend.swings?.highs.last.value ?? 0) < (trend.swings?.highs.first.value ?? 0));
+  assert.match(trend.verdict, /^BONN \(RHEIN\) W: swings up and down, \d+ turns from \S+ to \S+ \(a tide, or a regulated water\): high waters from \d+ to \d+ cm, low waters from \d+ to \d+ cm; first against last says nothing about a trend; range \d+–\d+ cm\.$/);
+  assert.match(trend.notes.join(" "), /compare the high waters with each other, and the low waters/);
+});

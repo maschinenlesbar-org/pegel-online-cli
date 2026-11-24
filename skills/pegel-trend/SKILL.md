@@ -104,6 +104,10 @@ window):
   back from it by a quarter of the range or more, the level **peaked** (or bottomed):
   `last − start` still says "rising" after a crest. Report the move since the turn first
   ("falling 100 cm since its peak of 400 cm on Monday"), then the window.
+- **A tide gauge** (the lower Elbe and Weser, the coasts — HAMBURG ST. PAULI swings
+  300–400 cm twice a day): when the level turns up and down again and again, `last −
+  start` is wherever the tide was at the two ends. Say it swings (a tide), and compare
+  the high waters with each other and the low waters with each other, never first and last.
 
 ```bash
 pegel --compact measurements BONN W --start P7D \

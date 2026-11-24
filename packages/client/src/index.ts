@@ -76,6 +76,7 @@ export {
   summaryOf,
   MAX_STATIONS,
   STALE_AFTER_MINUTES,
+  AHEAD_TOLERANCE_MINUTES,
 } from "./operations.js";
 export type {
   AmbiguousStation,
@@ -103,6 +104,7 @@ export type {
   StationSummary,
   StationsMap,
   StationsMapInput,
+  Swings,
   VerdictCounts,
   WaterList,
   WaterLevels,
