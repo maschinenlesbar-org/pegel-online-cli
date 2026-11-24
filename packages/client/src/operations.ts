@@ -437,7 +437,8 @@ export interface WaterLevels {
 /**
  * The live reading at named gauges, with the unit read from the series, the time, how old it is,
  * and a verdict from stateMnwMhw. One request for every name given by id, one more per name
- * matched only as a part of a name. A name naming several gauges is reported, never picked.
+ * matched only as a part of a name. A name naming several gauges is reported, never picked; a
+ * gauge named in several forms is read once (`asked` is the first form).
  */
 export async function getWaterLevels(client: PegelOnlineClient, input: WaterLevelsInput): Promise<WaterLevels> {
   if (!Array.isArray(input.stations) || input.stations.length === 0 || input.stations.length > MAX_STATIONS) {
@@ -448,7 +449,14 @@ export async function getWaterLevels(client: PegelOnlineClient, input: WaterLeve
   const now = input.now ?? new Date();
   const searched = { stations, timeseries };
   const lookup = await lookupStations(client, stations, "current");
+  // One gauge named in several forms (its number, its name in two cases, its uuid) is read once.
+  const seen = new Set<string>();
   const readings = lookup.found
+    .filter(({ station }) => {
+      if (seen.has(station.uuid)) return false;
+      seen.add(station.uuid);
+      return true;
+    })
     .map(({ selector, station, matchedBy }): StationReading => {
       const reading = readingOf(station, timeseries, now);
       return { asked: selector, matchedBy, station: summaryOf(station), reading, text: `${station.shortname}: ${readingText(reading)}` };

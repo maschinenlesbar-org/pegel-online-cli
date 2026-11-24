@@ -381,3 +381,10 @@ test("a reading stamped in the future is flagged, never the level now", async ()
   const [near] = (await getWaterLevels(clientOf(pegelApi({ gauges: drift })).client, { stations: ["BONN"], now })).readings;
   assert.deepEqual([near?.reading.aheadMinutes, near?.reading.ageMinutes], [undefined, 0]);
 });
+
+test("one gauge named in several forms is read once", async () => {
+  const { client } = clientOf();
+  const levels = await getWaterLevels(client, { stations: ["2710080", "BONN", "bonn", "593647aa-9fea-43ec-a7d6-6476a76ae868", "KÖLN"], now });
+  assert.deepEqual(levels.readings.map((r) => [r.station.shortname, r.asked]), [["BONN", "2710080"], ["KÖLN", "KÖLN"]]);
+  assert.equal(levels.verdict.match(/BONN:/g)?.length, 1);
+});
