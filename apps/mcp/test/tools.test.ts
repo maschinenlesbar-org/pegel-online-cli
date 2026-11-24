@@ -10,7 +10,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
 import { connect } from "./harness.js";
-import { pegelApi, stamp } from "./helpers.js";
+import { limitTransport } from "../src/mcp/limiter.js";
+import { makeMockTransport, pegelApi, pegelResponder, stamp } from "./helpers.js";
 
 /** The mock, its readings timed against the real clock (the tools read it). */
 const api = () => pegelApi({ now: new Date() });
@@ -170,4 +171,22 @@ test("getStationsMap: many gauges without coordinates don't crowd out the featur
   const second = (await connection.call("getStationsMap", { water: "RHEIN", offset: 10, limit: 5 })).structuredContent ?? {};
   assert.deepEqual([(second["features"] as unknown[]).length, (second["leftOff"] as unknown[]).length, second["leftOffTotal"]], [5, 0, 400]);
   await connection.close();
+});
+
+test("getWaterLevels at the call deadline answers with the gauges it has read and names the ones it hasn't", async () => {
+  // The lookup by id answers; the lookup of a name part waits until the call's signal stops it.
+  const answer = pegelResponder({ now: new Date() });
+  const upstream = makeMockTransport((req) =>
+    new URL(req.url).searchParams.has("fuzzyId")
+      ? new Promise((_, reject) => req.signal?.addEventListener("abort", () => reject(new Error("stopped")), { once: true }))
+      : answer(req),
+  );
+  const connection = await connect({ transport: { transport: limitTransport(upstream.transport) }, config: { callTimeoutMs: 300 } });
+  const result = await connection.call("getWaterLevels", { stations: ["BONN", "DARCH"] });
+  await connection.close();
+  assert.notEqual(result.isError, true, result.content[0]?.text);
+  const content = result.structuredContent ?? {};
+  assert.deepEqual((content["readings"] as { station: { shortname: string } }[]).map((r) => r.station.shortname), ["BONN"]);
+  assert.deepEqual(content["notRead"], ["DARCH"]);
+  assert.match(String(content["verdict"]), /"DARCH" not looked up: the call's time ran out \(or it was cancelled\) first; ask for it again/);
 });

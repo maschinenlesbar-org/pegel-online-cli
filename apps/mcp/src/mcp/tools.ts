@@ -135,14 +135,14 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "Live water level at German gauges",
     description: [
       'The live water level (or flow, temperature) at 1-10 named gauges of Germany\'s federal waterways, with unit, time and a verdict: high, low or normal. Use it for "wie hoch ist der Rhein in Bonn?", "Pegelstand Köln aktuell", "ist die Elbe in Dresden hoch?", "what\'s the Rhine level at Bonn?", "is the water high in Cologne?", "flood risk at Emmerich?".',
-      "Report value with its unit (never assume cm: canal gauges give m+NN, a height above sea level) and the time; lead with high and low. verdict: high (at or above mean high water), low (at or below mean low water), normal; gauge-fault (state commented: give the comment, the value only as unreliable), out-dated (no current reading), no-reference (no flood mark published: never call it normal; flow and temperature series have none), no-value (the gauge sent its placeholder), no-series (available lists the gauge's series), state-not-understood (a state this server doesn't know: no verdict, it may be high: say so, point to the flood services). stale: the reading is over two hours old: give its own time, never call it the level now; aheadMinutes: stamped in the future (a wrong clock), never the level now either. Gauge names are German (KÖLN, not Cologne); ambiguous lists the gauges a name means (NEUSTADT: LEINE and OSTSEE): ask which one and call again with its number. unmatched names found none. The verdict is no official flood warning: point to the states' flood services for those.",
+      "Report value with its unit (never assume cm: canal gauges give m+NN, a height above sea level) and the time; lead with high and low. verdict: high (at or above mean high water), low (at or below mean low water), normal; gauge-fault (state commented: give the comment, the value only as unreliable), out-dated (no current reading), no-reference (no flood mark published: never call it normal; flow and temperature series have none), no-value (the gauge sent its placeholder), no-series (available lists the gauge's series), state-not-understood (a state this server doesn't know: no verdict, it may be high: say so, point to the flood services). stale: the reading is over two hours old: give its own time, never call it the level now; aheadMinutes: stamped in the future (a wrong clock), never the level now either. Gauge names are German (KÖLN, not Cologne); ambiguous lists the gauges a name means (NEUSTADT: LEINE and OSTSEE): ask which one and call again with its number. unmatched names found none; notRead names weren't looked up in the call's time: ask for them again. The verdict is no official flood warning: point to the states' flood services for those.",
       RULES,
     ].join("\n\n"),
     inputSchema: input({ stations: stationList(10), timeseries }, ["stations"]),
-    outputSchema: output({ readings: arr, ambiguous: arr, unmatched: arr }),
+    outputSchema: output({ readings: arr, ambiguous: arr, unmatched: arr, notRead: arr }),
     source: (args) => pathOf("stations.json", { ids: list<string>(args, "stations")?.map((s) => s.trim()).join(","), ...LIVE }),
     async run(args, context) {
-      return { ...(await getWaterLevels(context.client, { stations: list<string>(args, "stations") ?? [], timeseries: str(args, "timeseries") })) };
+      return { ...(await getWaterLevels(context.client, { stations: list<string>(args, "stations") ?? [], timeseries: str(args, "timeseries"), signal: context.signal })) };
     },
   },
   {

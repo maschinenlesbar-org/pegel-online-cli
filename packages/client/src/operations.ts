@@ -293,6 +293,10 @@ interface Lookup {
   found: { selector: string; station: Station; matchedBy: "id" | "name part" }[];
   ambiguous: AmbiguousStation[];
   unmatched: string[];
+  /** Names not looked up by a part of the name: `signal` aborted first (a deadline, a cancellation). */
+  notRead: string[];
+  /** Why `notRead` isn't empty: the error the aborted lookup failed with. */
+  stopped?: unknown;
 }
 
 /**
@@ -300,17 +304,30 @@ interface Lookup {
  * case), then, for a name that matched none, one by a part of the name (the API's fuzzyId). A
  * name that names several stations (NEUSTADT: LEINE and OSTSEE) is `ambiguous`, never picked; a
  * part of a name matching several is too. `includeCurrent` embeds the series and their current
- * readings, `includeSeries` the series alone.
+ * readings, `includeSeries` the series alone. Once `signal` has aborted (the caller's deadline or
+ * cancellation), a lookup by a part of a name that fails, and those after it, are `notRead`: the
+ * names already found are kept.
  */
-async function lookupStations(client: PegelOnlineClient, selectors: readonly string[], embed: "current" | "series"): Promise<Lookup> {
+async function lookupStations(client: PegelOnlineClient, selectors: readonly string[], embed: "current" | "series", signal?: AbortSignal): Promise<Lookup> {
   const includes = embed === "current" ? { includeCurrentMeasurement: true } : { includeTimeseries: true };
   const listed = await client.stations.list({ ids: [...selectors], ...includes });
-  const lookup: Lookup = { found: [], ambiguous: [], unmatched: [] };
+  const lookup: Lookup = { found: [], ambiguous: [], unmatched: [], notRead: [] };
   for (const selector of selectors) {
     let matches = named(listed, selector);
     let matchedBy: "id" | "name part" = "id";
     if (matches.length === 0) {
-      matches = await client.stations.list({ fuzzyId: selector, ...includes });
+      if (lookup.notRead.length > 0) {
+        lookup.notRead.push(selector);
+        continue;
+      }
+      try {
+        matches = await client.stations.list({ fuzzyId: selector, ...includes });
+      } catch (err) {
+        if (signal?.aborted !== true) throw err;
+        lookup.notRead.push(selector);
+        lookup.stopped = err;
+        continue;
+      }
       matchedBy = "name part";
     }
     if (matches.length === 1) lookup.found.push({ selector, station: matches[0] as Station, matchedBy });
@@ -410,6 +427,11 @@ export interface WaterLevelsInput extends ClockInput {
   stations: readonly string[];
   /** The series: W water level (default), Q flow, WT water temperature, LT air temperature. */
   timeseries?: string | undefined;
+  /**
+   * The caller's deadline or cancellation: once it aborts, the names not yet looked up are
+   * answered as `notRead`, with the readings found so far.
+   */
+  signal?: AbortSignal | undefined;
 }
 
 /** One gauge's reading. */
@@ -436,6 +458,8 @@ export interface WaterLevels {
   ambiguous: AmbiguousStation[];
   /** Names that name no gauge. */
   unmatched: string[];
+  /** Names not looked up: the caller's deadline or cancellation came first (ask for them again). */
+  notRead: string[];
   reason?: string;
 }
 
@@ -453,7 +477,9 @@ export async function getWaterLevels(client: PegelOnlineClient, input: WaterLeve
   const timeseries = seriesName(input.timeseries);
   const now = input.now ?? new Date();
   const searched = { stations, timeseries };
-  const lookup = await lookupStations(client, stations, "current");
+  const lookup = await lookupStations(client, stations, "current", input.signal);
+  // Nothing read before the deadline: the deadline's error, not an empty answer.
+  if (lookup.notRead.length > 0 && lookup.found.length === 0 && lookup.ambiguous.length === 0) throw lookup.stopped;
   // One gauge named in several forms (its number, its name in two cases, its uuid) is read once.
   const seen = new Set<string>();
   const readings = lookup.found
@@ -473,6 +499,10 @@ export async function getWaterLevels(client: PegelOnlineClient, input: WaterLeve
   if (lookup.ambiguous.length > 0) parts.push(`${lookup.ambiguous.map((a) => `${JSON.stringify(a.station)} names ${a.total} gauges`).join(", ")}: ask which one, then use its number`);
   if (lookup.unmatched.length > 0) parts.push(`no gauge for ${lookup.unmatched.map((n) => JSON.stringify(n)).join(", ")}`);
   const stale = readings.filter((r) => r.reading.stale).length;
+  if (lookup.notRead.length > 0) {
+    const one = lookup.notRead.length === 1;
+    parts.push(`${lookup.notRead.map((n) => JSON.stringify(n)).join(", ")} not looked up: the call's time ran out (or it was cancelled) first; ask for ${one ? "it" : "them"} again`);
+  }
   if (stale > 0) parts.push(`${stale} reading${stale === 1 ? " is" : "s are"} more than two hours old: not the level now`);
   const future = readings.filter((r) => r.reading.aheadMinutes !== undefined).length;
   if (future > 0) parts.push(`${future} reading${future === 1 ? " is" : "s are"} stamped in the future: not the level now`);
@@ -483,6 +513,7 @@ export async function getWaterLevels(client: PegelOnlineClient, input: WaterLeve
     readings,
     ambiguous: lookup.ambiguous,
     unmatched: lookup.unmatched,
+    notRead: lookup.notRead,
     ...(status === "empty" ? { reason: unmatchedReason(lookup.unmatched) } : {}),
   };
 }
