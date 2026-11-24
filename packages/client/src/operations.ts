@@ -43,22 +43,29 @@ const MAX_CANDIDATES = 10;
  *   and temperature series and on canal levels in m+NN): no verdict, never "fine";
  * - `no-value`: the gauge sent its placeholder (99999, mapped to null);
  * - `no-reading`: the series has no current measurement;
- * - `no-series`: the station has no series of that name.
+ * - `no-series`: the station has no series of that name;
+ * - `state-not-understood`: a state none of the six the API documents (low, normal, high,
+ *   unknown, commented, out-dated), or none at all on a W series, where every reading carries one
+ *   (checked live 2026-11-24): the answer changed, and the reading may be high; no verdict.
  */
-export type LevelVerdict = "high" | "low" | "normal" | "gauge-fault" | "out-dated" | "no-reference" | "no-value" | "no-reading" | "no-series";
+export type LevelVerdict = "high" | "low" | "normal" | "gauge-fault" | "state-not-understood" | "out-dated" | "no-reference" | "no-value" | "no-reading" | "no-series";
 
 /** The order verdicts are reported in: what needs attention first. */
 const VERDICT_RANK: Readonly<Record<LevelVerdict, number>> = {
   high: 0,
   low: 1,
   "gauge-fault": 2,
-  "out-dated": 3,
-  normal: 4,
-  "no-reference": 5,
-  "no-value": 6,
-  "no-reading": 7,
-  "no-series": 8,
+  "state-not-understood": 3,
+  "out-dated": 4,
+  normal: 5,
+  "no-reference": 6,
+  "no-value": 7,
+  "no-reading": 8,
+  "no-series": 9,
 };
+
+/** The states of a reading the API documents (stateMnwMhw). */
+const KNOWN_STATES: ReadonlySet<string> = new Set(["low", "normal", "high", "unknown", "commented", "out-dated"]);
 
 /** A gauge, reduced to what names it and places it. */
 export interface StationSummary {
@@ -143,14 +150,15 @@ function ageOf(timestamp: string | undefined, now: Date): number | undefined {
   return Number.isFinite(ms) ? Math.max(0, Math.round((now.getTime() - ms) / 60_000)) : undefined;
 }
 
-/** The verdict of a current measurement, from its state (see {@link LevelVerdict}). */
-function verdictOf(current: CurrentMeasurement | undefined): LevelVerdict {
+/** The verdict of a current measurement of the series `series`, from its state (see {@link LevelVerdict}). */
+function verdictOf(current: CurrentMeasurement | undefined, series: string): LevelVerdict {
   if (current === undefined) return "no-reading";
   const state = current.stateMnwMhw;
   if (state === "commented") return "gauge-fault";
   if (state === "out-dated") return "out-dated";
   if (current.value === null) return "no-value";
   if (state === "high" || state === "low" || state === "normal") return state as LevelVerdict;
+  if (state === undefined ? fold(series) === "W" : !KNOWN_STATES.has(state)) return "state-not-understood";
   return "no-reference";
 }
 
@@ -196,7 +204,7 @@ export function readingOf(station: Station, name: string, now: Date): GaugeReadi
     stale: ageMinutes !== undefined && ageMinutes > STALE_AFTER_MINUTES,
     ...(current?.stateMnwMhw === undefined ? {} : { state: current.stateMnwMhw }),
     ...(current?.stateNswHsw === undefined ? {} : { shippingState: current.stateNswHsw }),
-    verdict: verdictOf(current),
+    verdict: verdictOf(current, series.shortname),
     ...(comment === undefined ? {} : { comment }),
   };
 }
@@ -216,6 +224,8 @@ function readingText(r: GaugeReading): string {
       return `gauge fault${r.comment === undefined ? "" : `: ${r.comment}`}${level === "" ? "" : ` (${level} reported, unreliable)`}`;
     case "out-dated":
       return `no current reading (out-dated${r.timestamp === undefined ? "" : `, last ${r.timestamp}`})`;
+    case "state-not-understood":
+      return `${level}, state ${r.state === undefined ? "missing," : JSON.stringify(r.state)} not understood by this server (PEGELONLINE's answer changed): no verdict, it may be high; check the states' flood services${age}`;
     case "no-reference":
       return `${level}, no flood reference published${age}`;
     case "no-value":
@@ -707,9 +717,10 @@ export async function getRiverOverview(client: PegelOnlineClient, input: RiverOv
   const named_ = (verdict: LevelVerdict): string => gauges.filter((g) => g.reading.verdict === verdict).map((g) => g.station.shortname).join(", ");
   const verdict =
     `${water.shortname}: ${gauges.length} gauge${gauges.length === 1 ? "" : "s"}, ${counts.high} high${counts.high > 0 ? ` (${named_("high")})` : ""}, ${counts.low} low${counts.low > 0 ? ` (${named_("low")})` : ""}` +
-    `${counts["gauge-fault"] > 0 ? `, ${counts["gauge-fault"]} with a gauge fault` : ""}${counts["out-dated"] > 0 ? `, ${counts["out-dated"]} without a current reading` : ""}` +
+    `${counts["gauge-fault"] > 0 ? `, ${counts["gauge-fault"]} with a gauge fault` : ""}${counts["state-not-understood"] > 0 ? `, ${counts["state-not-understood"]} with a state not understood (no verdict)` : ""}` +
+    `${counts["out-dated"] > 0 ? `, ${counts["out-dated"]} without a current reading` : ""}` +
     `${counts.stale > 0 ? `, ${counts.stale} stale (over two hours old)` : ""}` +
-    `${counts.high + counts.low === 0 ? "; no gauge at high or low water" : ""}.`;
+    `${counts.high + counts.low === 0 && counts["state-not-understood"] === 0 ? "; no gauge at high or low water" : ""}.`;
   return { status: "ok", searched, water, verdict, order: flowNote(water.shortname), total: gauges.length, counts, ...(asOf === undefined ? {} : { asOf }), attention, gauges, notes };
 }
 

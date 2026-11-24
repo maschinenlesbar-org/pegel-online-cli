@@ -68,7 +68,7 @@ For scripts and shared configs, pin a release and its digest from the
 
 | Tool | What it answers |
 |---|---|
-| `getWaterLevels` | The live level (or flow, temperature) at 1–10 named gauges in one request: value with the series' own unit (cm on rivers, m+NN on canals), time, age, and a verdict from the state against mean low and high water (high, low, normal; a gauge fault with the operator's comment, out-dated, no flood reference, no value), high and low first. A name several gauges carry is ambiguous, with the gauges to choose from. |
+| `getWaterLevels` | The live level (or flow, temperature) at 1–10 named gauges in one request: value with the series' own unit (cm on rivers, m+NN on canals), time, age, and a verdict from the state against mean low and high water (high, low, normal; a gauge fault with the operator's comment, out-dated, no flood reference, no value; a state the server doesn't know is "not understood", never "no flood reference"), high and low first. A name several gauges carry is ambiguous, with the gauges to choose from. |
 | `getLevelTrend` | Rising, falling or steady at one gauge over a window (ISO-8601 period, default P7D): delta, rate per day, min and max with their times, the window the API sent, the last reading's age; points without a value left out and counted; optionally a few points for a chart. |
 | `getRiverOverview` | Every gauge on one water with its live reading, in flow order by river kilometre (the Danube's km count down, the Weser has two chainages), how many are high, low, faulty or stale, and those first. |
 | `getStationsMap` | Gauges as a GeoJSON FeatureCollection of points, by water, names or a bbox, optionally with each one's live reading; gauges without coordinates left off and named. |

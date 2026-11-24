@@ -330,3 +330,37 @@ test("a station-list filter PEGELONLINE ignores is an error, never the network t
   const ids = await listStations(clientOf(ignoring("ids")).client, { stations: ["BONN", "2790020"] });
   assert.deepEqual(ids.status === "ok" ? ids.stations.map((s) => s.shortname) : [], ["BONN", "EMMERICH"]);
 });
+
+/** The mock, its W readings' state rewritten by `edit` (a key renamed, a value changed). */
+function withStates(edit: (current: Record<string, unknown>) => void) {
+  const answer = pegelResponder();
+  return makeMockTransport((req) => {
+    const res = answer(req);
+    const body = JSON.parse(res.body.toString("utf8")) as unknown;
+    const stations = (Array.isArray(body) ? body : [body]) as { timeseries?: { shortname: string; currentMeasurement?: Record<string, unknown> }[] }[];
+    for (const s of stations) for (const t of s.timeseries ?? []) if (t.shortname === "W" && t.currentMeasurement !== undefined) edit(t.currentMeasurement);
+    return { ...res, body: Buffer.from(JSON.stringify(body)) };
+  });
+}
+
+test("a W reading whose state is missing or not one the API documents is not understood, never 'no flood reference'", async () => {
+  const renamed = clientOf(
+    withStates((c) => {
+      c["zustandMnwMhw"] = c["stateMnwMhw"];
+      delete c["stateMnwMhw"];
+    }),
+  ).client;
+  const levels = await getWaterLevels(renamed, { stations: ["EMMERICH", "BONN"], now });
+  assert.deepEqual(levels.readings.map((r) => r.reading.verdict), ["state-not-understood", "state-not-understood"]);
+  assert.match(levels.verdict, /EMMERICH: 812 cm, state missing, not understood by this server/);
+  const river = await getRiverOverview(renamed, { water: "RHEIN", now });
+  assert.match(river.status === "ok" ? river.verdict : "", /4 with a state not understood/);
+  assert.doesNotMatch(river.status === "ok" ? river.verdict : "", /no gauge at high or low water/);
+  const odd = clientOf(withStates((c) => c["stateMnwMhw"] === "high" && (c["stateMnwMhw"] = "very-high"))).client;
+  const [emmerich] = (await getWaterLevels(odd, { stations: ["EMMERICH"], now })).readings;
+  assert.equal(emmerich?.reading.verdict, "state-not-understood");
+  assert.match(emmerich?.text ?? "", /812 cm, state "very-high" not understood by this server/);
+  // A flow series has no state: no flood reference, as before.
+  const [flow] = (await getWaterLevels(clientOf().client, { stations: ["BONN"], timeseries: "Q", now })).readings;
+  assert.equal(flow?.reading.verdict, "no-reference");
+});
