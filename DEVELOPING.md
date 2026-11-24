@@ -261,9 +261,12 @@ holds follows its bytes, not the number of chunks a server sends it in.
 
 **timeoutMs.** A deadline for the whole request, response body included (default 30 s;
 `0` disables). The engine enforces it itself, for every transport: the transport gets an
-`AbortSignal` (`HttpRequest.signal`) that fires at the deadline, and the call rejects then
-with a `PegelNetworkError` whether the transport stops or not, so a `fetch` or `node:http`
-transport can't hang a caller. A timed-out request is not retried.
+`AbortSignal` (`HttpRequest.signal`) that fires at the deadline, with the timeout error as its
+reason, and the call rejects then with a `PegelNetworkError` whether the transport stops or not,
+so a `fetch` or `node:http` transport can't hang a caller. A timed-out request is not retried.
+The built-in transport stops on that signal with its reason, and on a signal another caller
+aborted (the MCP server's limiter adds a tool call's deadline and cancellation) with "Request
+aborted by its caller before it finished": never a timeout that didn't fire.
 
 **Custom transports.** A transport may return the body as a Buffer, any `ArrayBuffer` view
 (fetch's `Uint8Array`, from any realm) or an `ArrayBuffer`, and the headers as a plain record
