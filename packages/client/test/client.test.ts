@@ -541,3 +541,14 @@ test("stations asked for with their series must carry them: an answer without is
   assert.equal((await c.stations.list()).length, 1);
   assert.equal((await clientWith(constantJson([{ ...bare, timeseries: [] }])).stations.list({ includeTimeseries: true })).length, 1);
 });
+
+test("a current measurement embedded in a station or series must be a measurement: no time or a value as text is an error", async () => {
+  const station = (current: Record<string, unknown>) => ({ uuid: "u-1", number: "1", shortname: "EMMERICH", longname: "EMMERICH", timeseries: [{ shortname: "W", longname: "W", unit: "cm", currentMeasurement: current }] });
+  for (const current of [{ value: 812, stateMnwMhw: "high" }, { timestamp: "2026-11-19T19:45:00+01:00", value: "99999" }, { timestamp: "2026-11-19T19:45:00+01:00", value: "182" }]) {
+    await assert.rejects(() => clientWith(constantJson([station(current)])).stations.list({ includeCurrentMeasurement: true }), /expected an array of stations with their timeseries, each current measurement with a string timestamp and a numeric or null value/, JSON.stringify(current));
+    await assert.rejects(() => clientWith(constantJson(station(current))).stations.get("EMMERICH", { includeCurrentMeasurement: true }), /expected a station object with its timeseries, each current measurement with/);
+    await assert.rejects(() => clientWith(constantJson({ shortname: "W", longname: "W", unit: "cm", currentMeasurement: current })).timeseries.get("EMMERICH", "W", { includeCurrentMeasurement: true }), /expected a timeseries object, its current measurement with/);
+  }
+  const ok = await clientWith(constantJson([station({ timestamp: "2026-11-19T19:45:00+01:00", value: 99999 })])).stations.list({ includeCurrentMeasurement: true });
+  assert.equal(ok[0]?.timeseries?.[0]?.currentMeasurement?.value, null);
+});

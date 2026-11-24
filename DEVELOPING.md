@@ -317,7 +317,9 @@ with no reviver; pegel declares none — or a 2xx
 answer without the documented shape: every method checks it — an array of waters or
 stations with string `shortname`/`longname`/`uuid` (asked for with their series, each with its
 `timeseries` list: one without read as a gauge without a W series), a station or timeseries object, a
-measurement with a string `timestamp` and a numeric or `null` `value` — so `null`, `{}`, an
+measurement with a string `timestamp` and a numeric or `null` `value`, also where a series embeds
+its current one (a reading without a time read as fresh, `"99999"` as text passed the placeholder
+check) — so `null`, `{}`, an
 error envelope or a proxy page is never returned as data; an empty body is one too, and so is
 a compressed one, named by its Content-Encoding, since the client does not decompress; and a
 station list with stations outside its `waters` or `fuzzyId` filter, which an upstream that

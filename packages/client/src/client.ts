@@ -81,11 +81,24 @@ const isStation = hasStrings("uuid", "shortname");
  * carries the list. One without it read as a gauge without a W series at every gauge ("no W
  * series", a river with "no gauge at high or low water") when the upstream dropped the flag.
  */
-const isStationWithSeries: Shape = (v) => isStation(v) && Array.isArray((v as { timeseries?: unknown }).timeseries);
+const isStationWithSeries: Shape = (v) => {
+  const series = (v as { timeseries?: unknown }).timeseries;
+  return isStation(v) && Array.isArray(series) && series.every((t) => !isObject(t) || hasValidCurrent(t));
+};
+/**
+ * A series' embedded current measurement, when it has one, is a measurement: a reading without
+ * a time counted as fresh, and a value sent as text ("99999") skipped the placeholder check.
+ */
+function hasValidCurrent(t: Record<string, unknown>): boolean {
+  return t["currentMeasurement"] === undefined || isMeasurement(t["currentMeasurement"]);
+}
+const isTimeseriesWithCurrent: Shape = (v) => isTimeseries(v) && hasValidCurrent(v as Record<string, unknown>);
+/** What an embedded current measurement must be, for an error. */
+const CURRENT_RULE = "current measurement with a string timestamp and a numeric or null value";
 /** The station shape a query asks for, and its names in an error (one station, a list). */
 function stationShape(query: QueryParams): { shape: Shape; one: string; list: string } {
   return query["includeTimeseries"] === true
-    ? { shape: isStationWithSeries, one: "a station object with its timeseries", list: "an array of stations with their timeseries" }
+    ? { shape: isStationWithSeries, one: `a station object with its timeseries, each ${CURRENT_RULE}`, list: `an array of stations with their timeseries, each ${CURRENT_RULE}` }
     : { shape: isStation, one: "a station object", list: "an array of stations" };
 }
 const isTimeseries = hasStrings("shortname", "unit");
@@ -291,7 +304,7 @@ class TimeseriesResource {
     params = checkParams("timeseries.get parameters", params, INCLUDE_KEYS);
     const path = `${API}/stations/${enc("station", station)}/${enc("timeseries", timeseries)}.json`;
     const query = includeQuery(params);
-    return timeseriesOf(expectShape(this.e.describeUrl(path, query), await this.e.getJson(path, query), isTimeseries, "a timeseries object"));
+    return timeseriesOf(expectShape(this.e.describeUrl(path, query), await this.e.getJson(path, query), isTimeseriesWithCurrent, `a timeseries object, its ${CURRENT_RULE}`));
   }
 
   async currentMeasurement(station: string, timeseries = "W"): Promise<CurrentMeasurement> {
