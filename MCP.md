@@ -79,7 +79,8 @@ For scripts and shared configs, pin a release and its digest from the
 
 Waters are taken by shortname, long name, English name or a part (`RHEIN`, `Rhine`,
 `Mittellandkanal`); gauges by German name, number, uuid or a part (`KÖLN`, `2710080`, `DARCHAU`).
-A reading over two hours old is marked stale. The verdict is PEGELONLINE's classification against
+A reading over two hours old is marked stale, one stamped in the future says so (`aheadMinutes`):
+neither is the level now. The verdict is PEGELONLINE's classification against
 the gauge's marks, not an official flood warning.
 
 Every tool only reads. An answer is JSON (`structuredContent` and the same as text), with the

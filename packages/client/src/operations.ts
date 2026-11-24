@@ -28,6 +28,9 @@ import { assertValid, normalizeInput, normalizeToken, stationIdProblem, textProb
 /** A reading older than this is stale: most gauges report every 15 minutes. */
 export const STALE_AFTER_MINUTES = 120;
 
+/** A reading stamped further ahead of the clock than this is in the future (clocks drift a little). */
+export const AHEAD_TOLERANCE_MINUTES = 5;
+
 /** The most station names one {@link getWaterLevels} call takes. */
 export const MAX_STATIONS = 10;
 
@@ -90,10 +93,12 @@ export interface GaugeReading {
   value: number | null;
   /** When it was measured, with the German offset as sent (+01:00 in winter, +02:00 in summer). */
   timestamp?: string;
-  /** How old the reading is, in minutes. */
+  /** How old the reading is, in minutes; unset for one stamped in the future. */
   ageMinutes?: number;
   /** Older than two hours: not the level now. */
   stale: boolean;
+  /** How far ahead of now the reading is stamped, when more than a few minutes: a wrong clock, not the level now. */
+  aheadMinutes?: number;
   /** stateMnwMhw as sent (low, normal, high, unknown, commented, out-dated). */
   state?: string;
   /** stateNswHsw as sent: against the lowest and highest navigable water (shipping bounds). */
@@ -143,11 +148,25 @@ function seriesOf(station: Station, name: string): TimeseriesInfo | undefined {
   return (station.timeseries ?? []).find((t) => typeof t.shortname === "string" && fold(t.shortname) === wanted);
 }
 
-/** Minutes between `timestamp` and `now`, or undefined for a text that is no time. */
-function ageOf(timestamp: string | undefined, now: Date): number | undefined {
+/**
+ * Minutes between `timestamp` and `now` (negative for a time ahead of `now`), or undefined for a
+ * text that is no time.
+ */
+function minutesSince(timestamp: string | undefined, now: Date): number | undefined {
   if (timestamp === undefined) return undefined;
   const ms = Date.parse(timestamp);
-  return Number.isFinite(ms) ? Math.max(0, Math.round((now.getTime() - ms) / 60_000)) : undefined;
+  return Number.isFinite(ms) ? Math.round((now.getTime() - ms) / 60_000) : undefined;
+}
+
+/**
+ * How old a reading stamped `timestamp` is (`ageMinutes`, 0 for one a few minutes ahead: a clock's
+ * drift), or how far ahead of `now` it is stamped (`aheadMinutes`, beyond {@link AHEAD_TOLERANCE_MINUTES}).
+ */
+function ageOf(timestamp: string | undefined, now: Date): { ageMinutes?: number; aheadMinutes?: number } {
+  const minutes = minutesSince(timestamp, now);
+  if (minutes === undefined) return {};
+  if (minutes < -AHEAD_TOLERANCE_MINUTES) return { aheadMinutes: -minutes };
+  return { ageMinutes: Math.max(0, minutes) };
 }
 
 /** The verdict of a current measurement of the series `series`, from its state (see {@link LevelVerdict}). */
@@ -193,7 +212,7 @@ export function readingOf(station: Station, name: string, now: Date): GaugeReadi
     return { timeseries: normalizeToken(name), value: null, stale: false, verdict: "no-series", available };
   }
   const current = series.currentMeasurement;
-  const ageMinutes = ageOf(current?.timestamp, now);
+  const { ageMinutes, aheadMinutes } = ageOf(current?.timestamp, now);
   const comment = commentOf(series);
   return {
     timeseries: series.shortname,
@@ -202,6 +221,7 @@ export function readingOf(station: Station, name: string, now: Date): GaugeReadi
     ...(current?.timestamp === undefined ? {} : { timestamp: current.timestamp }),
     ...(ageMinutes === undefined ? {} : { ageMinutes }),
     stale: ageMinutes !== undefined && ageMinutes > STALE_AFTER_MINUTES,
+    ...(aheadMinutes === undefined ? {} : { aheadMinutes }),
     ...(current?.stateMnwMhw === undefined ? {} : { state: current.stateMnwMhw }),
     ...(current?.stateNswHsw === undefined ? {} : { shippingState: current.stateNswHsw }),
     verdict: verdictOf(current, series.shortname),
@@ -212,7 +232,12 @@ export function readingOf(station: Station, name: string, now: Date): GaugeReadi
 /** A reading as words: "182 cm, normal", "153 cm reported, gauge fault: …", "no value". */
 function readingText(r: GaugeReading): string {
   const level = r.value === null ? "" : `${r.value}${r.unit === undefined ? "" : ` ${r.unit}`}`;
-  const age = r.stale && r.ageMinutes !== undefined ? `, last reading ${hoursText(r.ageMinutes)} old` : "";
+  const age =
+    r.aheadMinutes !== undefined
+      ? `, stamped ${hoursText(r.aheadMinutes)} ahead of now (a wrong clock at the gauge or here): not the level now`
+      : r.stale && r.ageMinutes !== undefined
+        ? `, last reading ${hoursText(r.ageMinutes)} old`
+        : "";
   switch (r.verdict) {
     case "high":
       return `${level}, high (at or above mean high water)${age}`;
@@ -436,6 +461,8 @@ export async function getWaterLevels(client: PegelOnlineClient, input: WaterLeve
   if (lookup.unmatched.length > 0) parts.push(`no gauge for ${lookup.unmatched.map((n) => JSON.stringify(n)).join(", ")}`);
   const stale = readings.filter((r) => r.reading.stale).length;
   if (stale > 0) parts.push(`${stale} reading${stale === 1 ? " is" : "s are"} more than two hours old: not the level now`);
+  const future = readings.filter((r) => r.reading.aheadMinutes !== undefined).length;
+  if (future > 0) parts.push(`${future} reading${future === 1 ? " is" : "s are"} stamped in the future: not the level now`);
   return {
     status,
     searched,
@@ -483,7 +510,7 @@ export type LevelTrend =
       /** delta per day over the span of the points; null for a single point. */
       ratePerDay: number | null;
       first: Point;
-      last: Point & { ageMinutes: number | undefined; stale: boolean };
+      last: Point & { ageMinutes: number | undefined; stale: boolean; aheadMinutes?: number };
       min: Point;
       max: Point;
       range: number;
@@ -552,7 +579,7 @@ export async function getLevelTrend(client: PegelOnlineClient, input: LevelTrend
   const direction = delta === 0 || Math.abs(delta) <= STEADY_SHARE * range ? "steady" : delta > 0 ? "rising" : "falling";
   const days = (Date.parse(lastPoint.timestamp) - Date.parse(first.timestamp)) / 86_400_000;
   const ratePerDay = Number.isFinite(days) && days > 0 ? round(delta / days) : null;
-  const ageMinutes = ageOf(lastPoint.timestamp, now);
+  const { ageMinutes, aheadMinutes } = ageOf(lastPoint.timestamp, now);
   const stale = ageMinutes !== undefined && ageMinutes > STALE_AFTER_MINUTES;
   const unit = typeof series.unit === "string" ? series.unit : "";
   const comment = commentOf(series);
@@ -563,6 +590,7 @@ export async function getLevelTrend(client: PegelOnlineClient, input: LevelTrend
   if (forecast && comment !== undefined) notes.push(`About the forecast: ${comment}`);
   if (missing > 0) notes.push(`${missing} of ${all.length} points had no value (the gauge's placeholder) and were left out.`);
   if (stale && ageMinutes !== undefined && !forecast) notes.push(`The last reading is ${hoursText(ageMinutes)} old: the gauge is lagging; this is not the level now.`);
+  if (aheadMinutes !== undefined && !forecast) notes.push(`The last reading is stamped ${hoursText(aheadMinutes)} ahead of now: a wrong clock at the gauge or here; the window's times are not to be trusted.`);
   if (unit !== "" && unit !== "cm") notes.push(`The unit is ${unit}, not cm: a change of 0.02 is 2 cm.`);
   if (forecast) notes.push("WV is a forecast series: its points are forecasts and estimates, not measurements.");
   const by = `${Math.abs(delta)}${unit === "" ? "" : ` ${unit}`}`;
@@ -582,7 +610,7 @@ export async function getLevelTrend(client: PegelOnlineClient, input: LevelTrend
     delta,
     ratePerDay,
     first: { timestamp: first.timestamp, value: first.value },
-    last: { timestamp: lastPoint.timestamp, value: lastPoint.value, ageMinutes, stale },
+    last: { timestamp: lastPoint.timestamp, value: lastPoint.value, ageMinutes, stale, ...(aheadMinutes === undefined || forecast ? {} : { aheadMinutes }) },
     min: { timestamp: min.timestamp, value: min.value },
     max: { timestamp: max.timestamp, value: max.value },
     range,
@@ -659,8 +687,8 @@ export interface RiverOverviewInput extends ClockInput {
   timeseries?: string | undefined;
 }
 
-/** How many gauges have each verdict, and how many readings are stale. */
-export type VerdictCounts = Record<LevelVerdict, number> & { stale: number };
+/** How many gauges have each verdict, how many readings are stale, and how many are stamped in the future. */
+export type VerdictCounts = Record<LevelVerdict, number> & { stale: number; future: number };
 
 /** The answer of {@link getRiverOverview}. */
 export type RiverOverview =
@@ -719,7 +747,7 @@ export async function getRiverOverview(client: PegelOnlineClient, input: RiverOv
     `${water.shortname}: ${gauges.length} gauge${gauges.length === 1 ? "" : "s"}, ${counts.high} high${counts.high > 0 ? ` (${named_("high")})` : ""}, ${counts.low} low${counts.low > 0 ? ` (${named_("low")})` : ""}` +
     `${counts["gauge-fault"] > 0 ? `, ${counts["gauge-fault"]} with a gauge fault` : ""}${counts["state-not-understood"] > 0 ? `, ${counts["state-not-understood"]} with a state not understood (no verdict)` : ""}` +
     `${counts["out-dated"] > 0 ? `, ${counts["out-dated"]} without a current reading` : ""}` +
-    `${counts.stale > 0 ? `, ${counts.stale} stale (over two hours old)` : ""}` +
+    `${counts.stale > 0 ? `, ${counts.stale} stale (over two hours old)` : ""}${counts.future > 0 ? `, ${counts.future} stamped in the future (a wrong clock)` : ""}` +
     `${counts.high + counts.low === 0 && counts["state-not-understood"] === 0 ? "; no gauge at high or low water" : ""}.`;
   return { status: "ok", searched, water, verdict, order: flowNote(water.shortname), total: gauges.length, counts, ...(asOf === undefined ? {} : { asOf }), attention, gauges, notes };
 }
@@ -745,7 +773,7 @@ function orderAlong(water: string, stations: readonly Station[]): Station[] {
 function countVerdicts(readings: readonly GaugeReading[]): VerdictCounts {
   const counts = Object.fromEntries(Object.keys(VERDICT_RANK).map((k) => [k, 0])) as Record<LevelVerdict, number>;
   for (const r of readings) counts[r.verdict] += 1;
-  return { ...counts, stale: readings.filter((r) => r.stale).length };
+  return { ...counts, stale: readings.filter((r) => r.stale).length, future: readings.filter((r) => r.aheadMinutes !== undefined).length };
 }
 
 function mostCommon(values: readonly (string | undefined)[]): string | undefined {
@@ -867,6 +895,7 @@ export interface GaugeFeature {
     comment?: string;
     measuredAt?: string;
     stale?: boolean;
+    aheadMinutes?: number;
   };
 }
 
@@ -943,6 +972,7 @@ export async function getStationsMap(client: PegelOnlineClient, input: StationsM
         ...(r.comment === undefined ? {} : { comment: r.comment }),
         ...(r.timestamp === undefined ? {} : { measuredAt: r.timestamp }),
         stale: r.stale,
+        ...(r.aheadMinutes === undefined ? {} : { aheadMinutes: r.aheadMinutes }),
       });
     }
     features.push({ type: "Feature", id: s.uuid, geometry: { type: "Point", coordinates: [s.longitude, s.latitude] }, properties });

@@ -20,7 +20,7 @@ import {
   listWaters,
   resolveWater,
 } from "../src/operations.js";
-import { hourly, NOW, pegelApi, pegelResponder, stamp } from "./fixtures.js";
+import { gauges, hourly, NOW, pegelApi, pegelResponder, stamp } from "./fixtures.js";
 import { makeMockTransport } from "./helpers.js";
 
 const clientOf = (api = pegelApi()) => ({ api, client: new PegelOnlineClient({ transport: api.transport }) });
@@ -363,4 +363,21 @@ test("a W reading whose state is missing or not one the API documents is not und
   // A flow series has no state: no flood reference, as before.
   const [flow] = (await getWaterLevels(clientOf().client, { stations: ["BONN"], timeseries: "Q", now })).readings;
   assert.equal(flow?.reading.verdict, "no-reference");
+});
+
+test("a reading stamped in the future is flagged, never the level now", async () => {
+  const ahead = gauges().map((g) => (g.shortname === "BONN" ? { ...g, series: [{ ...g.series[0]!, minutesAgo: -180 }] } : g));
+  const { client } = clientOf(pegelApi({ gauges: ahead }));
+  const [bonn] = (await getWaterLevels(client, { stations: ["BONN"], now })).readings;
+  assert.deepEqual([bonn?.reading.aheadMinutes, bonn?.reading.ageMinutes, bonn?.reading.stale], [180, undefined, false]);
+  assert.match(bonn?.text ?? "", /182 cm, normal, stamped 3 h ahead of now \(a wrong clock at the gauge or here\): not the level now/);
+  const levels = await getWaterLevels(client, { stations: ["BONN", "KÖLN"], now });
+  assert.match(levels.verdict, /1 reading is stamped in the future: not the level now/);
+  const river = await getRiverOverview(client, { water: "RHEIN", now });
+  assert.equal(river.status === "ok" ? river.counts.future : -1, 1);
+  assert.match(river.status === "ok" ? river.verdict : "", /1 stamped in the future/);
+  // A few minutes ahead is a clock's drift, not flagged.
+  const drift = gauges().map((g) => (g.shortname === "BONN" ? { ...g, series: [{ ...g.series[0]!, minutesAgo: -3 }] } : g));
+  const [near] = (await getWaterLevels(clientOf(pegelApi({ gauges: drift })).client, { stations: ["BONN"], now })).readings;
+  assert.deepEqual([near?.reading.aheadMinutes, near?.reading.ageMinutes], [undefined, 0]);
 });
